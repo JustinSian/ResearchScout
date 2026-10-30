@@ -1,28 +1,34 @@
-# 数据与模型：体积大、可重建，不入库
-data/
-# 演示快照要进仓库（6MB），保证 clone 后可直接跑
+# ---- 数据与模型（体积大、可重建）----
+# 注意：不能直接写 `data/`，否则无法再用 ! 放行里面的快照文件
+# （git 规则：父目录被忽略时，其子文件无法被重新包含）
+data/*
 !data/snapshot/
 !data/snapshot/demo.db
+models/
+*.onnx
+
+# 数据库（快照写在后面覆盖，顺序敏感）
 *.db
 *.db-wal
 *.db-shm
-models/
-*.onnx
-!data/.gitkeep
+!data/snapshot/demo.db
 
-# 运行产物
+# ---- 运行产物 ----
 logs/
 data/vfs/
 *.log
 *.pid
 *.jsonl
 
-# 密钥
+# ---- 一次性运维脚本（历史脚本已归档到 scripts/archive/）----
+scripts/_*.sh
+
+# ---- 密钥 ----
 .env
 .env.*
 !.env.example
 
-# Python
+# ---- Python ----
 __pycache__/
 *.py[cod]
 .venv/
@@ -34,7 +40,7 @@ htmlcov/
 build/
 dist/
 
-# 系统/编辑器
+# ---- 系统 / 编辑器 ----
 .DS_Store
 Thumbs.db
 .idea/
