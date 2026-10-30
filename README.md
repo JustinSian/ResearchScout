@@ -98,7 +98,20 @@ BM25 + 向量 + RRF/DBSF 全参数可切，两套 gold set（按被引 / 随机�
 - verifier 抓到过真实错误：把"晶体结构"方向的同名者从审稿人推荐里剔除；
 - 记忆层：同问题二次尽调 **45× 加速**（2,246ms → 50ms），带语料版本校验防旧结论。
 
-### 6. 可观测与运维
+'### 6. 实体层：期刊与机构
+
+对标 AMiner 的 `venue/*` 与 `organization/na` 补齐实体层：
+
+| 实体 | 规模 | 要点 |
+|---|---|---|
+| 期刊 | **2,314 个**（2,308 期刊 + 6 仓储），10,599/11,104 篇挂载 | `PubMed` 这类索引库单列，不再冒充期刊 |
+| 机构 | **4,319 个**，38,663 人挂载 | 20 条缩写展开 + 去连接词；**只在归一化完全一致时自动合并** |
+
+近似重复机构按 `parent_child / similar / same_tokens_confirm` 三类报告，
+**不自动合并**——"University of York" 与 "York University" 是英加两所学校，
+机器分不出来，交给人。
+
+### 7. 可观测与运维'
 
 - 中间件：令牌桶限流 + 参数脱敏（邮箱/手机/长 ID）+ 审计表 + 成本核算；
 - 链路追踪：`tasks / steps / spans`，`/trace/{tid}` 看每步耗时；
@@ -187,8 +200,8 @@ docs/           m1~m28 里程碑报告
 |---|---|---|
 | `person/detail` + `person/figure`（简介/教育/工作/兴趣） | `people` + `name_zh` + `headline` | 字段更薄，但**准入门槛**更严（他们没有可信判定） |
 | `person/paper/relation`、`paper/relation`（引用链） | `work_authors` + `edges` | 等价，但我们**没有引用关系**（cited_by 只是一条边） |
-| `organization/na`、`na/pro`（机构消歧） | `orgs(name, name_zh, kind)` | **缺别名消歧**——这是机构层最大的空白 |
-| `venue/*`（期刊实体、期刊论文关系） | `works.venue` 只有一段文本 | **缺 venue 表**，做不了"期刊年度分析" |
+| `organization/na`、`na/pro`（机构消歧） | **已补**：4,319 个机构实体 / 38,663 人挂载；近似重复只报告不合并 | 归一化 + 候选对，比自动合并保守 |
+| `venue/*`（期刊实体、期刊论文关系） | **已补**：2,314 个期刊实体 / 10,599 篇挂载；`PubMed` 等仓储单列 | 支撑"常发期刊"与期刊分析 |
 | `paper/qa/search`（topic_high/middle/low 三层权重） | `app/subagents.LEX` 一张中英词表 | 我们的主题匹配是简化版，可借鉴三层加权 |
 | `patent/*`、`project/person` | 无 | 不在本项目范围（不做） |
 

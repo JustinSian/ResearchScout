@@ -22,6 +22,8 @@ from app.labels import label_inst, label_topic
 from app.graph_analytics import (community_of, institution_graph, shortest_path)
 from app.dossiers import dossier as get_dossier, dossiers_summary
 from app import hooks, memory
+from app import institutions as inst_mod
+from app import venues as venue_mod
 from app.onboard import welcome as chat_welcome
 from app.zh_names import missing as zh_missing, set_name_zh
 from app.skills import list_skills, load_skill
@@ -338,6 +340,42 @@ def vfs(path: str) -> dict:
     if content is None:
         raise HTTPException(status_code=404, detail="file not found")
     return {"path": path, "bytes": len(content), "content": content}
+
+@app.get("/venues")
+def venues_list(top: int = 20, kind: str = "journal") -> dict:
+    """期刊实体（从 works.venue 归一而来；仓储/预印本单列）。"""
+    items = venue_mod.top_venues(limit=min(max(top, 1), 100), kind=kind)
+    return {"count": len(items), "items": items}
+
+
+@app.get("/venue/{vid:int}")
+def venue_ep(vid: int, papers: int = 10) -> dict:
+    d = venue_mod.venue_detail(vid, limit=min(max(papers, 1), 50))
+    if not d:
+        raise HTTPException(status_code=404, detail="venue not found")
+    return d
+
+
+@app.get("/institutions")
+def institutions_list(top: int = 20, kind: str = "") -> dict:
+    """机构实体（从 people.last_inst 归一而来）。"""
+    items = inst_mod.top(limit=min(max(top, 1), 100), kind=kind)
+    return {"count": len(items), "items": items}
+
+
+@app.get("/institutions/duplicates")
+def institutions_duplicates(limit: int = 20) -> dict:
+    """近似重复机构候选（**只报告**，供人工确认；同名词序陷阱会标 same_tokens_confirm）。"""
+    items = inst_mod.near_duplicates(limit=min(max(limit, 1), 100))
+    return {"count": len(items), "items": items,
+            "note": "自动合并只发生在归一化后完全一致的机构名；这里是待人工确认的候选对。"}
+
+
+@app.get("/people/{pid:int}/affiliation")
+def person_affiliation(pid: int) -> dict:
+    """某位专家归一化后的机构 + 常发期刊（审稿人匹配的两个关键信号）。"""
+    return {"pid": pid, "institution": inst_mod.for_person(pid),
+            "venues": venue_mod.person_venues(pid, limit=5)}
 
 @app.get("/dossiers")
 def dossiers(limit: int = 100) -> dict:

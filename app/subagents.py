@@ -133,8 +133,26 @@ def researcher(query: str, limit: int = 8, log=print) -> dict:
 
 
 # ---------------- analyst ----------------
+def _institution_of(pid: int) -> dict | None:
+    """机构实体（归一后的）。失败返回 None，不影响分析主流程。"""
+    try:
+        from app.institutions import for_person
+        return for_person(pid)
+    except Exception:
+        return None
+
+
+def _person_journals(pid: int, limit: int = 3) -> list[dict]:
+    """常发期刊。失败返回空表。"""
+    try:
+        from app.venues import person_venues
+        return person_venues(pid, limit=limit)
+    except Exception:
+        return []
+
+
 def analyst(pids: list[int], log=print) -> dict:
-    """只读档案算指标：h-index、产出节奏、近五年/早期主题。不做检索。"""
+    """只读档案算指标：h-index、产出节奏、近五年/早期主题、机构与常发期刊。不做检索。"""
     from app.dossiers import dossier
     from app.harness import _term_profile
 
@@ -156,6 +174,10 @@ def analyst(pids: list[int], log=print) -> dict:
             "top_venues": (m.get("top_venues") or [])[:3],
             "recent_terms": _term_profile(pid, last - 4, last + 1, top=6),
             "early_terms": _term_profile(pid, (m.get("first_year") or last), last - 5, top=6),
+            # 机构归一 + 常发期刊：审稿人匹配的两个关键信号
+            # （是否需要回避同机构 / 是否常发目标期刊）
+            "institution": _institution_of(pid),
+            "journals": _person_journals(pid, limit=3),
         })
     out = {"role": "analyst", "count": len(rows), "authors": rows}
     log(f"    analyst: {sum(1 for r in rows if r['has_dossier'])}/{len(rows)} 人有档案")
