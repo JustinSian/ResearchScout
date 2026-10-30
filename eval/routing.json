@@ -1,0 +1,21 @@
+[
+  {"q": "介绍一下钟南山", "expect": "kb"},
+  {"q": "钟南山的研究方向", "expect": "kb"},
+  {"q": "何建行的研究方向", "expect": "kb"},
+  {"q": "钟南山和李兰娟的关系", "expect": "kb"},
+  {"q": "谁和钟南山合作过", "expect": "kb"},
+  {"q": "找研究 dementia 的专家", "expect": "kb"},
+  {"q": "找研究 graph neural network 的论文", "expect": "kb"},
+  {"q": "比较钟南山和李兰娟近五年的研究方向差异", "expect": "task"},
+  {"q": "谁更适合审一篇关于肺癌免疫治疗的稿件", "expect": "task"},
+  {"q": "谁更适合审一篇关于慢阻肺的稿件", "expect": "task"},
+  {"q": "今天北京天气怎么样", "expect": "web"},
+  {"q": "OpenAI 最新模型是什么", "expect": "web"},
+  {"q": "2026年诺贝尔生理学或医学奖得主是谁", "expect": "web"},
+  {"q": "中国男足最新世界排名", "expect": "web"},
+  {"q": "钟南山最近有什么新闻", "expect": "hybrid"},
+  {"q": "何建行 2026 年发表了什么", "expect": "hybrid"},
+  {"q": "帮我看看这个领域谁最厉害", "expect": "kb"},
+  {"q": "推荐几个做免疫治疗的专家", "expect": "kb"},
+  {"q": "最近 AI 领域有什么突破", "expect": "web"}
+]

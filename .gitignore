@@ -1,0 +1,38 @@
+# 数据与模型：体积大、可重建，不入库
+data/
+*.db
+*.db-wal
+*.db-shm
+models/
+*.onnx
+!data/.gitkeep
+
+# 运行产物
+logs/
+data/vfs/
+*.log
+*.pid
+*.jsonl
+
+# 密钥
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

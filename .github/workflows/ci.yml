@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安装轻量依赖（测试不依赖模型与数据库）
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest==7.4.0 fastapi==0.104.1 httpx==0.28.1
+      - name: 单元测试
+        run: python -m pytest tests -q
+      - name: 语法检查（全部模块可编译）
+        run: python -m compileall -q app

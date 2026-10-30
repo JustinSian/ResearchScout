@@ -1,0 +1,146 @@
+[
+ {
+  "config": "bm25",
+  "recall@10": 0.2625,
+  "mrr@10": 0.3732,
+  "ndcg@10": 0.2416,
+  "ci_low": 0.1884,
+  "ci_high": 0.2983,
+  "by_tier": {
+   "institution_random": 0.3769,
+   "topic_random": 0.1064
+  }
+ },
+ {
+  "config": "dense",
+  "recall@10": 0.0675,
+  "mrr@10": 0.1513,
+  "ndcg@10": 0.0645,
+  "ci_low": 0.0402,
+  "ci_high": 0.0951,
+  "by_tier": {
+   "institution_random": 0.0705,
+   "topic_random": 0.0586
+  }
+ },
+ {
+  "config": "rrf_k2",
+  "recall@10": 0.1725,
+  "mrr@10": 0.3214,
+  "ndcg@10": 0.1646,
+  "ci_low": 0.1234,
+  "ci_high": 0.2063,
+  "by_tier": {
+   "institution_random": 0.2544,
+   "topic_random": 0.0749
+  }
+ },
+ {
+  "config": "rrf_k60",
+  "recall@10": 0.2,
+  "mrr@10": 0.3796,
+  "ndcg@10": 0.1964,
+  "ci_low": 0.152,
+  "ci_high": 0.243,
+  "by_tier": {
+   "institution_random": 0.3044,
+   "topic_random": 0.0885
+  }
+ },
+ {
+  "config": "dbsf",
+  "recall@10": 0.1025,
+  "mrr@10": 0.2546,
+  "ndcg@10": 0.103,
+  "ci_low": 0.0756,
+  "ci_high": 0.1343,
+  "by_tier": {
+   "institution_random": 0.1099,
+   "topic_random": 0.0961
+  }
+ },
+ {
+  "config": "bm25_a05",
+  "recall@10": 0.2625,
+  "mrr@10": 0.3719,
+  "ndcg@10": 0.2415,
+  "ci_low": 0.1878,
+  "ci_high": 0.2983,
+  "by_tier": {
+   "institution_random": 0.371,
+   "topic_random": 0.112
+  }
+ },
+ {
+  "config": "bm25_a10",
+  "recall@10": 0.2575,
+  "mrr@10": 0.3659,
+  "ndcg@10": 0.2385,
+  "ci_low": 0.1854,
+  "ci_high": 0.2954,
+  "by_tier": {
+   "institution_random": 0.3688,
+   "topic_random": 0.1083
+  }
+ },
+ {
+  "config": "bm25_a20",
+  "recall@10": 0.2575,
+  "mrr@10": 0.3749,
+  "ndcg@10": 0.2392,
+  "ci_low": 0.1837,
+  "ci_high": 0.2985,
+  "by_tier": {
+   "institution_random": 0.3749,
+   "topic_random": 0.1035
+  }
+ },
+ {
+  "config": "bm25_a40",
+  "recall@10": 0.24,
+  "mrr@10": 0.3976,
+  "ndcg@10": 0.2329,
+  "ci_low": 0.1738,
+  "ci_high": 0.2925,
+  "by_tier": {
+   "institution_random": 0.3741,
+   "topic_random": 0.0918
+  }
+ },
+ {
+  "config": "rrf60_a10",
+  "recall@10": 0.175,
+  "mrr@10": 0.3291,
+  "ndcg@10": 0.1703,
+  "ci_low": 0.13,
+  "ci_high": 0.2153,
+  "by_tier": {
+   "institution_random": 0.26,
+   "topic_random": 0.0806
+  }
+ },
+ {
+  "config": "rrf60_a20",
+  "recall@10": 0.1675,
+  "mrr@10": 0.3127,
+  "ndcg@10": 0.1629,
+  "ci_low": 0.1218,
+  "ci_high": 0.2085,
+  "by_tier": {
+   "institution_random": 0.2555,
+   "topic_random": 0.0703
+  }
+ },
+ {
+  "config": "bm25_a80",
+  "recall@10": 0.2125,
+  "mrr@10": 0.3847,
+  "ndcg@10": 0.2114,
+  "ci_low": 0.1547,
+  "ci_high": 0.273,
+  "by_tier": {
+   "institution_random": 0.3567,
+   "topic_random": 0.0661
+  }
+ }
+]

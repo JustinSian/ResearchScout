@@ -1,0 +1,602 @@
+[
+ {
+  "pid": 18234,
+  "band": "accept",
+  "name": "Nancy R. Cook",
+  "inst": "Brigham and Women's Hospital",
+  "works": 2,
+  "cites": 8768,
+  "score": 0.88,
+  "label": null
+ },
+ {
+  "pid": 3115,
+  "band": "accept",
+  "name": "Walid Ammar",
+  "inst": "University of Washington",
+  "works": 6,
+  "cites": 53136,
+  "score": 1.0,
+  "label": null
+ },
+ {
+  "pid": 7418,
+  "band": "accept",
+  "name": "Daron Acemoğlu",
+  "inst": "Canadian Institute for Advanced Research",
+  "works": 4,
+  "cites": 22418,
+  "score": 0.85,
+  "label": null
+ },
+ {
+  "pid": 700,
+  "band": "accept",
+  "name": "Yves Rosseel",
+  "inst": null,
+  "works": 2,
+  "cites": 27903,
+  "score": 0.88,
+  "label": null
+ },
+ {
+  "pid": 3847,
+  "band": "accept",
+  "name": "Nicholas Bloom",
+  "inst": "John D. and Catherine T. MacArthur Foundation",
+  "works": 2,
+  "cites": 18278,
+  "score": 0.88,
+  "label": null
+ },
+ {
+  "pid": 3260,
+  "band": "accept",
+  "name": "Philippe H. Kolh",
+  "inst": null,
+  "works": 24,
+  "cites": 184634,
+  "score": 1.0,
+  "label": null
+ },
+ {
+  "pid": 7781,
+  "band": "accept",
+  "name": "Yannick Djoumbou-Feunang",
+  "inst": "University of Alberta",
+  "works": 2,
+  "cites": 11822,
+  "score": 0.88,
+  "label": null
+ },
+ {
+  "pid": 1584,
+  "band": "accept",
+  "name": "Erik R. Lindahl",
+  "inst": "Stockholm University",
+  "works": 4,
+  "cites": 47339,
+  "score": 1.0,
+  "label": null
+ },
+ {
+  "pid": 24396,
+  "band": "accept",
+  "name": "Katerina A. Politi",
+  "inst": "Memorial Sloan Kettering Cancer Center",
+  "works": 2,
+  "cites": 7868,
+  "score": 0.88,
+  "label": null
+ },
+ {
+  "pid": 12534,
+  "band": "accept",
+  "name": "Raphaël Rosenhek",
+  "inst": null,
+  "works": 5,
+  "cites": 26244,
+  "score": 0.85,
+  "label": null
+ },
+ {
+  "pid": 8179,
+  "band": "accept",
+  "name": "Demitri Muna",
+  "inst": "Harvard University",
+  "works": 2,
+  "cites": 13211,
+  "score": 0.88,
+  "label": null
+ },
+ {
+  "pid": 8330,
+  "band": "accept",
+  "name": "Boris T. Bikbov",
+  "inst": "Auckland University of Technology",
+  "works": 3,
+  "cites": 19526,
+  "score": 1.0,
+  "label": null
+ },
+ {
+  "pid": 2782,
+  "band": "accept",
+  "name": "Sergi R. Hildebrandt",
+  "inst": "California Institute of Technology",
+  "works": 2,
+  "cites": 21204,
+  "score": 0.98,
+  "label": null
+ },
+ {
+  "pid": 77,
+  "band": "accept",
+  "name": "Jake Vanderplas",
+  "inst": "Total (France)",
+  "works": 3,
+  "cites": 77788,
+  "score": 1.0,
+  "label": null
+ },
+ {
+  "pid": 1203,
+  "band": "accept",
+  "name": "Roger Stupp",
+  "inst": "Centre Hospitalier Universitaire Vaudois",
+  "works": 3,
+  "cites": 33011,
+  "score": 1.0,
+  "label": null
+ },
+ {
+  "pid": 6366,
+  "band": "accept",
+  "name": "Peter Libby",
+  "inst": "Brigham and Women's Hospital",
+  "works": 4,
+  "cites": 23525,
+  "score": 1.0,
+  "label": null
+ },
+ {
+  "pid": 26376,
+  "band": "accept",
+  "name": "Matthew J. Holman",
+  "inst": "Harvard University",
+  "works": 2,
+  "cites": 8198,
+  "score": 0.88,
+  "label": null
+ },
+ {
+  "pid": 17359,
+  "band": "accept",
+  "name": "J. Brinchmann",
+  "inst": "Leiden University",
+  "works": 3,
+  "cites": 12931,
+  "score": 0.95,
+  "label": null
+ },
+ {
+  "pid": 3395,
+  "band": "accept",
+  "name": "Bernard Iung",
+  "inst": null,
+  "works": 18,
+  "cites": 136780,
+  "score": 1.0,
+  "label": null
+ },
+ {
+  "pid": 176,
+  "band": "accept",
+  "name": "Glen Stecher",
+  "inst": "Arizona State University",
+  "works": 9,
+  "cites": 191610,
+  "score": 1.0,
+  "label": null
+ },
+ {
+  "pid": 10989,
+  "band": "review",
+  "name": "F. A. Jansen",
+  "inst": "European Space Research and Technology Centre",
+  "works": 2,
+  "cites": 10894,
+  "score": 0.53,
+  "label": null
+ },
+ {
+  "pid": 29570,
+  "band": "review",
+  "name": "Nils Petter Gleditsch",
+  "inst": "Norwegian University of Science and Technology",
+  "works": 1,
+  "cites": 3845,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 12362,
+  "band": "review",
+  "name": "Katayoon Kasaian",
+  "inst": "BC Cancer Agency",
+  "works": 1,
+  "cites": 6493,
+  "score": 0.75,
+  "label": null
+ },
+ {
+  "pid": 31277,
+  "band": "review",
+  "name": "Tamas Hickish",
+  "inst": "Royal Bournemouth Hospital",
+  "works": 1,
+  "cites": 3693,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 11165,
+  "band": "review",
+  "name": "Guichuan Xing",
+  "inst": "Nanyang Technological University",
+  "works": 1,
+  "cites": 6916,
+  "score": 0.75,
+  "label": null
+ },
+ {
+  "pid": 20709,
+  "band": "review",
+  "name": "Audrey P. Gasch",
+  "inst": null,
+  "works": 1,
+  "cites": 4814,
+  "score": 0.55,
+  "label": null
+ },
+ {
+  "pid": 22719,
+  "band": "review",
+  "name": "Barry Smith",
+  "inst": "University of Minnesota",
+  "works": 1,
+  "cites": 4557,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 13012,
+  "band": "review",
+  "name": "Taesung Park",
+  "inst": "NSABP Foundation",
+  "works": 1,
+  "cites": 6276,
+  "score": 0.75,
+  "label": null
+ },
+ {
+  "pid": 21509,
+  "band": "review",
+  "name": "Bruce Futcher",
+  "inst": "Cold Spring Harbor Laboratory",
+  "works": 1,
+  "cites": 4724,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 35259,
+  "band": "review",
+  "name": "Gabriela Riemekasten",
+  "inst": "Charité – Universitätsmedizin Berlin",
+  "works": 1,
+  "cites": 3403,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 10625,
+  "band": "review",
+  "name": "David Sparv",
+  "inst": null,
+  "works": 1,
+  "cites": 7163,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 11397,
+  "band": "review",
+  "name": "João Henrique Morais-Cabral",
+  "inst": "Howard Hughes Medical Institute",
+  "works": 1,
+  "cites": 6815,
+  "score": 0.55,
+  "label": null
+ },
+ {
+  "pid": 21366,
+  "band": "review",
+  "name": "G.B.M. Heuvelink",
+  "inst": "ISRIC - World Soil Information",
+  "works": 1,
+  "cites": 4730,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 22694,
+  "band": "review",
+  "name": "Michael Devetsikiotis",
+  "inst": "North Carolina State University",
+  "works": 1,
+  "cites": 4557,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 4540,
+  "band": "review",
+  "name": "Igor Žutić",
+  "inst": "University of Maryland, College Park",
+  "works": 1,
+  "cites": 11289,
+  "score": 0.55,
+  "label": null
+ },
+ {
+  "pid": 27571,
+  "band": "review",
+  "name": "John M.S. Bartlett",
+  "inst": "Intermountain Healthcare",
+  "works": 1,
+  "cites": 4030,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 12892,
+  "band": "review",
+  "name": "Peng Ding",
+  "inst": "Harvard University",
+  "works": 1,
+  "cites": 6337,
+  "score": 0.75,
+  "label": null
+ },
+ {
+  "pid": 28099,
+  "band": "review",
+  "name": "Michael Hollmann",
+  "inst": "Salk Institute for Biological Studies",
+  "works": 1,
+  "cites": 3990,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 23353,
+  "band": "review",
+  "name": "Xuan Wang",
+  "inst": "Max Planck Institute for Polymer Research",
+  "works": 1,
+  "cites": 4469,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 25600,
+  "band": "review",
+  "name": "Xuewei Chen",
+  "inst": "Chinese Academy of Sciences",
+  "works": 1,
+  "cites": 4209,
+  "score": 0.65,
+  "label": null
+ },
+ {
+  "pid": 6084,
+  "band": "reject",
+  "name": "Sutton Monro",
+  "inst": null,
+  "works": 1,
+  "cites": 9637,
+  "score": 0.3,
+  "label": null
+ },
+ {
+  "pid": 26483,
+  "band": "reject",
+  "name": "Bryan L. Jackson",
+  "inst": "IBM Research - Almaden",
+  "works": 1,
+  "cites": 4160,
+  "score": 0.3,
+  "label": null
+ },
+ {
+  "pid": 26317,
+  "band": "reject",
+  "name": "J. Dunlea",
+  "inst": "Max Planck Society",
+  "works": 1,
+  "cites": 4165,
+  "score": 0.3,
+  "label": null
+ },
+ {
+  "pid": 7173,
+  "band": "reject",
+  "name": "Philippe Artzner",
+  "inst": "Université de Strasbourg",
+  "works": 1,
+  "cites": 8851,
+  "score": 0.4,
+  "label": null
+ },
+ {
+  "pid": 21817,
+  "band": "reject",
+  "name": "Christopher J. C. Burges",
+  "inst": null,
+  "works": 1,
+  "cites": 4654,
+  "score": 0.2,
+  "label": null
+ },
+ {
+  "pid": 25139,
+  "band": "reject",
+  "name": "Joseph E. Warren",
+  "inst": null,
+  "works": 1,
+  "cites": 4257,
+  "score": 0.2,
+  "label": null
+ },
+ {
+  "pid": 32492,
+  "band": "reject",
+  "name": "E. M. Clarke",
+  "inst": "Carnegie Mellon University",
+  "works": 1,
+  "cites": 3608,
+  "score": 0.3,
+  "label": null
+ },
+ {
+  "pid": 14965,
+  "band": "reject",
+  "name": "Li-An Xu",
+  "inst": null,
+  "works": 1,
+  "cites": 5808,
+  "score": 0.3,
+  "label": null
+ },
+ {
+  "pid": 24797,
+  "band": "reject",
+  "name": "F Chen",
+  "inst": null,
+  "works": 1,
+  "cites": 4309,
+  "score": 0.2,
+  "label": null
+ },
+ {
+  "pid": 818,
+  "band": "reject",
+  "name": "Per W. Kållberg",
+  "inst": "Swedish Meteorological and Hydrological Institute",
+  "works": 2,
+  "cites": 31293,
+  "score": 0.43,
+  "label": null
+ },
+ {
+  "pid": 9156,
+  "band": "reject",
+  "name": "Barry S. Marler",
+  "inst": "J. Craig Venter Institute",
+  "works": 1,
+  "cites": 7701,
+  "score": 0.4,
+  "label": null
+ },
+ {
+  "pid": 31549,
+  "band": "reject",
+  "name": "Véronique Capuano",
+  "inst": "Institut National de la Recherche Agronomique",
+  "works": 1,
+  "cites": 3678,
+  "score": 0.45,
+  "label": null
+ },
+ {
+  "pid": 15304,
+  "band": "reject",
+  "name": "Malcolm V. Brock",
+  "inst": "Johns Hopkins University",
+  "works": 1,
+  "cites": 5725,
+  "score": 0.4,
+  "label": null
+ },
+ {
+  "pid": 4864,
+  "band": "reject",
+  "name": "Merja Rastas",
+  "inst": "Social Insurance Institution",
+  "works": 1,
+  "cites": 10870,
+  "score": 0.4,
+  "label": null
+ },
+ {
+  "pid": 1051,
+  "band": "reject",
+  "name": "E Casiglia",
+  "inst": null,
+  "works": 1,
+  "cites": 22523,
+  "score": 0.4,
+  "label": null
+ },
+ {
+  "pid": 4457,
+  "band": "reject",
+  "name": "Michelle L. De Oliveira",
+  "inst": "University Hospital Zurich",
+  "works": 1,
+  "cites": 11468,
+  "score": 0.4,
+  "label": null
+ },
+ {
+  "pid": 27183,
+  "band": "reject",
+  "name": "Henry Primakoff",
+  "inst": "New York University",
+  "works": 1,
+  "cites": 4055,
+  "score": 0.3,
+  "label": null
+ },
+ {
+  "pid": 34811,
+  "band": "reject",
+  "name": "Marc Gwadz",
+  "inst": "National Institutes of Health",
+  "works": 1,
+  "cites": 3444,
+  "score": 0.3,
+  "label": null
+ },
+ {
+  "pid": 15855,
+  "band": "reject",
+  "name": "Noel Weidner",
+  "inst": "Brigham and Women's Hospital",
+  "works": 1,
+  "cites": 5631,
+  "score": 0.4,
+  "label": null
+ },
+ {
+  "pid": 12454,
+  "band": "reject",
+  "name": "Lars Rydén",
+  "inst": null,
+  "works": 1,
+  "cites": 6485,
+  "score": 0.45,
+  "label": null
+ }
+]

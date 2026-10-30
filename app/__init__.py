@@ -1,0 +1,1 @@
+﻿"""ScholarTrust app package."""

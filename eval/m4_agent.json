@@ -1,0 +1,296 @@
+{
+ "tool_acc": 1.0,
+ "refuse_acc": 1.0,
+ "cite_rate": 1.0,
+ "num_rate": 1.0,
+ "rows": [
+  {
+   "q": "找研究 graph neural network 的专家",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "有哪些做 reinforcement learning 的学者",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "研究 dementia 的专家有哪些",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "帮我找 cancer immunotherapy 方向的专家",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "找 protein structure 领域的专家",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "有哪些人研究 image segmentation",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "找 drug discovery 方向的研究者",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "speech recognition 有哪些专家",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "介绍一下 Yoshua Bengio",
+   "expect_tool": "profile",
+   "tool": [
+    "profile"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "Geoffrey Hinton 是谁",
+   "expect_tool": "profile",
+   "tool": [
+    "profile"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "介绍一下 Yann LeCun 的背景",
+   "expect_tool": "profile",
+   "tool": [
+    "profile"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "Fei-Fei Li 的画像",
+   "expect_tool": "profile",
+   "tool": [
+    "profile"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "谁和 Yoshua Bengio 合作过",
+   "expect_tool": "collaborators",
+   "tool": [
+    "collaborators"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "Yann LeCun 的合作者有哪些",
+   "expect_tool": "collaborators",
+   "tool": [
+    "collaborators"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "谁和 Geoffrey Hinton 一起写论文",
+   "expect_tool": "collaborators",
+   "tool": [
+    "collaborators"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "Ian Goodfellow 和谁合作",
+   "expect_tool": "collaborators",
+   "tool": [
+    "collaborators"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "找 transformer 相关的论文",
+   "expect_tool": "works",
+   "tool": [
+    "works"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "有没有关于 attention 的文章",
+   "expect_tool": "works",
+   "tool": [
+    "works"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "对比 Yoshua Bengio 和 Geoffrey Hinton",
+   "expect_tool": "compare",
+   "tool": [
+    "compare"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "比较 Yann LeCun 和 Ian Goodfellow",
+   "expect_tool": "compare",
+   "tool": [
+    "compare"
+   ],
+   "tool_ok": true,
+   "refused": false,
+   "refused_ok": true,
+   "cited": true,
+   "has_num": true
+  },
+  {
+   "q": "找研究 quantum gravity phenology 的专家",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": true,
+   "refused_ok": true,
+   "cited": false,
+   "has_num": false
+  },
+  {
+   "q": "谁研究 medieval icelandic poetry",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": true,
+   "refused_ok": true,
+   "cited": false,
+   "has_num": false
+  },
+  {
+   "q": "找 underwater basket weaving 的专家",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": true,
+   "refused_ok": true,
+   "cited": false,
+   "has_num": false
+  },
+  {
+   "q": "介绍 baroque architecture 领域的带头人",
+   "expect_tool": "find_expert",
+   "tool": [
+    "find_expert"
+   ],
+   "tool_ok": true,
+   "refused": true,
+   "refused_ok": true,
+   "cited": false,
+   "has_num": false
+  }
+ ]
+}

@@ -1,0 +1,1102 @@
+[
+ {
+  "tier": "name",
+  "query": "find Scott M. Grundy",
+  "kind": "people",
+  "expected": [
+   672
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Pushmeet Kohli",
+  "kind": "people",
+  "expected": [
+   240
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Kenneth F. Schulz",
+  "kind": "people",
+  "expected": [
+   350
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Jane S. Richardson",
+  "kind": "people",
+  "expected": [
+   948
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Ala’a Alkerwi",
+  "kind": "people",
+  "expected": [
+   3110
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Abdu A. Adamu",
+  "kind": "people",
+  "expected": [
+   1507
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Sergey V. Morozov",
+  "kind": "people",
+  "expected": [
+   89
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Christian Funck‐Brentano",
+  "kind": "people",
+  "expected": [
+   3284
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Roy Frederick Baumeister",
+  "kind": "people",
+  "expected": [
+   1156
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Dariush Mozaffarian",
+  "kind": "people",
+  "expected": [
+   7889
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Salim S. Virani",
+  "kind": "people",
+  "expected": [
+   6743
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Stefan Karl James",
+  "kind": "people",
+  "expected": [
+   6013
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Nan M. Laird",
+  "kind": "people",
+  "expected": [
+   167
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Claes Fornell",
+  "kind": "people",
+  "expected": [
+   20
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Stephan Ehrlich",
+  "kind": "people",
+  "expected": [
+   120
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Scott Kirkpatrick",
+  "kind": "people",
+  "expected": [
+   199
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Randy J. Read",
+  "kind": "people",
+  "expected": [
+   946
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Peter Christian Gøtzsche",
+  "kind": "people",
+  "expected": [
+   346
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Emmanuel J. Candès",
+  "kind": "people",
+  "expected": [
+   2313
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Peter Bechtold",
+  "kind": "people",
+  "expected": [
+   424
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Gad A. Getz",
+  "kind": "people",
+  "expected": [
+   5984
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Kalkidan Hassen Abate",
+  "kind": "people",
+  "expected": [
+   3077
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Jonathan A C Sterne",
+  "kind": "people",
+  "expected": [
+   351
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Aravind Subramanian",
+  "kind": "people",
+  "expected": [
+   136
+  ]
+ },
+ {
+  "tier": "name",
+  "query": "find Wei Shi",
+  "kind": "people",
+  "expected": [
+   294
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at Durham University",
+  "kind": "people",
+  "expected": [
+   2578,
+   392,
+   394,
+   395,
+   396
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at SIB Swiss Institute of Bioinformatics",
+  "kind": "people",
+  "expected": [
+   1902,
+   1911,
+   1907,
+   1905,
+   3547
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of California, Santa Barbara",
+  "kind": "people",
+  "expected": [
+   5366,
+   2673,
+   1635,
+   2672,
+   4113
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at Johns Hopkins University",
+  "kind": "people",
+  "expected": [
+   288,
+   3695,
+   3900,
+   1685,
+   3706
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of California San Diego",
+  "kind": "people",
+  "expected": [
+   102,
+   581,
+   408,
+   103,
+   6651
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at European Centre for Medium-Range Weather Forecasts",
+  "kind": "people",
+  "expected": [
+   420,
+   426,
+   435,
+   410,
+   423
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at National Institutes of Health",
+  "kind": "people",
+  "expected": [
+   1155,
+   4326,
+   8716,
+   6647,
+   2518
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at The University of Texas MD Anderson Cancer Center",
+  "kind": "people",
+  "expected": [
+   2103,
+   5986,
+   6889,
+   5987,
+   17755
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of Minnesota",
+  "kind": "people",
+  "expected": [
+   492,
+   491,
+   552,
+   575,
+   10511
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at Wellcome Sanger Institute",
+  "kind": "people",
+  "expected": [
+   1684,
+   2952,
+   874,
+   884,
+   870
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of California, Berkeley",
+  "kind": "people",
+  "expected": [
+   338,
+   406,
+   1458,
+   404,
+   2258
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of California, Los Angeles",
+  "kind": "people",
+  "expected": [
+   23,
+   671,
+   4782,
+   713,
+   2315
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at Google DeepMind (United Kingdom)",
+  "kind": "people",
+  "expected": [
+   241,
+   210,
+   212,
+   213,
+   215
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at American Heart Association",
+  "kind": "people",
+  "expected": [
+   2545,
+   9345,
+   3755,
+   9336,
+   9340
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of Pittsburgh",
+  "kind": "people",
+  "expected": [
+   660,
+   644,
+   5265,
+   1616,
+   10504
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at Austrian Academy of Sciences",
+  "kind": "people",
+  "expected": [
+   10455,
+   5759,
+   5761,
+   5762,
+   5765
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at The University of Sydney",
+  "kind": "people",
+  "expected": [
+   271,
+   273,
+   5598,
+   5595,
+   8761
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at European Bioinformatics Institute",
+  "kind": "people",
+  "expected": [
+   10063,
+   1738,
+   1734,
+   2305,
+   1686
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of Copenhagen",
+  "kind": "people",
+  "expected": [
+   346,
+   1910,
+   1908,
+   1533,
+   3773
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of Cambridge",
+  "kind": "people",
+  "expected": [
+   946,
+   943,
+   4988,
+   1329,
+   2255
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at Boston University",
+  "kind": "people",
+  "expected": [
+   6488,
+   6220,
+   6216,
+   803,
+   9610
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of Manchester",
+  "kind": "people",
+  "expected": [
+   88,
+   87,
+   90,
+   89,
+   92
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at Auckland University of Technology",
+  "kind": "people",
+  "expected": [
+   8357,
+   8358,
+   8294,
+   8292,
+   8318
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at University of Pennsylvania",
+  "kind": "people",
+  "expected": [
+   313,
+   334,
+   5739,
+   12180,
+   8050
+  ]
+ },
+ {
+  "tier": "institution",
+  "query": "researchers at Princeton University",
+  "kind": "people",
+  "expected": [
+   548,
+   1403,
+   5297,
+   306,
+   2735
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Dementia",
+  "kind": "people",
+  "expected": [
+   775,
+   701,
+   776,
+   3505,
+   3233
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Gene",
+  "kind": "people",
+  "expected": [
+   145,
+   146,
+   1727,
+   320,
+   5984
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Software",
+  "kind": "people",
+  "expected": [
+   178,
+   175,
+   115,
+   108,
+   45
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Breast cancer",
+  "kind": "people",
+  "expected": [
+   29,
+   27,
+   30,
+   26,
+   28
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Business",
+  "kind": "people",
+  "expected": [
+   20,
+   778,
+   1882,
+   288,
+   1234
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Black hole (networking)",
+  "kind": "people",
+  "expected": [
+   2822,
+   2838,
+   2867,
+   2870,
+   2882
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Context (archaeology)",
+  "kind": "people",
+  "expected": [
+   2648,
+   1908,
+   4743,
+   2645,
+   1750
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Heart failure",
+  "kind": "people",
+  "expected": [
+   3395,
+   3258,
+   3265,
+   3362,
+   3411
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Nivolumab",
+  "kind": "people",
+  "expected": [
+   2471,
+   3695,
+   2453,
+   2449,
+   2457
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Biology",
+  "kind": "people",
+  "expected": [
+   178,
+   175,
+   145,
+   108,
+   176
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Hubble's law",
+  "kind": "people",
+  "expected": [
+   4978,
+   4988,
+   2748,
+   2715,
+   2774
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Disease",
+  "kind": "people",
+  "expected": [
+   1493,
+   1529,
+   1574,
+   1487,
+   1548
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Planck",
+  "kind": "people",
+  "expected": [
+   4978,
+   4988,
+   2748,
+   2715,
+   2774
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Materials science",
+  "kind": "people",
+  "expected": [
+   13,
+   88,
+   87,
+   90,
+   89
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Relative risk",
+  "kind": "people",
+  "expected": [
+   1574,
+   1544,
+   1549,
+   1530,
+   1565
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Binary black hole",
+  "kind": "people",
+  "expected": [
+   2822,
+   2838,
+   2867,
+   2870,
+   2882
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Gravitational wave",
+  "kind": "people",
+  "expected": [
+   2822,
+   2838,
+   2867,
+   2870,
+   2882
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Astrophysics",
+  "kind": "people",
+  "expected": [
+   4782,
+   1763,
+   4978,
+   4988,
+   1458
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Human genome",
+  "kind": "people",
+  "expected": [
+   115,
+   145,
+   108,
+   146,
+   1727
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Mathematics",
+  "kind": "people",
+  "expected": [
+   165,
+   23,
+   168,
+   1304,
+   18
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Supersymmetry",
+  "kind": "people",
+  "expected": [
+   1763,
+   5112,
+   10456,
+   5165,
+   10480
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Astronomy",
+  "kind": "people",
+  "expected": [
+   4988,
+   1458,
+   1776,
+   5297,
+   1754
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in LIGO",
+  "kind": "people",
+  "expected": [
+   2822,
+   2838,
+   2867,
+   2870,
+   2882
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Burden of disease",
+  "kind": "people",
+  "expected": [
+   1493,
+   1529,
+   1574,
+   1487,
+   1548
+  ]
+ },
+ {
+  "tier": "topic",
+  "query": "experts in Spectral index",
+  "kind": "people",
+  "expected": [
+   4978,
+   2748,
+   2715,
+   2774,
+   2780
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with James Larkin",
+  "kind": "people",
+  "expected": [
+   8072,
+   8075,
+   8071,
+   8074,
+   8076
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Damian Szklarczyk",
+  "kind": "people",
+  "expected": [
+   1909,
+   1910,
+   1911,
+   1907,
+   1908
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Stephen D. Wiviott",
+  "kind": "people",
+  "expected": [
+   11469,
+   12680,
+   9834,
+   12679,
+   13408
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Omar M. Yaghi",
+  "kind": "people",
+  "expected": [
+   2007,
+   8184,
+   8185,
+   2005,
+   7768
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Zulfiqar Ahmed Bhutta",
+  "kind": "people",
+  "expected": [
+   9170,
+   10174,
+   3491,
+   8357,
+   10169
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Martin B. Leon",
+  "kind": "people",
+  "expected": [
+   10266,
+   10273,
+   10265,
+   10267,
+   10268
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Dennis W. Dickson",
+  "kind": "people",
+  "expected": [
+   18639,
+   5555,
+   18640,
+   18645,
+   18646
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Jane Elith",
+  "kind": "people",
+  "expected": [
+   6852,
+   6856,
+   1304,
+   4744,
+   4745
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with C. Amsler",
+  "kind": "people",
+  "expected": [
+   10448,
+   10449,
+   10450,
+   10454,
+   5112
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with F. Acernese",
+  "kind": "people",
+  "expected": [
+   2823,
+   2827,
+   2828,
+   2825,
+   2826
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with John G.F. Cleland",
+  "kind": "people",
+  "expected": [
+   3353,
+   3387,
+   4488,
+   3275,
+   3354
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Alex G. Bateman",
+  "kind": "people",
+  "expected": [
+   10053,
+   10058,
+   10056,
+   10057,
+   10062
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Ronald Carl Petersen",
+  "kind": "people",
+  "expected": [
+   5561,
+   6977,
+   6978,
+   6979,
+   6980
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Stacey Gabriel",
+  "kind": "people",
+  "expected": [
+   2120,
+   6544,
+   6545,
+   6546,
+   6547
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Jeffrey Alan Sosman",
+  "kind": "people",
+  "expected": [
+   2451,
+   2449,
+   2454,
+   2455,
+   2456
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Volkmar Falk",
+  "kind": "people",
+  "expected": [
+   3215,
+   5443,
+   10601,
+   7947,
+   3275
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Andrea Carlo Ferrari",
+  "kind": "people",
+  "expected": [
+   87,
+   88,
+   2256,
+   2493,
+   2494
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Gerasimos S Filippatos",
+  "kind": "people",
+  "expected": [
+   3275,
+   3351,
+   11028,
+   14930,
+   3758
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Ian M Graham",
+  "kind": "people",
+  "expected": [
+   7488,
+   5433,
+   3254,
+   6984,
+   6989
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Philippe Gabríel Steg",
+  "kind": "people",
+  "expected": [
+   12680,
+   7047,
+   11146,
+   11361,
+   11362
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Alan S. Go",
+  "kind": "people",
+  "expected": [
+   7895,
+   6488,
+   7889,
+   7891,
+   7896
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Jonathan A C Sterne",
+  "kind": "people",
+  "expected": [
+   349,
+   359,
+   365,
+   1341,
+   107
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Roberto Car",
+  "kind": "people",
+  "expected": [
+   550,
+   552,
+   545,
+   547,
+   549
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Stéphane Laurent",
+  "kind": "people",
+  "expected": [
+   5437,
+   13648,
+   13649,
+   13650,
+   13651
+  ]
+ },
+ {
+  "tier": "collaborator",
+  "query": "who works with Ahmedin Jemal",
+  "kind": "people",
+  "expected": [
+   27,
+   1321,
+   30,
+   132,
+   26
+  ]
+ }
+]

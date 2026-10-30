@@ -1,0 +1,752 @@
+[
+ {
+  "tier": "institution_random",
+  "query": "researchers at The University of Sydney",
+  "kind": "people",
+  "expected": [
+   29612,
+   271,
+   13333,
+   9267,
+   3464,
+   8762,
+   5598,
+   8761
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at European Centre for Medium-Range Weather Forecasts",
+  "kind": "people",
+  "expected": [
+   424,
+   445,
+   420,
+   433,
+   431,
+   449,
+   430,
+   422
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Princeton University",
+  "kind": "people",
+  "expected": [
+   5274,
+   11434,
+   23322,
+   306,
+   5336,
+   32897,
+   4767,
+   9944
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Centers for Disease Control and Prevention",
+  "kind": "people",
+  "expected": [
+   7258,
+   8027,
+   25953,
+   7259,
+   3727,
+   1245,
+   22411,
+   11704
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Austrian Academy of Sciences",
+  "kind": "people",
+  "expected": [
+   5762,
+   5779,
+   5790,
+   5765,
+   5803,
+   5837,
+   10455,
+   5802
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Stanford University",
+  "kind": "people",
+  "expected": [
+   3650,
+   778,
+   924,
+   307,
+   1990,
+   13827,
+   14234,
+   1991
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Harvard University",
+  "kind": "people",
+  "expected": [
+   6008,
+   4435,
+   1656,
+   365,
+   1335,
+   8180,
+   26376,
+   2812
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Lawrence Berkeley National Laboratory",
+  "kind": "people",
+  "expected": [
+   1763,
+   13988,
+   2536,
+   4392,
+   30270,
+   21514,
+   10459,
+   1754
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Memorial Sloan Kettering Cancer Center",
+  "kind": "people",
+  "expected": [
+   1926,
+   8832,
+   2106,
+   24401,
+   8848,
+   9115,
+   2480,
+   33568
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at University of Cambridge",
+  "kind": "people",
+  "expected": [
+   22736,
+   22369,
+   7637,
+   945,
+   22154,
+   5913,
+   25187,
+   7714
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at University of Siena",
+  "kind": "people",
+  "expected": [
+   8081,
+   8073,
+   8076,
+   8071,
+   8085,
+   8077,
+   2098,
+   8090
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Whitehead Institute for Biomedical Research",
+  "kind": "people",
+  "expected": [
+   2645,
+   24842,
+   846,
+   2647,
+   835,
+   845,
+   857,
+   836
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Massachusetts Institute of Technology",
+  "kind": "people",
+  "expected": [
+   13447,
+   33395,
+   26402,
+   12778,
+   17040,
+   21848,
+   19897,
+   2869
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at The University of Texas MD Anderson Cancer Center",
+  "kind": "people",
+  "expected": [
+   13911,
+   19406,
+   18818,
+   13896,
+   19616,
+   20791,
+   5987,
+   19614
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at University of Wisconsin–Madison",
+  "kind": "people",
+  "expected": [
+   476,
+   1127,
+   15068,
+   8207,
+   19809,
+   8212,
+   1136,
+   13730
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at University of Toronto",
+  "kind": "people",
+  "expected": [
+   165,
+   16913,
+   17,
+   355,
+   17887,
+   27380,
+   16782,
+   5528
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at University of California, San Francisco",
+  "kind": "people",
+  "expected": [
+   14694,
+   192,
+   12196,
+   3907,
+   10961,
+   10415,
+   6890,
+   189
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Duke University",
+  "kind": "people",
+  "expected": [
+   7349,
+   7610,
+   2934,
+   8515,
+   5855,
+   5857,
+   6131,
+   10947
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at European Bioinformatics Institute",
+  "kind": "people",
+  "expected": [
+   8240,
+   13376,
+   11700,
+   13381,
+   11685,
+   10062,
+   10061,
+   6568
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at University of California, Los Angeles",
+  "kind": "people",
+  "expected": [
+   4422,
+   671,
+   8487,
+   4797,
+   4120,
+   13512,
+   8488,
+   2315
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at Boston University",
+  "kind": "people",
+  "expected": [
+   10469,
+   9608,
+   21774,
+   13221,
+   6488,
+   802,
+   6091,
+   9609
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at First Affiliated Hospital of Guangzhou Medical University",
+  "kind": "people",
+  "expected": [
+   501,
+   505,
+   503,
+   519,
+   518,
+   524,
+   510,
+   520
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at University of Washington",
+  "kind": "people",
+  "expected": [
+   3079,
+   3129,
+   18844,
+   15476,
+   30900,
+   8483,
+   7380,
+   3734
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at California Institute of Technology",
+  "kind": "people",
+  "expected": [
+   2748,
+   2863,
+   10922,
+   23592,
+   2894,
+   3989,
+   2865,
+   23921
+  ]
+ },
+ {
+  "tier": "institution_random",
+  "query": "researchers at University of Chicago",
+  "kind": "people",
+  "expected": [
+   5244,
+   5153,
+   5315,
+   5485,
+   4150,
+   5262,
+   9334,
+   1883
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Cancer research",
+  "kind": "people",
+  "expected": [
+   5982,
+   5980,
+   12398,
+   22591,
+   28203,
+   12349,
+   15437,
+   2480
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Environmental science",
+  "kind": "people",
+  "expected": [
+   28049,
+   18291,
+   8966,
+   18272,
+   416,
+   11500,
+   18295,
+   22224
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in CMB cold spot",
+  "kind": "people",
+  "expected": [
+   4959,
+   7208,
+   2481,
+   15095,
+   4951,
+   2744,
+   2730,
+   2712
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Lung cancer",
+  "kind": "people",
+  "expected": [
+   12791,
+   23140,
+   7934,
+   1959,
+   7935,
+   7923,
+   28204,
+   6558
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Higgs boson",
+  "kind": "people",
+  "expected": [
+   13616,
+   10541,
+   10487,
+   10531,
+   5165,
+   10532,
+   5136,
+   13624
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Physics",
+  "kind": "people",
+  "expected": [
+   10508,
+   16782,
+   27885,
+   7720,
+   10521,
+   4967,
+   12288,
+   5756
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Gene",
+  "kind": "people",
+  "expected": [
+   12765,
+   6464,
+   4376,
+   16401,
+   16400,
+   23969,
+   12783,
+   16313
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in LIGO",
+  "kind": "people",
+  "expected": [
+   2892,
+   6332,
+   2834,
+   2859,
+   2855,
+   6340,
+   2818,
+   2894
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Dark matter",
+  "kind": "people",
+  "expected": [
+   13629,
+   13632,
+   10529,
+   13616,
+   10526,
+   10457,
+   10516,
+   10493
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Cause of death",
+  "kind": "people",
+  "expected": [
+   1531,
+   3130,
+   10186,
+   10200,
+   12116,
+   1529,
+   3077,
+   3515
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Population",
+  "kind": "people",
+  "expected": [
+   3657,
+   13384,
+   4326,
+   28135,
+   7364,
+   9654,
+   9670,
+   13717
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Hazard ratio",
+  "kind": "people",
+  "expected": [
+   12680,
+   11221,
+   3918,
+   11664,
+   8072,
+   5595,
+   6415,
+   3917
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Dementia",
+  "kind": "people",
+  "expected": [
+   17874,
+   18642,
+   8349,
+   17879,
+   5558,
+   18646,
+   8325,
+   18655
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Chemistry",
+  "kind": "people",
+  "expected": [
+   14969,
+   22943,
+   8044,
+   2347,
+   2210,
+   36,
+   13540,
+   16980
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Life expectancy",
+  "kind": "people",
+  "expected": [
+   9186,
+   13210,
+   3474,
+   10179,
+   18836,
+   3102,
+   18840,
+   18880
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Health care",
+  "kind": "people",
+  "expected": [
+   6991,
+   7523,
+   3382,
+   5473,
+   12524,
+   3910,
+   5430,
+   5648
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Astronomy",
+  "kind": "people",
+  "expected": [
+   8109,
+   7650,
+   5249,
+   8117,
+   26388,
+   8140,
+   5296,
+   26369
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Software",
+  "kind": "people",
+  "expected": [
+   6845,
+   1387,
+   11048,
+   3898,
+   10065,
+   726,
+   1282,
+   45
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Environmental health",
+  "kind": "people",
+  "expected": [
+   3489,
+   1511,
+   7364,
+   21290,
+   3514,
+   1533,
+   10180,
+   8362
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Disease",
+  "kind": "people",
+  "expected": [
+   3506,
+   3118,
+   7917,
+   5932,
+   10180,
+   3133,
+   3484,
+   6772
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Artificial intelligence",
+  "kind": "people",
+  "expected": [
+   21692,
+   13323,
+   67,
+   3519,
+   5193,
+   1990,
+   354,
+   18578
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Oncology",
+  "kind": "people",
+  "expected": [
+   8090,
+   8075,
+   24269,
+   17275,
+   14967,
+   18944,
+   18950,
+   8073
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Cosmic microwave background",
+  "kind": "people",
+  "expected": [
+   19740,
+   2758,
+   4957,
+   4960,
+   2772,
+   4986,
+   2754,
+   2741
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Binary number",
+  "kind": "people",
+  "expected": [
+   2865,
+   2861,
+   2837,
+   2886,
+   2851,
+   2857,
+   2880,
+   2839
+  ]
+ },
+ {
+  "tier": "topic_random",
+  "query": "experts in Gravitational wave",
+  "kind": "people",
+  "expected": [
+   16970,
+   2865,
+   2871,
+   2888,
+   2849,
+   2852,
+   6331,
+   2891
+  ]
+ }
+]

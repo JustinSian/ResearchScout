@@ -1,0 +1,8 @@
+{
+ "tool_acc": 0.9583,
+ "refuse_acc": 1.0,
+ "cite_rate": 1.0,
+ "ndcg_bm25": 0.1687,
+ "ndcg_dense": 0.0645,
+ "ndcg_rrf_k60": 0.1856
+}
