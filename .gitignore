@@ -1,5 +1,8 @@
 # 数据与模型：体积大、可重建，不入库
 data/
+# 演示快照要进仓库（6MB），保证 clone 后可直接跑
+!data/snapshot/
+!data/snapshot/demo.db
 *.db
 *.db-wal
 *.db-shm

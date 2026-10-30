@@ -137,6 +137,15 @@ python -m app.init_db
 python -m uvicorn app.api:app --host 0.0.0.0 --port 8020
 ```
 
+### 没有 API key / 不想抓数据？用仓库内的演示快照
+
+```bash
+ST_DB=data/snapshot/demo.db python -m uvicorn app.api:app --port 8020
+```
+
+快照 **6.3 MB**：60 位专家（全量档案）、1,200 篇论文、2,827 条作者关联、
+419 个期刊、31 个机构，引用完整（无孤儿行）。由 `python -m app.snapshot` 从主库裁剪生成。
+
 常用命令：
 
 ```bash
@@ -145,6 +154,7 @@ python -m app.eval_routing                  # 路由评测（--file 指定留出
 python -m app.build_dossiers --network 527,503,498 --limit 100   # 建全量档案
 python -m app.health_watch --once           # 数据健康检查
 python -m app.repair_fts                    # 补 FTS 索引
+python -m app.snapshot                      # 生成演示快照（60 人 / 1200 篇，约 6 MB）
 
 # 质量门禁
 python -m pytest tests -q                   # 42 项单测（离线，不依赖模型与网络）
