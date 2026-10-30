@@ -159,6 +159,40 @@ python -m coverage run --source=app -m pytest tests && python -m coverage report
 | CI | GitHub Actions：pytest + `compileall` |
 | 提交历史 | 有（含"归档 228 个历史脚本"这类可追溯的整理记录） |
 
+## 六点五、MCP：把能力接进 Cursor / Claude
+
+除了 HTTP，还提供一个 **MCP server**（JSON-RPC over stdio，不依赖 mcp SDK）：
+
+```bash
+python -m app.mcp_server          # stdio 传输
+```
+
+暴露 6 个工具：`search_experts`、`get_profile`、`compare_experts`、
+`find_reviewers`、`ask`、`health`。
+
+客户端配置（Cursor / Claude Desktop 的 mcpServers 段）：
+
+```json
+{
+  "mcpServers": {
+    "scholartrust": {
+      "command": "/home/<user>/scholar-trust/.venv/bin/python",
+      "args": ["-m", "app.mcp_server"],
+      "env": { "PYTHONPATH": "/home/<user>/scholar-trust" }
+    }
+  }
+}
+```
+
+实测握手与调用：
+
+```
+initialize → scholartrust 0.1.0 / protocol 2024-11-05
+tools/list → 6 个工具
+tools/call get_profile(527) → 钟南山 940 篇 / 深档 h=83
+tools/call nope → JSON-RPC -32601 unknown tool
+```
+
 ## 七、接口一览
 
 ```
