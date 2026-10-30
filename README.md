@@ -132,7 +132,19 @@ python -m app.eval_routing                  # 路由评测（--file 指定留出
 python -m app.build_dossiers --network 527,503,498 --limit 100   # 建全量档案
 python -m app.health_watch --once           # 数据健康检查
 python -m app.repair_fts                    # 补 FTS 索引
+
+# 质量门禁
+python -m pytest tests -q                   # 42 项单测（离线，不依赖模型与网络）
+python -m coverage run --source=app -m pytest tests && python -m coverage report
 ```
+
+| 质量项 | 现状 |
+|---|---|
+| 单测 | **42 项**，全离线 |
+| 核心模块覆盖率 | supervisor 83% / judge 89% / onboard 93% / websearch 88% / hooks 71% |
+| 整体覆盖率 | 14%（大量一次性脚本与数据流水线不在测试范围，如实标注） |
+| CI | GitHub Actions：pytest + `compileall` |
+| 提交历史 | 有（含"归档 228 个历史脚本"这类可追溯的整理记录） |
 
 ## 七、接口一览
 
@@ -167,7 +179,23 @@ skills/         Markdown 技能（渐进式披露）
 docs/           m1~m28 里程碑报告
 ```
 
-## 九、已知限制（诚实清单）
+## 九、与 AMiner 的数据模型对照
+
+对标 [AMiner 开放平台](https://open.aminer.cn/open/doc) 的 28 个接口后，我们的差距很清楚：
+
+| AMiner 有 | 我们有 | 结论 |
+|---|---|---|
+| `person/detail` + `person/figure`（简介/教育/工作/兴趣） | `people` + `name_zh` + `headline` | 字段更薄，但**准入门槛**更严（他们没有可信判定） |
+| `person/paper/relation`、`paper/relation`（引用链） | `work_authors` + `edges` | 等价，但我们**没有引用关系**（cited_by 只是一条边） |
+| `organization/na`、`na/pro`（机构消歧） | `orgs(name, name_zh, kind)` | **缺别名消歧**——这是机构层最大的空白 |
+| `venue/*`（期刊实体、期刊论文关系） | `works.venue` 只有一段文本 | **缺 venue 表**，做不了"期刊年度分析" |
+| `paper/qa/search`（topic_high/middle/low 三层权重） | `app/subagents.LEX` 一张中英词表 | 我们的主题匹配是简化版，可借鉴三层加权 |
+| `patent/*`、`project/person` | 无 | 不在本项目范围（不做） |
+
+**值得补的两项（按性价比）**：① `venue` 实体化（支撑期刊分析、审稿人推荐的"常发期刊"匹配）；
+② 机构别名表（现在"广医一院/广州医科大学附属第一医院"会算成两个机构）。
+
+## 十、已知限制（诚实清单）
 
 1. **深档案只有 102 位**：全库 8,490 位发布专家里，多数只有画像，没有 h-index 与主题分布；
 2. **中文名只有 41 人**：OpenAlex 只有拉丁转写，不做自动音译（"Jun Liu" 可能是刘军/刘俊）；

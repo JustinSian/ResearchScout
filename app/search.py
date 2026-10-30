@@ -102,7 +102,6 @@ def search_works(q: str, limit: int = 20,
     finally:
         if own:
             conn.close()
-            conn.close()
 
 
 # ---------------- 融合（纯函数） ----------------
