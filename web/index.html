@@ -480,10 +480,43 @@ async function renderWork(){
     const refList = (refs && refs.items && refs.items.length)
       ? refs.items.map(x => line(x, true)).join('') + pager('ref', WState.refOff, w.refs_total)
       : '<div class="kv">没有引用记录（可能刚入库，引用抓取未覆盖）。</div>';
+// 引用关系小图：中间是当前论文，左边是它引用的，右边是引用它的（只画库内）
+function citeGraph(wid, refs, cited){
+  const L = (refs && refs.items || []).filter(x => x.ref_wid).slice(0, 8);
+  const R = (cited && cited.items || []).filter(x => x.wid).slice(0, 8);
+  if (!L.length && !R.length) return "";
+  const W = 620, H = 210, cx = W/2, cy = H/2;
+  const pos = (arr, side) => arr.map((x, i) => {
+    const n = arr.length;
+    const spread = Math.min(150, 26 * Math.max(n, 1));
+    const y = n === 1 ? cy : cy - spread/2 + spread * i / (n - 1);
+    return {x: side === 'l' ? 90 : W - 90, y, item: x, id: side === 'l' ? x.ref_wid : x.wid};
+  });
+  const left = pos(L, 'l'), right = pos(R, 'r');
+  const edge = (a, b, color) => `<path d="M${a.x},${a.y} Q${(a.x+b.x)/2},${(a.y+b.y)/2 - 18} ${b.x},${b.y}"
+      fill="none" stroke="${color}" stroke-width="1.1" opacity=".55"/>`;
+  const line = (p, color) => edge({x: cx, y: cy}, p, color);
+  const node = (p, fill) => `<g style="cursor:pointer" onclick="openWork(${p.id})">
+      <circle cx="${p.x}" cy="${p.y}" r="7" fill="${fill}" stroke="rgba(9,16,26,.85)" stroke-width="1.2"/>
+      <title>${esc((p.item.title || '').slice(0, 90))}</title></g>`;
+  return `<div class="card"><h3 style="margin:0 0 4px">引用关系图</h3>
+    <div class="kv" style="margin-bottom:6px">左=它引用的（${L.length} 篇库内，可点）·
+      右=引用它的（${R.length} 篇库内，可点）</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-width:${W}px">
+      ${left.map(p => line(p, '#4a7fb5')).join('')}
+      ${right.map(p => line(p, '#c9a227')).join('')}
+      ${left.map(p => node(p, '#5b8fd0')).join('')}
+      ${right.map(p => node(p, '#d4b64a')).join('')}
+      <circle cx="${cx}" cy="${cy}" r="11" fill="#7fd1a0" stroke="rgba(9,16,26,.9)" stroke-width="1.4"/>
+      <text x="${cx}" y="${cy + 28}" text-anchor="middle" fill="#9fb6cf" font-size="10">当前论文</text>
+    </svg></div>`;
+}
+
     const citedList = (cited && cited.items && cited.items.length)
       ? cited.items.map(x => line(x, false)).join('') + pager('cit', WState.citOff, w.cited_by_in_corpus)
       : '<div class="kv">本库内还没有论文引用它。</div>';
     $('#wdetail').innerHTML = head
+      + citeGraph(wid, refs, cited)
       + `<div class="card"><h3 style="margin:0 0 6px">它引用了（${w.refs_total}）</h3>${refList}</div>`
       + `<div class="card"><h3 style="margin:0 0 6px">引用它的（库内 ${w.cited_by_in_corpus}）</h3>${citedList}</div>`;
     document.querySelectorAll('#wdetail button[data-p]').forEach(b=>{

@@ -315,3 +315,89 @@ def bridge_status(wid: int) -> dict:
         return {"is_bridge": False, "cluster_id": cid}
     finally:
         conn.close()
+
+
+def edge_betweenness(nodes: list[int],
+                     edges: list[tuple[int, int]]) -> dict[tuple[int, int], float]:
+    """边介数（Brandes 算法，无向、迭代实现）。
+
+    为什么割点不够：割点只能抓"去掉单个节点就断开"的情形。
+    如果两个子圈子由 A-B 和 C-D **两条路径**相连，去掉任何一个点都不断开，
+    但这两条边承载了全部跨圈流量——边介数能抓出来。
+
+    返回 {(min_u, max_u): 分数}，无向边只记一次。
+    """
+    if not nodes:
+        return {}
+    nodeset = set(nodes)
+    adj: dict[int, list[int]] = {n: [] for n in nodes}
+    pairs: set[tuple[int, int]] = set()
+    for a, b in edges:
+        if a == b or a not in nodeset or b not in nodeset:
+            continue
+        key = (min(a, b), max(a, b))
+        if key in pairs:
+            continue
+        pairs.add(key)
+        adj[a].append(b)
+        adj[b].append(a)
+
+    score: dict[tuple[int, int], float] = {k: 0.0 for k in pairs}
+    from collections import deque
+
+    for s in nodes:
+        stack: list[int] = []
+        pred: dict[int, list[int]] = {n: [] for n in nodes}
+        sigma: dict[int, float] = {n: 0.0 for n in nodes}
+        dist: dict[int, int] = {n: -1 for n in nodes}
+        sigma[s] = 1.0
+        dist[s] = 0
+        q = deque([s])
+        while q:
+            v = q.popleft()
+            stack.append(v)
+            for w in adj[v]:
+                if dist[w] < 0:
+                    dist[w] = dist[v] + 1
+                    q.append(w)
+                if dist[w] == dist[v] + 1:
+                    sigma[w] += sigma[v]
+                    pred[w].append(v)
+        delta: dict[int, float] = {n: 0.0 for n in nodes}
+        while stack:
+            w = stack.pop()
+            for v in pred[w]:
+                if sigma[w] > 0:
+                    c = sigma[v] / sigma[w] * (1.0 + delta[w])
+                    score[(min(v, w), max(v, w))] += c
+                    delta[v] += c
+    # 无向图每条边被两个源点各算一次
+    return {k: v / 2.0 for k, v in score.items()}
+
+
+def edge_bridges(cluster_id: int, limit: int = 5) -> list[dict]:
+    """社区里"承载跨圈流量最多"的边（边介数 Top N）。"""
+    conn = connect()
+    try:
+        members = [r[0] for r in conn.execute(
+            "SELECT wid FROM work_cluster WHERE cluster_id=?", (cluster_id,))]
+        if not members:
+            return []
+        ph = ",".join("?" * len(members))
+        edges = [(r[0], r[1]) for r in conn.execute(
+            f"""SELECT wid, ref_wid FROM work_refs
+                WHERE ref_wid IN ({ph}) AND wid IN ({ph})""",
+            (*members, *members))]
+        if not edges:
+            return []
+        scores = edge_betweenness(members, edges)
+        top = sorted(scores.items(), key=lambda kv: -kv[1])[:limit]
+        titles: dict[int, str] = {}
+        for wid in {w for k in scores for w in k}:
+            row = conn.execute("SELECT title FROM works WHERE wid=?", (wid,)).fetchone()
+            titles[wid] = row[0] if row else ""
+        return [{"a": k[0], "b": k[1], "score": round(v, 3),
+                 "title_a": titles.get(k[0], ""), "title_b": titles.get(k[1], "")}
+                for k, v in top]
+    finally:
+        conn.close()

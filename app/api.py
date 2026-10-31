@@ -169,6 +169,14 @@ def cluster_bridges(cid: int, limit: int = 5) -> dict:
     return {"cluster_id": cid, "items": cl.bridges(cid, limit=min(max(limit, 1), 50))}
 
 
+@app.get("/clusters/{cid}/edge-bridges")
+def cluster_edge_bridges(cid: int, limit: int = 5) -> dict:
+    """社区里边介数最高的边：承载"跨圈流量"的连接（两条路径相连的情形在这里能抓到）。"""
+    from app import cluster as cl
+    return {"cluster_id": cid,
+            "items": cl.edge_bridges(cid, limit=min(max(limit, 1), 50))}
+
+
 @app.get("/clusters/top")
 def clusters_top(limit: int = 10, per_cluster: int = 3) -> dict:
     """最大的引用社区（研究流派）及各社区代表论文。"""
