@@ -83,7 +83,7 @@ STOP_PHRASES = re.compile(
     r"大学|高校|学院|医院|研究所|研究院|实验室|企业|公司|工业界|业界|"
     r"高被引|顶尖|大牛|影响力|"
     r"引用最多|论文最多|最近活跃|近年活跃|"
-    r"一下|的|在|做|从事|研究|学科|科|系|专业|领域|方向|里|中", re.I)
+    r"一下|的|在|做|从事|研究|学科|科|系|专业|领域|方向|里|中|条|个|位|名|人", re.I)
 
 
 def parse(query: str) -> dict:
@@ -105,11 +105,18 @@ def parse(query: str) -> dict:
             notes.append(f"机构类型={kind}")
             break
 
-    for zh, en in INST_NAME.items():
-        if zh in q.lower():
-            facets["inst_name"] = en
-            notes.append(f"机构≈{en}")
-            break
+    # 显式语法："机构是 Fudan University"——refinement 按钮生成的就是这种句子，
+    # 必须能重新解析回来，否则"继续筛选"点一次就没法再点了
+    m_inst = re.search(r"机构(?:是|为)\s*([^，,。;；]+)", q)
+    if m_inst:
+        facets["inst_name"] = m_inst.group(1).strip()
+        notes.append("机构=" + facets["inst_name"])
+    else:
+        for zh, en in INST_NAME.items():
+            if zh in q.lower():
+                facets["inst_name"] = en
+                notes.append("机构≈" + en)
+                break
 
     if HIGH_CITES.search(q):
         facets["cites_min"] = 1000
@@ -142,6 +149,7 @@ def parse(query: str) -> dict:
         rest = rx.sub(" ", rest)
     for zh in INST_NAME:
         rest = rest.replace(zh, " ")
+    rest = re.sub(r"机构(?:是|为)\s*[^，,。;；]+", " ", rest)
     for _name, rx in SORT_WORDS:
         rest = rx.sub(" ", rest)
     topic = STOP_PHRASES.sub(" ", rest)
@@ -289,6 +297,84 @@ def facet_counts(kind: str = "country", limit: int = 12) -> list[dict]:
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# 反向映射：把结构化条件写回自然语言（供"继续筛选"按钮使用）
+COUNTRY_ZH = {"CN": "中国", "US": "美国", "GB": "英国", "DE": "德国", "FR": "法国",
+              "JP": "日本", "CA": "加拿大", "AU": "澳大利亚", "NL": "荷兰",
+              "CH": "瑞士", "SG": "新加坡", "KR": "韩国", "IN": "印度",
+              "IT": "意大利", "ES": "西班牙", "SE": "瑞典", "BR": "巴西",
+              "HK": "中国香港", "TW": "中国台湾"}
+KIND_ZH = {"university": "高校", "hospital": "医院", "institute": "研究所",
+           "company": "企业"}
+
+
+def to_query(facets: dict, **override) -> str:
+    """把 facets 写回一句自然语言，用于"继续筛选"。
+
+    例：{country: CN, topic: 呼吸} → "中国的呼吸专家"
+    这样按钮点下去仍然走同一条"自然语言 → facet"链路，不需要额外协议。
+    """
+    f = {**facets, **override}
+    parts: list[str] = []
+    cc = f.get("country")
+    if cc:
+        parts.append(COUNTRY_ZH.get(cc, cc))
+    kind = f.get("inst_kind")
+    if kind:
+        parts.append(KIND_ZH.get(kind, kind))
+    topic = (f.get("topic") or "").strip()
+    if topic:
+        parts.append(topic)
+    parts.append("专家")
+    q = "".join(parts)
+    if f.get("inst_name"):
+        q += f"，机构是{f['inst_name']}"
+    if f.get("cites_min"):
+        q += f"，被引超过 {f['cites_min']}"
+    # 条数必须显式写进句子，否则"扩大条数"生成的查询和原句一模一样，点了没反应
+    if override.get("limit"):
+        q += f"，前 {override['limit']} 条"
+    return q
+
+
+def suggest(facets: dict, items: list[dict], total: int, max_items: int = 4) -> list[dict]:
+    """根据当前结果给出"下一步可以怎么筛"。
+
+    只提**结果里真实存在**的选项：机构、国家、被引档位、扩大条数。
+    没有可选的就返回空列表，不硬凑。
+    """
+    from collections import Counter
+
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def push(label: str, query: str) -> None:
+        if query in seen or len(out) >= max_items:
+            return
+        seen.add(query)
+        out.append({"label": label, "query": query})
+
+    insts = Counter((it.get("inst") or "").strip() for it in items if it.get("inst"))
+    for name, n in insts.most_common(2):
+        # 已经按这个机构筛过就别再推荐自己，否则点下去毫无变化
+        if n >= 2 and name != (facets.get("inst_name") or ""):
+            push(f"只看 {name}（{n} 人）", to_query(facets, inst_name=name))
+
+    countries = Counter(it.get("country") for it in items if it.get("country"))
+    if len(countries) > 1 and not facets.get("country"):
+        cc, n = countries.most_common(1)[0]
+        push(f"只看 {COUNTRY_ZH.get(cc, cc)}（{n} 人）", to_query(facets, country=cc))
+
+    if not facets.get("cites_min") and items:
+        top = max(int(it.get("cited_by_count") or 0) for it in items)
+        if top >= 5000:
+            push("只看被引 ≥ 5,000", to_query(facets, cites_min=5000))
+
+    if total > len(items):
+        nxt = min(20, max(10, len(items) * 2))
+        push(f"扩大到前 {nxt} 条", to_query(facets, limit=nxt))
+    return out
 
 
 if __name__ == "__main__":

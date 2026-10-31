@@ -60,14 +60,17 @@ def tool_find_expert(query: str, limit: int = 5) -> dict:
     structured = any([parsed.get("country"), parsed.get("inst_kind"),
                       parsed.get("inst_name"), parsed.get("cites_min")])
     if structured:
-        res = facet_mod.search(parsed, limit=limit)
+        # 用户说"前 20 条"时，facet 里的 limit 应优先于工具默认的 5
+        res = facet_mod.search(parsed, limit=int(parsed.get("limit") or limit))
         if res["count"]:
             return {"tool": "find_expert", "mode": "facet",
                     "items": res["items"], "count": res["count"], "total": res["total"],
                     "facets": {k: v for k, v in parsed.items()
                                if k not in ("notes", "topic_en") and v},
                     "notes": parsed.get("notes") or [],
-                    "relaxed": res.get("relaxed", "")}
+                    "relaxed": res.get("relaxed", ""),
+                    # 多轮收窄：只提结果里真实存在的选项
+                    "refinements": facet_mod.suggest(parsed, res["items"], res["total"])}
 
     import math
 
@@ -357,7 +360,14 @@ def plan_node(state: AgentState) -> dict:
     elif _CN_WORKS.search(q):
         plan = [{"tool": "works", "args": {"query": q_en}}]
     else:
-        plan = [{"tool": "find_expert", "args": {"query": q_en}}]
+        # q_en 是"只留拉丁字母"的版本，会把"中国/呼吸/机构是"这些中文条件全删掉。
+        # 带结构化条件的查询必须传原文，否则 facet 只看到英文残片（踩过：
+        # "中国呼吸专家，机构是 Capital Medical University" 被解析成主题=Capital Medical）。
+        from app import facets as facet_mod
+        _f = facet_mod.parse(q)
+        _structured = any([_f.get("country"), _f.get("inst_kind"),
+                           _f.get("inst_name"), _f.get("cites_min")])
+        plan = [{"tool": "find_expert", "args": {"query": q if _structured else q_en}}]
     return {"plan": plan, "query_en": q_en}
 
 
@@ -577,6 +587,9 @@ def answer(query: str, allow_fallback: bool = True) -> dict:
          "refused": bool(out.get("refused")), "reason": out.get("reason", ""),
          # 工具的结构化结果（叙述层要用它讲"这一步拿到了什么"）
          "evidence": out.get("evidence") or []}
+    # 多轮收窄：把"下一步还能怎么筛"带给调用方（/chat 与 SSE 都透传）
+    ev0 = (r["evidence"] or [{}])[0]
+    r["refinements"] = ev0.get("refinements") or []
     # 兜底路由：库内没有证据时改走公开网络检索，结果明确标注来源
     # allow_fallback=False 时不做兜底——Supervisor 需要看到"纯库内结果"才能仲裁
     if r["refused"] and allow_fallback:

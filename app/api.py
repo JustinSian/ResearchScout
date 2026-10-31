@@ -527,7 +527,8 @@ async def chat_stream(q: str = Query(...)):
             yield sse("token", {"t": text[i:i + 6]})
             await asyncio.sleep(0.025)
         yield sse("think", {"t": narrate.caveat(intent)})
-        yield sse("citations", {"items": r["citations"]})
+        yield sse("citations", {"items": r["citations"],
+                                 "refinements": r.get("refinements") or []})
         yield sse("think", {"t": narrate.closing(False, citations=len(r["citations"]))})
         yield sse("done", {"citations": len(r["citations"])})
 

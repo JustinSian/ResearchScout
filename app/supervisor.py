@@ -114,10 +114,12 @@ def _merge(query: str, kb: dict | None, web: dict | None) -> dict:
         cites += (web.get("citations") or [])
 
     if parts:
-        return {"answer": "\n".join(parts), "citations": cites, "refused": False}
+        return {"answer": "\n".join(parts), "citations": cites, "refused": False,
+                # 多轮收窄按钮（来自 kb agent 的 facet 结果；纯网络结果没有）
+                "refinements": (kb or {}).get("refinements") or []}
     reason = (kb or {}).get("reason") or "知识库与公开网络都没有找到可回答的内容。"
     return {"answer": f"资料不足，我不猜。{reason}", "citations": [],
-            "refused": True, "reason": reason}
+            "refused": True, "reason": reason, "refinements": []}
 
 
 def run(query: str, force_route: str | None = None, log=print) -> dict:

@@ -874,12 +874,31 @@ async function askChat(){
   es.addEventListener('refused', e=>{ refused=true; box.className='msg bot bad';
     ans.textContent = JSON.parse(e.data).answer; });
   es.addEventListener('citations', e=>{
-    const items = JSON.parse(e.data).items||[];
+    const data = JSON.parse(e.data);
+    const items = data.items||[];
     if (items.length){
       ans.insertAdjacentHTML('beforeend',
         `<small style="color:#7f93ad;display:block;margin-top:6px">引用 ${items.length} 条：${items.slice(0,3).map(c=>c.url
           ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" style="color:#7fb0e8">${esc(c.label||c.url)}</a>`
           : esc(c.label||c.id||'')).join('、')}</small>`);
+    }
+    // 多轮收窄：把"下一步还能怎么筛"做成按钮，点了用新条件重新问
+    const refs = data.refinements || [];
+    if (refs.length){
+      ans.insertAdjacentHTML('beforeend',
+        `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+           <span style="color:#7f93ad;font-size:12px">继续筛选：</span>
+           ${refs.map((r,i)=>`<button class="ghost" data-refidx="${i}"
+              style="padding:3px 9px;font-size:11.5px">${esc(r.label)}</button>`).join('')}
+         </div>`);
+      ans.querySelectorAll('button[data-refidx]').forEach(btn=>{
+        btn.onclick = () => {
+          const r = refs[Number(btn.dataset.refidx)];
+          if (!r || !r.query) return;
+          $('#cq').value = r.query;
+          askChat();
+        };
+      });
     }
   });
   es.addEventListener('done', ()=>{
