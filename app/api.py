@@ -34,7 +34,9 @@ from app.supervisor import run as supervise
 from app.import_orgs import person_orgs
 from app.db import connect, stats
 from app.review import decide, list_queue, queue_stats
-from app.search import (graph_neighbors, person_profile, search_dense, search_hybrid,
+from app.search import (build_high_expr, count_work_hits, graph_neighbors, parse_topic_groups,
+                        pids_by_work_groups,
+                        person_profile, search_dense, search_hybrid,
                         search_people, search_works)
 
 API_KEY = os.environ.get("ST_API_KEY", "")
@@ -192,6 +194,8 @@ def search(q: str = Query(..., description="查询词"),
            cites_min: int = Query(0, description="被引下限"),
            sort: str = Query("relevance", pattern="^(relevance|cites|works)$",
                              description="relevance=按检索分；cites/works=筛选后再按该字段重排"),
+           topic_high: str = Query("", description="必含关键词分组：JSON [[\"a\",\"b\"],[\"c\"]] 或逗号分隔"),
+           topic_low: str = Query("", description="加分关键词（逗号分隔），只影响排序不拦人"),
            limit: int = 10) -> dict:
     """统一检索入口：单路（bm25/dense）或融合（hybrid + rrf/dbsf）。
 
@@ -199,10 +203,28 @@ def search(q: str = Query(..., description="查询词"),
 
     facet 过滤只作用于 kind=people：先按相关度取回一批候选，再按
     国家/机构类型/被引**保序过滤**——不重排，避免把"相关度"换成"被引"。
+
+    topic_high / topic_low 对应 AMiner 的三层权重：high 必含（分组间 AND、组内 OR），
+    low 只加分。只有 kind=people 支持；works 会返回 note 说明未生效。
     """
+    note = ""
+    high_groups: list[list[str]] = []
+    low_terms: list[str] = []
+    if kind == "people":
+        if topic_high:
+            high_groups = parse_topic_groups(topic_high)
+            if not high_groups:
+                raise HTTPException(
+                    status_code=400,
+                    detail='topic_high 解析为空：需要 JSON 形如 [["a","b"],["c"]] 或逗号分隔')
+        low_terms = [x.strip() for x in (topic_low or "").split(",") if x.strip()]
+    elif topic_high or topic_low:
+        note = "topic_high/topic_low 只对 kind=people 生效，本次已忽略"
+
     faceted = kind == "people" and bool(country or inst_kind or cites_min)
-    # 有筛选时要多取一些候选，否则筛完可能不够 limit 条
-    fetch_n = min(300, max(limit * 6, 60)) if faceted else limit
+    # 有筛选/加权时要多取一些候选，否则筛完可能不够 limit 条
+    pool = faceted or bool(high_groups) or bool(low_terms)
+    fetch_n = min(300, max(limit * 6, 60)) if pool else limit
 
     if mode == "bm25":
         hits = (search_people(q, limit=fetch_n) if kind == "people"
@@ -211,6 +233,23 @@ def search(q: str = Query(..., description="查询词"),
         hits = search_dense(q, kind=kind, limit=fetch_n)
     else:
         hits = search_hybrid(q, kind=kind, limit=fetch_n, fusion=fusion, rrf_k=rrf_k)
+
+    # high：必须命中（分组 AND / 组内 OR）。FTS（名字/概念/机构）∪ 论文标题
+    if high_groups and hits:
+        expr = build_high_expr(high_groups)
+        allowed_h: set[int] = set()
+        if expr:
+            conn_h = connect()
+            try:
+                allowed_h = {r[0] for r in conn_h.execute(
+                    "SELECT rowid FROM people_fts WHERE people_fts MATCH ?", (expr,))}
+            except Exception:
+                allowed_h = set()
+            finally:
+                conn_h.close()
+        # 概念粗，标题细：两个来源取并集，否则"呼吸科"会被过滤成 0
+        allowed_h |= pids_by_work_groups(high_groups, [h[0] for h in hits])
+        hits = [(pid, s) for pid, s in hits if pid in allowed_h]
 
     if faceted and hits:
         conds, args = [], []
@@ -230,6 +269,28 @@ def search(q: str = Query(..., description="查询词"),
         finally:
             conn_f.close()
         hits = [(pid, s) for pid, s in hits if pid in allowed]
+
+    # low：只加分不拦人。仅在 sort=relevance 时参与排序——
+    # 用户显式选了"按被引"，就不该被加分项打乱。
+    low_hits: dict[int, int] = {}
+    if low_terms and hits:
+        ids_l = [h[0] for h in hits]
+        ph_l = ",".join("?" * len(ids_l))
+        conn_l = connect()
+        try:
+            for r in conn_l.execute(
+                    f"SELECT pid, topics FROM people WHERE pid IN ({ph_l})", ids_l):
+                t = (r[1] or "").lower()
+                n = sum(1 for x in low_terms if x.lower() in t)
+                if n:
+                    low_hits[int(r[0])] = n
+        finally:
+            conn_l.close()
+        # 概念之外再看论文标题命中，两者相加作为加分
+        for pid, n in count_work_hits(ids_l, low_terms).items():
+            low_hits[pid] = low_hits.get(pid, 0) + n
+        if sort == "relevance":
+            hits.sort(key=lambda kv: -low_hits.get(kv[0], 0))
 
     # 排序开关：默认保持检索相关度；显式要 cites/works 时才重排。
     # 为什么默认不重排——筛选一开就按被引排，等于把"相关度"偷换成"影响力"。
@@ -268,10 +329,14 @@ def search(q: str = Query(..., description="查询词"),
                         d["topics_zh"] = [label_topic(t) for t in json.loads(d.get("topics") or "[]")][:5]
                     except Exception:
                         d["topics_zh"] = []
-                items.append({**d, "score": round(float(score), 6)})
+                items.append({**d, "score": round(float(score), 6),
+                              "low_hits": low_hits.get(int(ref_id), 0)})
         return {"query": q, "kind": kind, "mode": mode,
                 "fusion": fusion if mode == "hybrid" else None,
                 "sort": sort,
+                "topic_high": high_groups or None,
+                "topic_low": low_terms or None,
+                "note": note,
                 "facets": {"country": country, "inst_kind": inst_kind,
                            "cites_min": cites_min} if kind == "people" else None,
                 "count": len(items), "items": items}

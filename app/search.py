@@ -38,6 +38,104 @@ _ZH_TEMPLATE = re.compile(
     r"介绍|一下|哪些|什么|方向|领域|相关|论文|文章|合作|的|和|与|请|查|看)")
 
 
+def parse_topic_groups(raw: str) -> list[list[str]]:
+    """解析"必含关键词"的分组（对标 AMiner 的 topic_high）。
+
+    支持两种写法：
+      - JSON 嵌套：`[["a","b"],["c"]]` → (a OR b) AND c
+      - 逗号分隔：`a,b,c`           → a OR b OR c（单组）
+    解析不出任何词时返回空列表，由调用方决定报错还是忽略。
+    """
+    s = (raw or "").strip()
+    if not s:
+        return []
+    groups: list[list[str]] = []
+    if s.startswith("["):
+        try:
+            data = json.loads(s)
+        except (ValueError, TypeError):
+            return []
+        if not isinstance(data, list):
+            return []
+        for item in data:
+            if isinstance(item, str) and item.strip():
+                groups.append([item.strip()])
+            elif isinstance(item, list):
+                toks = [str(x).strip() for x in item if str(x).strip()]
+                if toks:
+                    groups.append(toks)
+        return groups
+    toks = [x.strip() for x in s.split(",") if x.strip()]
+    return [toks] if toks else []
+
+
+def _fts_term(t: str) -> str:
+    """把单个词变成安全的 FTS 短语（去掉会破坏语法的引号/括号）。"""
+    clean = re.sub(r'["\(\)\*\^:]', " ", t or "").strip()
+    clean = re.sub(r"\s+", " ", clean)
+    return f'"{clean}"' if clean else ""
+
+
+def build_high_expr(groups: list[list[str]]) -> str:
+    """分组 → FTS 表达式：(("a" OR "b") AND ("c"))"""
+    parts = []
+    for g in groups or []:
+        terms = [x for x in (_fts_term(t) for t in g) if x]
+        if not terms:
+            continue
+        parts.append("(" + " OR ".join(terms) + ")")
+    return " AND ".join(parts)
+
+
+def pids_by_work_groups(groups: list[list[str]], pids: list[int]) -> set[int]:
+    """在这些 pid 里，找出"有论文标题命中每组关键词"的人（组间 AND、组内 OR）。
+
+    为什么必须查论文标题：OpenAlex 的 topics 很粗，肺癌方向的临床医生
+    概念常常是 "Lung cancer" 而不是 "respiratory"，只看 topics 会把 high
+    过滤成 0 结果（踩过）。
+    """
+    if not groups or not pids:
+        return set()
+    conn = connect()
+    try:
+        current = set(int(p) for p in pids)
+        for g in groups:
+            terms = [t for t in (_fts_term(x).strip('"') for x in g) if t]
+            if not terms or not current:
+                continue
+            ph = ",".join("?" * len(current))
+            like = " OR ".join(["w.title LIKE ?"] * len(terms))
+            sql = (f"SELECT DISTINCT wa.pid FROM work_authors wa "
+                   f"JOIN works w ON w.wid = wa.wid "
+                   f"WHERE wa.pid IN ({ph}) AND ({like})")
+            rows = conn.execute(sql, (*sorted(current), *[f"%{t}%" for t in terms])).fetchall()
+            current &= {int(r[0]) for r in rows}
+        return current
+    finally:
+        conn.close()
+
+
+def count_work_hits(pids: list[int], terms: list[str]) -> dict[int, int]:
+    """每个 pid 的论文标题命中词数（用于 topic_low 加分）。"""
+    if not pids or not terms:
+        return {}
+    conn = connect()
+    try:
+        ph = ",".join("?" * len(pids))
+        out: dict[int, int] = {}
+        for r in conn.execute(
+                f"""SELECT wa.pid, COUNT(*) FROM work_authors wa
+                    JOIN works w ON w.wid = wa.wid
+                    WHERE wa.pid IN ({ph})
+                      AND ({" OR ".join(["w.title LIKE ?"] * len(terms))})
+                    GROUP BY wa.pid""",
+                (*pids, *[f"%{t}%" for t in terms])):
+            out[int(r[0])] = int(r[1])
+        return out
+    finally:
+        conn.close()
+
+
 def _fts_query(q: str, mode: str = "and") -> str:
     q = _ZH_TEMPLATE.sub(" ", q or "")
     raw = _TOKEN.findall(q)
