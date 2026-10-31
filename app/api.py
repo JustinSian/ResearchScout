@@ -142,6 +142,27 @@ def graph(pid: int, depth: int = 1, max_collaborators: int = 60):
     return data
 
 
+@app.get("/work/{wid}/citations")
+def work_citations(wid: int, limit: int = 20) -> dict:
+    """这篇论文引用了谁（库内展开标题，库外只给 openalex id）。"""
+    from app import citations as cit
+    return cit.refs_of(wid, limit=min(max(limit, 1), 100))
+
+
+@app.get("/work/{wid}/cited-by")
+def work_cited_by(wid: int, limit: int = 20) -> dict:
+    """库里有哪些论文引用了它。"""
+    from app import citations as cit
+    return cit.citing_of(wid, limit=min(max(limit, 1), 100))
+
+
+@app.get("/citations/top")
+def citations_top(limit: int = 10) -> dict:
+    """库内被引最多的论文（按库内引用边计，不是 OpenAlex 的总被引）。"""
+    from app import citations as cit
+    return {"items": cit.top_cited(limit=min(max(limit, 1), 50))}
+
+
 @app.get("/works")
 def works(q: str = Query("", description="关键词，匹配标题/摘要"),
           limit: int = 20) -> dict:
@@ -507,17 +528,34 @@ def review_decide(pid: int, decision: str,
 
 
 # ---------------- Agent（LangGraph + 工具 + 引用 + 拒答） ----------------
+def _timed_supervise(q: str, sid: str) -> dict:
+    """统一入口 + 耗时/来源透出（对标 AMiner 的 source_api_chain：
+    用户应该能知道这个答案走了哪条路、花了多久）。"""
+    import time as _t
+
+    t0 = _t.perf_counter()
+    r = supervise(q, sid=sid)
+    r["elapsed_ms"] = round((_t.perf_counter() - t0) * 1000, 1)
+    src = []
+    if r.get("answer") and not r.get("kb_refused"):
+        src.append("kb")
+    if r.get("fallback"):
+        src.append("web")
+    r["sources"] = src
+    return r
+
+
 @app.post("/chat")
 def chat(q: str = Query(..., description="自然语言问题"),
          sid: str = Query("", description="会话 id：多轮指代（那这些人呢）靠它找回上一轮结果")) -> dict:
     # Supervisor 调度：kb / task / web / hybrid，并仲裁合并
-    return supervise(q, sid=sid)
+    return _timed_supervise(q, sid)
 
 
 @app.get("/chat")
 def chat_get(q: str = Query(..., description="自然语言问题（GET 别名，便于 curl 调试）"),
              sid: str = Query("")) -> dict:
-    return supervise(q, sid=sid)
+    return _timed_supervise(q, sid)
 
 
 @app.get("/agent/tools")

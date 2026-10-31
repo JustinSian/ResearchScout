@@ -192,6 +192,38 @@ def tool_collaborators(pid: int | None = None, name: str | None = None,
             "items": nodes[:limit], "count": len(nodes)}
 
 
+def _cite_query(q: str) -> str:
+    """把"这篇论文引用了谁"里的功能词剥掉，只留标题线索。"""
+    s = re.sub(r"这篇|那篇|论文|文章|引用了谁|引用了哪些|谁引用了|被谁引用|被引|引用|"
+               r"citations?|cite[sd]?|references?|who|whom|which|what|of", " ",
+               q or "", flags=re.I)
+    s = re.sub(r"[，,。;；:：!?！？、]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def tool_citations(query: str, limit: int = 5) -> dict:
+    """引用链：这篇论文引用了谁 / 谁引用了它（对标 AMiner 的 paper/relation）。
+
+    只有被引论文也在本库时才能展开标题；库外的引用只保留 openalex id，
+    不编造标题和作者。
+    """
+    from app import citations as cit
+
+    w = cit.resolve_work(query)
+    if not w:
+        return {"tool": "citations", "items": [], "count": 0,
+                "note": f"库里没找到标题匹配「{query}」的论文"}
+    refs = cit.refs_of(w["wid"], limit=limit)
+    citing = cit.citing_of(w["wid"], limit=limit)
+    return {"tool": "citations", "count": 1, "items": [{
+        "wid": w["wid"], "title": w["title"], "year": w["year"], "cites": w["cites"],
+        "venue": w.get("venue"),
+        "refs_total": refs["total"], "refs_in_corpus": refs.get("in_corpus", 0),
+        "refs": refs["items"][:limit],
+        "cited_by_total": citing["total"], "cited_by": citing["items"][:limit],
+    }]}
+
+
 def tool_works(query: str, limit: int = 5) -> dict:
     hits = search_works(query, limit=limit)
     conn = connect()
@@ -307,6 +339,9 @@ def tool_compare(names: list[str]) -> dict:
 _CN_COLLAB = re.compile(r"合作|搭档|同僚|一起写|co-?author|collaborat|works? with|和谁", re.I)
 _CN_PROFILE = re.compile(r"介绍|画像|简历|是谁|背景|profile|who is|about", re.I)
 _CN_WORKS = re.compile(r"论文|文章|著作|paper|publication", re.I)
+# 引用链（对标 AMiner 的 paper/relation）：注意要排在 _CN_WORKS 之前判断，
+# 否则"这篇论文引用了谁"会被"论文"抢走
+_CN_CITE = re.compile(r"引用|被引|谁引|citation|cite[sd]?\b|references?\b", re.I)
 _CN_COMPARE = re.compile(r"对比|比较|谁更|差异|区别|compare|versus|vs\b", re.I)
 # "研究方向/专长"类问题：交给档案（dossier），不是找专家
 _CN_AREA = re.compile(r"研究方向|研究领域|方向|领域|专长|擅长|做什么研究|研究什么|学术画像", re.I)
@@ -387,6 +422,9 @@ def plan_node(state: AgentState) -> dict:
     elif _CN_PROFILE.search(q) and names:
         # 只有抽到了"像人名"的片段才走画像；否则"介绍某个领域"应走找专家
         plan = [{"tool": "profile", "args": {"name": names[0]}}]
+    elif _CN_CITE.search(q):
+        # 引用链要排在 works 之前：否则"这篇论文引用了谁"会被"论文"抢走
+        plan = [{"tool": "citations", "args": {"query": _cite_query(q)}}]
     elif _CN_WORKS.search(q):
         plan = [{"tool": "works", "args": {"query": q_en}}]
     else:
@@ -414,6 +452,8 @@ def _run_tool(step: dict) -> dict:
         return tool_profile(**args)
     if name == "collaborators":
         return tool_collaborators(**args)
+    if name == "citations":
+        return tool_citations(**args)
     if name == "task":
         return tool_task(**args)
     if name == "relation":
@@ -474,10 +514,12 @@ def compose_node(state: AgentState) -> dict:
                 cc = f"{it.get('country')} · " if it.get("country") else ""
                 # works_count 是"样本内"收录篇数，不是全部论文数；
                 # 直接写"N 篇 / 被引 M"会让人以为 3 篇被引 4.9 万，必须标注清楚
+                hit = it.get("topic_hits")
                 lines.append(f"{i}. **{it.get('name_zh') or it.get('name')}** — "
                              f"{cc}{it.get('inst') or '机构未知'}；"
                              f"被引 {it.get('cited_by_count', 0):,}"
-                             f"（样本内 {it.get('works_count', 0)} 篇）")
+                             f"（样本内 {it.get('works_count', 0)} 篇）"
+                             + (f" · 主题命中 {hit}/论文命中 {it.get('work_hits', 0)}" if hit else ""))
                 cites.append(_cite("person", it["pid"], it.get("name_zh") or it.get("name"),
                                    {"country": it.get("country"), "inst": it.get("inst")}))
             if r0.get("notes"):
@@ -572,6 +614,30 @@ def compose_node(state: AgentState) -> dict:
         lines.append("- 说明：主题由论文标题词频统计得出，用于描述研究重心，不代表水平高低。")
         answer = "\n".join(lines)
         cites = [_cite("person", it["pid"], it["name"])]
+    elif tool == "citations":
+        it = items[0]
+        lines = [f"《{it['title']}》（{it.get('year') or '年份未知'}，"
+                 f"被引 {it.get('cites') or 0}）"]
+        lines.append(f"- 它引用了 **{it['refs_total']}** 篇，其中 **{it['refs_in_corpus']}** 篇在本库；"
+                     f"被库内 **{it['cited_by_total']}** 篇引用")
+        if it.get("refs"):
+            lines.append("- 它引用的（前几条）：")
+            for i, r in enumerate(it["refs"][:5], 1):
+                if r.get("ref_wid"):
+                    lines.append(f"  {i}. 《{r.get('title') or '(无标题)'}》"
+                                 f"（{r.get('year') or '—'}，被引 {r.get('cites') or 0}）")
+                else:
+                    lines.append(f"  {i}. 库外论文 `{r.get('ref_openalex')}`（只有 id，本库未收录）")
+        if it.get("cited_by"):
+            lines.append("- 引用它的（库内）：")
+            for i, r in enumerate(it["cited_by"][:5], 1):
+                lines.append(f"  {i}. 《{r.get('title') or '(无标题)'}》"
+                             f"（{r.get('year') or '—'}，被引 {r.get('cites') or 0}）")
+        if not it["refs_total"] and not it["cited_by_total"]:
+            lines.append("- 本库还没有这篇论文的引用记录（可能刚入库，引用抓取未覆盖）。")
+        answer = "\n".join(lines)
+        cites = [_cite("work", it["wid"], it["title"], {"year": it.get("year")})]
+
     elif tool == "works":
         lines = ["相关论文："]
         cites = []

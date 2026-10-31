@@ -228,6 +228,7 @@ def search(facets: dict, limit: int = 0) -> dict:
 
     sql = f"""
         SELECT p.pid, p.name, p.name_zh, p.country, p.works_count, p.cited_by_count,
+               p.updated_at, p.topics,
                i.name AS inst, i.kind AS inst_kind
         FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id
         WHERE {' AND '.join(where)}
@@ -236,12 +237,63 @@ def search(facets: dict, limit: int = 0) -> dict:
     """
     conn = connect()
     try:
-        rows = [dict(r) for r in conn.execute(sql, (*args, limit))]
+        # 多取一些候选，留给"主题命中数"重排（AMiner 的三层权重简化版：
+        # high=主题词必含（已在 FTS/过滤里）、middle=国家/机构类型硬条件、
+        # low=同义词命中数用于加分），否则按被引排会把擦边的人排前面。
+        fetch_n = limit if not terms else min(200, max(limit * 4, 40))
+        rows = [dict(r) for r in conn.execute(sql, (*args, fetch_n))]
         total = conn.execute(
             f"SELECT COUNT(*) FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id "
             f"WHERE {' AND '.join(where)}", args).fetchone()[0]
     finally:
         conn.close()
+
+    # 主题命中重排：这就是 AMiner "topic_high/middle/low" 在本数据上的等价物——
+    # 必含条件由 SQL 过滤承担（high），机构/国家是硬条件（middle），
+    # 这里算的是"主题覆盖度"（low）：概念 + 论文标题各命中多少。
+    # 只看 topics 不够：OpenAlex 的概念很粗（"Medicine"），同义词基本不共现，
+    # 实测所有人都是 1 分，等于没排序。加上论文标题命中才分得开。
+    if terms and rows:
+        def _topic_hits(r: dict) -> int:
+            t = (r.get("topics") or "").lower()
+            return sum(1 for x in terms if x and str(x).lower() in t)
+
+        pids = [r["pid"] for r in rows]
+        ph = ",".join("?" * len(pids))
+        like = " OR ".join(["w.title LIKE ?"] * len(terms))
+        wargs = [f"%{x}%" for x in terms]
+        work_hits: dict[int, int] = {}
+        try:
+            conn_w = connect()
+            try:
+                for row in conn_w.execute(
+                        f"""SELECT wa.pid, COUNT(*) AS n
+                            FROM work_authors wa JOIN works w ON w.wid = wa.wid
+                            WHERE wa.pid IN ({ph}) AND ({like})
+                            GROUP BY wa.pid""", (*pids, *wargs)):
+                    work_hits[int(row[0])] = int(row[1])
+            finally:
+                conn_w.close()
+        except Exception:
+            work_hits = {}
+
+        secondary = {"cites": "cited_by_count", "works": "works_count",
+                     "recent": "updated_at"}.get(facets.get("sort") or "cites",
+                                                 "cited_by_count")
+        for r in rows:
+            r["topic_hits"] = _topic_hits(r)
+            r["work_hits"] = work_hits.get(int(r["pid"]), 0)
+
+        def _key(r: dict):
+            # 稳定排序：同分时保留 SQL 里的原顺序（recent 模式就靠它）
+            if secondary == "updated_at":
+                return (-r["topic_hits"], -r["work_hits"])
+            return (-r["topic_hits"], -r["work_hits"], -(r.get(secondary) or 0))
+
+        rows.sort(key=_key)
+        rows = rows[:limit]
+        for r in rows:
+            r.pop("topics", None)      # 只用于算命中数，别塞进响应里
 
     # FTS 没命中但确实有主题词 → 用 LIKE 在 topics 上兜底（英文概念就存在这里）
     if not rows and terms:
