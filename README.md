@@ -156,6 +156,16 @@ BM25 + 向量 + RRF/DBSF 全参数可切，两套 gold set（按被引 / 随机�
   **FTS 行数一致性**、无主题占比；守护进程每 6 小时落盘 + 告警文件；
 - 上线当天就抓到 **6,567 人没进 FTS 索引**（搜索里不存在）。
 
+### 10. 引用加权与两跳链
+
+- **`sort=impact`**：用**库内引用边**（10,931 篇 / 56.4 万条引用）算每个人的可审计影响力，
+  与 OpenAlex 全站被引的前五完全不重合——李兰娟 1,807 次、何建行 1,063、钟南山 920，
+  而按全站被引排第一的是被引 60 万的综述作者。口径见 [docs/m36](docs/m36-citation-ranking.md)。
+- **两跳链**：`X ← A ← B`，全部走库内边，节点上限 40、超出显式 `truncated`。
+- **论文页**：点开任意论文看"它引用了谁 / 谁引用了它"，库外引用只显示 id 并标注未收录。
+- 也开放了 AMiner 式的 `topic_high / topic_low`（组间 AND、组内 OR），见 [docs/m37](docs/m37-topic-tiers.md)。
+
+
 ## 五、最值钱的部分：三次真实事故
 
 | 事故 | 怎么发现 | 怎么修 | 结果 |
@@ -250,6 +260,7 @@ GET  /works                 论文检索
 GET  /work/{wid}/citations  这篇引用了谁（库内展开标题，库外给 id）
 GET  /work/{wid}/cited-by   库内谁引用了它
 GET  /citations/top         库内被引最多（按库内引用边计）
+GET  /work/{wid}            论文详情（库内引用/被引计数）
 GET  /search                混合检索（bm25/dense/hybrid）
 GET  /graph/{pid}           合作网络    GET  /graph/path      最短合作链
 GET  /dossiers              深档案列表  GET  /dossier/{pid}   单份档案 + 代表作
@@ -274,7 +285,7 @@ app/            judge(可信判定) search(检索) agent(单轮+工具) harness(
 web/index.html  单文件 SPA（专家墙/检索/画像/图谱/问答/尽调/复核）
 eval/           gold set、基线与路由评测集
 skills/         Markdown 技能（渐进式披露）
-docs/           m1~m31 里程碑报告
+docs/           m1~m38 里程碑报告
 ```
 
 ## 九、与 AMiner 的数据模型对照
