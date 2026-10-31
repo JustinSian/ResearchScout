@@ -122,9 +122,21 @@ def _merge(query: str, kb: dict | None, web: dict | None) -> dict:
             "refused": True, "reason": reason, "refinements": []}
 
 
-def run(query: str, force_route: str | None = None, log=print) -> dict:
+def run(query: str, force_route: str | None = None, log=print, sid: str = "") -> dict:
     """执行一次调度：探测 → 决策 → 跑 agent → 仲裁。"""
-    d = decide(query)
+    from app import context as ctx_mod
+
+    ctx = ctx_mod.resolve(query, sid)
+    if ctx.get("inherit"):
+        # "那这些人呢"必须留在库内、并且只在那批人里排；交给路由判断会跑到网络
+        d = {"route": "kb", "agents": ["kb"], "reason": "指代上一轮结果，沿用库内结果集"}
+    elif ctx_mod.has_anaphora(query):
+        return {"answer": ("我没法确定“这些人”指的是哪一批——上一个问题可能已过期，"
+                           "或者换了会话。请把条件再说一次，例如“中国的呼吸科专家”。"),
+                "citations": [], "refused": True, "reason": "指代无上下文",
+                "refinements": []}
+    else:
+        d = decide(query)
     route = force_route or d["route"]
     log(f"    [supervisor] route={route}（{d['reason']}）")
 
@@ -164,7 +176,7 @@ def run(query: str, force_route: str | None = None, log=print) -> dict:
                 who = p_["names"][0]
             if who:
                 kb_query = "介绍一下" + who
-        kb = kb_answer(kb_query, allow_fallback=False)
+        kb = kb_answer(kb_query, allow_fallback=False, sid=sid)
         if route == "kb" and kb.get("refused") and websearch.available():
             route = "web"
     if route in ("web", "hybrid"):

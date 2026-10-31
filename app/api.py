@@ -457,14 +457,16 @@ def review_decide(pid: int, decision: str,
 
 # ---------------- Agent（LangGraph + 工具 + 引用 + 拒答） ----------------
 @app.post("/chat")
-def chat(q: str = Query(..., description="自然语言问题")) -> dict:
+def chat(q: str = Query(..., description="自然语言问题"),
+         sid: str = Query("", description="会话 id：多轮指代（那这些人呢）靠它找回上一轮结果")) -> dict:
     # Supervisor 调度：kb / task / web / hybrid，并仲裁合并
-    return supervise(q)
+    return supervise(q, sid=sid)
 
 
 @app.get("/chat")
-def chat_get(q: str = Query(..., description="自然语言问题（GET 别名，便于 curl 调试）")) -> dict:
-    return supervise(q)
+def chat_get(q: str = Query(..., description="自然语言问题（GET 别名，便于 curl 调试）"),
+             sid: str = Query("")) -> dict:
+    return supervise(q, sid=sid)
 
 
 @app.get("/agent/tools")
@@ -485,7 +487,7 @@ def chat_welcome_ep() -> dict:
     return chat_welcome()
 
 @app.get("/chat/stream")
-async def chat_stream(q: str = Query(...)):
+async def chat_stream(q: str = Query(...), sid: str = Query("")):
     """SSE：思考叙述 → 逐字回答 → 引用 → 结束。
 
     没有 LLM，但流式的**形状和行为**与模型一致：先讲思路，再逐步吐字。
@@ -510,7 +512,7 @@ async def chat_stream(q: str = Query(...)):
                   "find_expert": "search"}.get(plan_node({"query": q})["plan"][0]["tool"], "search")
         yield sse("think", {"t": narrate.opening(q, intent)})
 
-        r = await asyncio.to_thread(supervise, q)
+        r = await asyncio.to_thread(supervise, q, sid=sid)
         if r.get("fallback"):
             yield sse("think", {"t": "知识库里没有直接证据，我改查公开网络（结果会标注来源，未经本库核验）。"})
         for p in r["plan"]:

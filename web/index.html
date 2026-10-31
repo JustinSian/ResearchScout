@@ -309,6 +309,16 @@ const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+// 会话 id：多轮指代（"那这些人呢"）靠它把上一轮的结果集找回来
+const stSid = (() => {
+  let v = sessionStorage.getItem('st_sid');
+  if (!v) {
+    v = 's' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    sessionStorage.setItem('st_sid', v);
+  }
+  return v;
+})();
+
 // 姓名 → 稳定的色相，生成头像色块
 function hueOf(name){
   let h = 0; for (const ch of (name||'')) h = (h*31 + ch.codePointAt(0)) % 360;
@@ -845,7 +855,7 @@ async function askChat(){
   box.innerHTML = `<div class="think" style="color:#8fa6c0;font-size:12.5px;white-space:pre-wrap;margin-bottom:6px">思考中…</div><div class="ans" style="white-space:pre-wrap"></div>`;
   $('#chatlog').appendChild(box);
   const think = box.querySelector('.think'), ans = box.querySelector('.ans');
-  const es = new EventSource('/chat/stream?q='+encodeURIComponent(q));
+  const es = new EventSource('/chat/stream?q='+encodeURIComponent(q)+'&sid='+encodeURIComponent(stSid));
   let buf='', plan=[], refused=false, thinks=[], first=true;
   es.addEventListener('think', e=>{
     const t = JSON.parse(e.data).t;

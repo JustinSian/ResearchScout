@@ -35,6 +35,7 @@ class AgentState(TypedDict, total=False):
     citations: list[dict]
     refused: bool
     reason: str
+    sid: str                  # 会话 id：多轮上下文（"那这些人呢"）靠它找回上一轮结果
 
 
 # ---------------- 工具 ----------------
@@ -44,7 +45,7 @@ def _person_brief(row) -> dict:
             "score": round(float(row["confidence"] or 0), 3)}
 
 
-def tool_find_expert(query: str, limit: int = 5) -> dict:
+def tool_find_expert(query: str, limit: int = 5, sid: str = "") -> dict:
     """按研究方向找专家：**论文优先**，再用 CE 判相关性，最后聚合到作者。
 
     为什么不是"直接检索人物"：人物的 topics 是 OpenAlex 的粗粒度概念
@@ -54,21 +55,41 @@ def tool_find_expert(query: str, limit: int = 5) -> dict:
     但如果查询里带了**结构化条件**（国家/机构类型/机构名/被引门槛），
     先走 facet 过滤——这类问题用论文相关性排序回答不了（"中国的呼吸科专家"
     里"中国"是硬条件，不是语义相似度能表达的）。
+
+    上下文：带 sid 时会读上一轮的结果集，"那这些人里被引最高的是谁"只在上一批里排。
     """
+    from app import context as ctx_mod
     from app import facets as facet_mod
+
+    ctx = ctx_mod.resolve(query, sid)
     parsed = facet_mod.parse(query)
-    structured = any([parsed.get("country"), parsed.get("inst_kind"),
-                      parsed.get("inst_name"), parsed.get("cites_min")])
+    if ctx["inherit"]:
+        parsed["pids"] = ctx["pids"]
+        if ctx["sort"]:
+            parsed["sort"] = ctx["sort"]
+        if ctx["note"]:
+            parsed["notes"] = (parsed.get("notes") or []) + [ctx["note"]]
+        # 这句话里的"主题"往往只剩指代词和排序词（"那这些 被引最高"），
+        # 拿去 FTS 只会污染结果；继承模式下只按 pid 集合 + 排序走
+        if not any(parsed.get(k) for k in ("country", "inst_kind", "inst_name", "cites_min")):
+            parsed["topic"] = ""
+            parsed["topic_en"] = []
+    structured = ctx["inherit"] or any([parsed.get("country"), parsed.get("inst_kind"),
+                                       parsed.get("inst_name"), parsed.get("cites_min")])
     if structured:
         # 用户说"前 20 条"时，facet 里的 limit 应优先于工具默认的 5
         res = facet_mod.search(parsed, limit=int(parsed.get("limit") or limit))
         if res["count"]:
+            ctx_mod.save(sid, query, [it["pid"] for it in res["items"]],
+                         {k: v for k, v in parsed.items() if k not in ("notes", "topic_en")})
             return {"tool": "find_expert", "mode": "facet",
                     "items": res["items"], "count": res["count"], "total": res["total"],
                     "facets": {k: v for k, v in parsed.items()
-                               if k not in ("notes", "topic_en") and v},
+                               if k not in ("notes", "topic_en", "pids") and v},
+                    "inherited": len(parsed.get("pids") or []),
                     "notes": parsed.get("notes") or [],
                     "relaxed": res.get("relaxed", ""),
+                    "context": ctx,
                     # 多轮收窄：只提结果里真实存在的选项
                     "refinements": facet_mod.suggest(parsed, res["items"], res["total"])}
 
@@ -116,8 +137,10 @@ def tool_find_expert(query: str, limit: int = 5) -> dict:
         from app.search_chunks import passages_for
         for it in items[:3]:
             it["passages"] = passages_for(it["pid"], query, k=2)
+        # 非 facet 路径也要记上下文，"那这些人的论文呢"才接得上
+        ctx_mod.save(sid, query, [it["pid"] for it in items], {})
         return {"tool": "find_expert", "items": items, "count": len(items),
-                "ce_max": round(max(ce), 3) if ce else 0.0}
+                "ce_max": round(max(ce), 3) if ce else 0.0, "context": ctx}
     finally:
         conn.close()
 
@@ -340,7 +363,14 @@ def plan_node(state: AgentState) -> dict:
     q = state["query"]
     q_en = latin_query(q)
     names = extract_names(q)
-    if _CN_REVIEW.search(q):
+    # 指代优先：这句话在指上一轮结果时，别被"论文/作品"这类关键词分支截走
+    # （"他们谁论文最多"曾因含"论文"走进 works 工具，直接拒答后转网络）
+    from app.context import has_anaphora as _has_anaphora, resolve as _resolve
+    _sid = state.get("sid") or ""
+    _ctx = _resolve(q, _sid) if _has_anaphora(q) else {"inherit": False}
+    if _ctx.get("inherit"):
+        plan = [{"tool": "find_expert", "args": {"query": q, "sid": _sid}}]
+    elif _CN_REVIEW.search(q):
         # 交给多步尽调任务（researcher/analyst/verifier 协作），而不是单轮比较
         plan = [{"tool": "task", "args": {"query": q}}]
     elif _CN_COMPARE.search(q) and len(names) >= 2:
@@ -367,7 +397,12 @@ def plan_node(state: AgentState) -> dict:
         _f = facet_mod.parse(q)
         _structured = any([_f.get("country"), _f.get("inst_kind"),
                            _f.get("inst_name"), _f.get("cites_min")])
-        plan = [{"tool": "find_expert", "args": {"query": q if _structured else q_en}}]
+        # 指代问题（"他们谁论文最多"）本身没有结构化条件，但必须传原文：
+        # q_en 会把"他们"删掉，上下文就断了（踩过：直接跑到网络兜底）
+        from app.context import has_anaphora as _has_anaphora
+        _keep = _structured or _has_anaphora(q)
+        plan = [{"tool": "find_expert", "args": {"query": q if _keep else q_en,
+                                                   "sid": state.get("sid") or ""}}]
     return {"plan": plan, "query_en": q_en}
 
 
@@ -428,7 +463,10 @@ def compose_node(state: AgentState) -> dict:
             label = {"country": "国家", "inst_kind": "机构类型", "inst_name": "机构",
                      "cites_min": "被引下限", "sort": "排序", "topic": "主题"}
             conds = "、".join(f"{label.get(k, k)}={v}" for k, v in f.items() if v)
-            lines = [f"我把它理解成了结构化条件：**{conds or '（无）'}**。",
+            head = f"我把它理解成了结构化条件：**{conds or '（无）'}**。"
+            if r0.get("inherited"):
+                head += f"（在这个问题的上一批 **{r0['inherited']}** 人里筛选）"
+            lines = [head,
                      f"命中 **{r0.get('total', r0.get('count', 0))}** 人"
                      + (f"（{r0.get('relaxed')}）" if r0.get("relaxed") else "") + "："]
             cites = []
@@ -580,8 +618,8 @@ def get_agent():
     return _GRAPH
 
 
-def answer(query: str, allow_fallback: bool = True) -> dict:
-    out = get_agent().invoke({"query": query, "evidence": []})
+def answer(query: str, allow_fallback: bool = True, sid: str = "") -> dict:
+    out = get_agent().invoke({"query": query, "evidence": [], "sid": sid})
     r = {"query": query, "plan": out.get("plan", []),
          "answer": out.get("answer", ""), "citations": out.get("citations", []),
          "refused": bool(out.get("refused")), "reason": out.get("reason", ""),

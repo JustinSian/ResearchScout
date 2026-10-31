@@ -85,7 +85,7 @@ def test_supervisor_falls_back_when_kb_refuses(monkeypatch):
     pytest.importorskip("langgraph")
     from app import supervisor
 
-    monkeypatch.setattr("app.agent.answer", lambda q, allow_fallback=True: _fake_kb(True))
+    monkeypatch.setattr("app.agent.answer", lambda q, allow_fallback=True, sid="": _fake_kb(True))
     monkeypatch.setattr(supervisor.websearch, "available", lambda: True)
     monkeypatch.setattr(supervisor.websearch, "answer",
                         lambda q: {"ok": True, "text": "网络结果",
@@ -104,7 +104,7 @@ def test_supervisor_degrades_when_task_raises(monkeypatch):
         raise RuntimeError("no candidates")
 
     monkeypatch.setattr(harness, "run", boom)
-    monkeypatch.setattr("app.agent.answer", lambda q, allow_fallback=True: _fake_kb(True))
+    monkeypatch.setattr("app.agent.answer", lambda q, allow_fallback=True, sid="": _fake_kb(True))
     monkeypatch.setattr(supervisor.websearch, "available", lambda: True)
     monkeypatch.setattr(supervisor.websearch, "answer",
                         lambda q: {"ok": True, "text": "降级后的网络结果", "citations": []})
@@ -118,7 +118,7 @@ def test_supervisor_refuses_when_everything_empty(monkeypatch):
     pytest.importorskip("langgraph")
     from app import supervisor
 
-    monkeypatch.setattr("app.agent.answer", lambda q, allow_fallback=True: _fake_kb(True))
+    monkeypatch.setattr("app.agent.answer", lambda q, allow_fallback=True, sid="": _fake_kb(True))
     monkeypatch.setattr(supervisor.websearch, "available", lambda: False)
     out = supervisor.run("完全无法回答的问题", force_route="kb", log=lambda s: None)
     assert out["refused"] is True

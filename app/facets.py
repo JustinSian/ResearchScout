@@ -214,6 +214,13 @@ def search(facets: dict, limit: int = 0) -> dict:
         where.append("p.cited_by_count >= ?")
         args.append(int(facets["cites_min"]))
 
+    # 上下文继承：只在上一轮命中的那批人里筛/排（"那这些人里被引最高的是谁"）
+    pids = facets.get("pids") or []
+    if pids:
+        marks = ",".join("?" * len(pids[:200]))
+        where.append(f"p.pid IN ({marks})")
+        args += [int(x) for x in pids[:200]]
+
     order = {"cites": "p.cited_by_count DESC",
              "works": "p.works_count DESC",
              "recent": "p.updated_at DESC"}.get(facets.get("sort") or "cites",
