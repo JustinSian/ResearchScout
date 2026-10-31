@@ -284,7 +284,7 @@ docs/           m1~m31 里程碑报告
 | AMiner 有 | 我们有 | 结论 |
 |---|---|---|
 | `person/detail` + `person/figure`（简介/教育/工作/兴趣） | `people` + `name_zh` + `headline` | 字段更薄，但**准入门槛**更严（他们没有可信判定） |
-| `person/paper/relation`、`paper/relation`（引用链） | `work_authors` + `work_refs`（**已补**，OpenAlex `referenced_works`） | 引用链可查；库内链回率约 10%，库外只留 id |
+| `person/paper/relation`、`paper/relation`（引用链） | `work_authors` + `work_refs`（**已补**，OpenAlex `referenced_works`） | 引用链可查（10,931 篇 / 56.4 万条引用）；库内链回率 5.3%，库外只留 id |
 | `organization/na`、`na/pro`（机构消歧） | **已补**：4,319 个机构实体 / 38,663 人挂载；近似重复只报告不合并 | 归一化 + 候选对，比自动合并保守 |
 | `venue/*`（期刊实体、期刊论文关系） | **已补**：2,314 个期刊实体 / 10,599 篇挂载；`PubMed` 等仓储单列 | 支撑"常发期刊"与期刊分析 |
 | `paper/qa/search`（topic_high/middle/low 三层权重） | `app/subagents.LEX` 一张中英词表 | 我们的主题匹配是简化版，可借鉴三层加权 |
