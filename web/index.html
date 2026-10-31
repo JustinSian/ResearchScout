@@ -238,6 +238,17 @@ window.addEventListener('error', function (e) {
     <div id="results"></div>
   </section>
 
+  <!-- 论文详情（不在导航里，从检索结果/引用列表点进来） -->
+  <section class="view" id="v-work">
+    <div class="toolbar">
+      <button class="ghost" id="wback">← 返回</button>
+      <input type="text" id="wid" placeholder="论文 wid，例如 39" style="max-width:220px">
+      <button class="primary" id="wgo">查看</button>
+    </div>
+    <p class="hint" id="whint">引用/被引都只统计<b>本库内</b>的边；库外论文只显示 OpenAlex id。</p>
+    <div id="wdetail"></div>
+  </section>
+
   <!-- 画像 -->
   <section class="view" id="v-person">
     <div class="row">
@@ -386,12 +397,80 @@ fetch('/stats').then(r=>r.json()).then(d=>{
      <span>待审 <b>${fmt(d.review_pending)}</b></span>`;
 }).catch(()=>{});
 
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showView(b.dataset.v, b));
+
+// 统一视图切换：论文详情不在导航里，也走同一个函数
+function showView(v, navBtn){
   document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on'); $('#v-'+b.dataset.v).classList.add('on');
-  if (b.dataset.v === 'chat') ensureWelcome();
-});
+  if (navBtn) navBtn.classList.add('on');
+  else {
+    const b = document.querySelector(`nav button[data-v="${v}"]`);
+    if (b) b.classList.add('on');
+  }
+  const el = $('#v-'+v);
+  if (el) el.classList.add('on');
+  if (v === 'chat') ensureWelcome();
+}
+
+// ---------- 论文详情（引用 / 被引，只统计库内边） ----------
+const WStack = [];
+window.openWork = async function(wid, push){
+  wid = Number(wid);
+  if (!wid) return;
+  if (push !== false && WStack[WStack.length-1] !== wid) WStack.push(wid);
+  $('#wid').value = wid;
+  showView('work');
+  $('#wdetail').innerHTML = '<p class="muted">加载中…</p>';
+  try{
+    const [w, refs, cited] = await Promise.all([
+      fetch('/work/' + wid).then(r => r.ok ? r.json() : null),
+      fetch(`/work/${wid}/citations?limit=20`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/work/${wid}/cited-by?limit=20`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
+    if (!w || !w.found){
+      $('#wdetail').innerHTML = `<p class="err">这篇论文不在本库（wid=${wid}）。</p>`;
+      return;
+    }
+    const wk = w.work || {};
+    const head = `<div class="card">
+      <h3 style="margin:0">${esc(wk.title || '(无标题)')}</h3>
+      <div class="kv">${wk.year || '年份未知'} · ${esc(wk.venue || '未知来源')} ·
+        总被引 ${fmt(wk.cites)} · DOI ${esc(wk.doi || '—')}</div>
+      <div class="kv">库内：引用 <b>${w.refs_total}</b> 篇（其中 ${w.refs_in_corpus} 篇在本库）·
+        被 <b>${w.cited_by_in_corpus}</b> 篇引用</div></div>`;
+
+    const line = (x, isRef) => {
+      if (isRef && !x.ref_wid){
+        return `<div class="kv" style="margin:4px 0">· 库外论文 <code>${esc(x.ref_openalex)}</code>
+                <span style="color:#7f93ad">未收录，无法展开</span></div>`;
+      }
+      const id = x.ref_wid || x.wid;
+      return `<div class="kv" style="margin:4px 0;cursor:pointer" onclick="openWork(${id})">
+        · 《${esc(x.title || '(无标题)')}》${x.year ? '（' + x.year + '）' : ''}
+        <span style="color:#7f93ad">· 被引 ${fmt(x.cites)}</span></div>`;
+    };
+    const refList = (refs && refs.items && refs.items.length)
+      ? refs.items.map(x => line(x, true)).join('')
+      : '<div class="kv">没有引用记录（可能刚入库，引用抓取未覆盖）。</div>';
+    const citedList = (cited && cited.items && cited.items.length)
+      ? cited.items.map(x => line(x, false)).join('')
+      : '<div class="kv">本库内还没有论文引用它。</div>';
+    $('#wdetail').innerHTML = head
+      + `<div class="card"><h3 style="margin:0 0 6px">它引用了（${w.refs_total}）</h3>${refList}</div>`
+      + `<div class="card"><h3 style="margin:0 0 6px">引用它的（库内 ${w.cited_by_in_corpus}）</h3>${citedList}</div>`;
+  }catch(e){
+    $('#wdetail').innerHTML = `<p class="err">${esc(e.message)}</p>`;
+  }
+};
+$('#wgo').onclick = () => openWork($('#wid').value);
+$('#wid').addEventListener('keydown', e => { if (e.key === 'Enter') openWork($('#wid').value); });
+$('#wback').onclick = () => {
+  WStack.pop();
+  const prev = WStack[WStack.length-1];
+  if (prev) openWork(prev, false);
+  else showView('search');
+};
 
 // ---------- 专家墙 ----------
 const wall = {sort:'cites', topic:'', inst:'', source:'', endorse:'',
@@ -612,7 +691,7 @@ async function doSearch(){
             被引 ${fmt(it.cited_by_count)} · 可信度 ${it.confidence}${countryChip(it)}</div></div>
         <button class="ghost" onclick="openPerson(${it.id})">画像</button>
         <button class="ghost" onclick="openGraph(${it.id})">图谱</button></div></div>`).join('')
-      : d.items.map(it=>`<div class="card"><h3>${esc(it.title||'(无标题)')}
+      : d.items.map(it=>`<div class="card" style="cursor:pointer" onclick="openWork(${it.id})"><h3>${esc(it.title||'(无标题)')}
           <span class="score">${it.score}</span></h3>
           <div class="kv">${it.year||'—'} · ${esc(it.venue||'未知来源')} · 被引 ${fmt(it.cites)}</div></div>`).join(''));
   }catch(e){ $('#results').innerHTML = `<p class="err">${esc(e.message)}</p>`; }

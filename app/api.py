@@ -144,6 +144,17 @@ def graph(pid: int, depth: int = 1, max_collaborators: int = 60):
     return data
 
 
+@app.get("/work/{wid}")
+def work_detail(wid: int) -> dict:
+    """论文详情：基本信息 + 库内引用/被引计数（前端论文页用）。"""
+    from app import citations as cit
+
+    st = cit.stats(wid)
+    if not st.get("found"):
+        raise HTTPException(status_code=404, detail=f"本库没有 wid={wid} 的论文")
+    return st
+
+
 @app.get("/work/{wid}/citations")
 def work_citations(wid: int, limit: int = 20) -> dict:
     """这篇论文引用了谁（库内展开标题，库外只给 openalex id）。"""
