@@ -221,6 +221,31 @@ def chain(wid: int, hops: int = 2, max_nodes: int = 40,
         conn.close()
 
 
+def cluster_of(wid: int, limit: int = 8) -> dict:
+    """这篇论文所属的引用社区 + 同社区其他论文（按库内被引排序）。
+
+    社区来自 app/cluster.py 的 Louvain 局部移动；同一社区通常意味着
+    "互相引用的一簇同主题论文"，但也可能是被一篇跨领域综述桥接起来的（见 docs/m41）。
+    """
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT cluster_id, size FROM work_cluster WHERE wid=?", (wid,)).fetchone()
+        if not row:
+            return {"cluster_id": None, "size": 0, "papers": []}
+        cid, size = int(row[0]), int(row[1])
+        papers = conn.execute(
+            """SELECT w.wid, w.title, w.year, w.cites,
+                      (SELECT COUNT(*) FROM work_refs x WHERE x.ref_wid = w.wid) AS cited
+               FROM work_cluster c JOIN works w ON w.wid = c.wid
+               WHERE c.cluster_id = ? AND w.wid != ?
+               ORDER BY cited DESC, w.cites DESC LIMIT ?""",
+            (cid, wid, limit)).fetchall()
+        return {"cluster_id": cid, "size": size, "papers": [dict(p) for p in papers]}
+    finally:
+        conn.close()
+
+
 def top_cited(limit: int = 10, sort: str = "count") -> list[dict]:
     """库内被引最多的论文。
 

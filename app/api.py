@@ -146,13 +146,23 @@ def graph(pid: int, depth: int = 1, max_collaborators: int = 60):
 
 @app.get("/work/{wid}")
 def work_detail(wid: int) -> dict:
-    """论文详情：基本信息 + 库内引用/被引计数（前端论文页用）。"""
+    """论文详情：基本信息 + 库内引用/被引计数 + 所属引用社区（前端论文页用）。"""
     from app import citations as cit
 
     st = cit.stats(wid)
     if not st.get("found"):
         raise HTTPException(status_code=404, detail=f"本库没有 wid={wid} 的论文")
+    st["cluster"] = cit.cluster_of(wid, limit=8)
     return st
+
+
+@app.get("/clusters/top")
+def clusters_top(limit: int = 10, per_cluster: int = 3) -> dict:
+    """最大的引用社区（研究流派）及各社区代表论文。"""
+    from app import cluster as cl
+
+    return {"items": cl.top_clusters(limit=min(max(limit, 1), 50),
+                                     per_cluster=min(max(per_cluster, 1), 10))}
 
 
 @app.get("/work/{wid}/citations")
