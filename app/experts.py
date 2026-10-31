@@ -19,12 +19,17 @@ SORTS = {
     "works": "p.works_count DESC",
     "collab": "collab DESC, p.cited_by_count DESC",
     "recent": "p.pid DESC",
+    # 库内引用加权：本地可审计的证据，不是 OpenAlex 全站被引
+    "impact": "impact DESC, p.cited_by_count DESC",
 }
 BASE = """
 SELECT p.pid, p.name, p.last_inst, p.works_count, p.cited_by_count, p.country, p.country_src,
        p.confidence, p.topics, p.headline, p.source, p.name_zh, p.endorse,
        (SELECT COUNT(*) FROM edges e WHERE e.a = p.pid OR e.b = p.pid) AS collab,
-       (SELECT COUNT(*) FROM person_org po WHERE po.pid = p.pid) AS org_count
+       (SELECT COUNT(*) FROM person_org po WHERE po.pid = p.pid) AS org_count,
+       COALESCE((SELECT pi.in_corpus_cites FROM person_impact pi WHERE pi.pid = p.pid), 0) AS impact,
+       COALESCE((SELECT pi.cited_works    FROM person_impact pi WHERE pi.pid = p.pid), 0) AS cited_works,
+       COALESCE((SELECT pi.impact_per_work FROM person_impact pi WHERE pi.pid = p.pid), 0) AS impact_per_work
 FROM people p
 WHERE p.status = 'published'
 """
@@ -55,6 +60,18 @@ def top_experts(sort: str = "cites", topic: str = "", inst: str = "",
                 source: str = "", endorse: str = "", near: int = 0,
                 country: str = "", inst_kind: str = "", cites_min: int = 0,
                 limit: int = 24, offset: int = 0, order: str = "desc") -> dict:
+    note = ""
+    if sort == "impact":
+        # 引用数据没构建时不能假装有：退回按被引，并明确告诉调用方
+        conn_chk = connect()
+        try:
+            ok = conn_chk.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='person_impact'"
+            ).fetchone() and conn_chk.execute("SELECT 1 FROM person_impact LIMIT 1").fetchone()
+        finally:
+            conn_chk.close()
+        if not ok:
+            sort, note = "cites", "引用加权数据未构建（先跑 python -m app.impact），已退回按被引排序"
     order_sql = SORTS.get(sort, SORTS["cites"])
     if order == "asc":
         order_sql = order_sql.replace(" DESC", " ASC")
@@ -119,13 +136,16 @@ def top_experts(sort: str = "cites", topic: str = "", inst: str = "",
                 "confidence": r["confidence"],
                 "headline": r["headline"], "source": r["source"] or "openalex",
                 "country": r["country"], "country_src": r["country_src"],
+                # 库内引用加权（可审计的本地证据；sort=impact 时用它排）
+                "impact": r["impact"], "cited_works": r["cited_works"],
+                "impact_per_work": r["impact_per_work"],
                 "endorse": r["endorse"],
                 "name_zh": r["name_zh"],
                 "topics": json.loads(r["topics"] or "[]")[:5],
                 "topics_zh": [label_topic(x) for x in json.loads(r["topics"] or "[]")[:5]],
             })
         return {"total": total, "offset": offset, "count": len(items),
-                "sort": sort, "topic": topic, "inst": inst, "source": source,
+                "note": note, "sort": sort, "topic": topic, "inst": inst, "source": source,
                 "country": country, "inst_kind": inst_kind, "cites_min": cites_min,
                 "endorse": endorse,
                 "near": near,

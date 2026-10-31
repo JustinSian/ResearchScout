@@ -25,7 +25,7 @@ from app.config import DB_PATH, SCHEMA_PATH
 
 # 需要复制数据的表（其余由 schema 建空表即可）
 COPY_TABLES = ["people", "works", "work_authors", "edges", "dossier", "dossier_work",
-               "venues", "institutions", "orgs", "person_org", "meta"]
+               "venues", "institutions", "orgs", "person_org", "person_impact", "meta"]
 
 
 def _create_schema(dst: sqlite3.Connection, src: sqlite3.Connection, log=print) -> None:
@@ -116,6 +116,10 @@ def build(out: Path | None = None, people: int = 60, works: int = 1200,
     counts["orgs"] = copy(
         "SELECT * FROM orgs WHERE oid IN (SELECT oid FROM person_org WHERE pid IN (%s))" % ph,
         _insert_sql(src, "orgs"), tuple(pids))
+    # 引用加权：只带 demo 这批人的行，否则会把 3.3 万人的数据塞进 6MB 快照
+    counts["person_impact"] = copy(
+        "SELECT * FROM person_impact WHERE pid IN (%s)" % ph,
+        _insert_sql(src, "person_impact"), tuple(pids))
     counts["meta"] = copy("SELECT * FROM meta", _insert_sql(src, "meta"))
 
     # 3) 重建 FTS（不拷贝影子表）

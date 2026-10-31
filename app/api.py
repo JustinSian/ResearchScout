@@ -308,7 +308,7 @@ def graph_community(pid: int) -> dict:
 
 # ---------------- 专家墙（浏览/排序/筛选） ----------------
 @app.get("/experts")
-def experts(sort: str = Query("cites", pattern="^(cites|works|collab|recent|network)$"),
+def experts(sort: str = Query("cites", pattern="^(cites|works|collab|recent|impact|network)$"),
             topic: str = "", inst: str = "", source: str = "", endorse: str = "",
             country: str = "", inst_kind: str = "", cites_min: int = 0,
             near: int = 0,
