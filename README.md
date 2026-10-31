@@ -97,7 +97,7 @@ BM25 + 向量 + RRF/DBSF 全参数可切，两套 gold set（按被引 / 随机�
 | 维度 | 输入示例 | 解析 |
 |---|---|---|
 | 主题 | 呼吸科 / 机器学习 / AI | 中英词表映射（同义词之间用 OR，不能用 AND） |
-| 国家 | 中国 / 美国 / 英国 | CN / US / GB（后台已从 OpenAlex 回填 7,900+ 人） |
+| 国家 | 中国 / 美国 / 英国 | CN / US / GB（已从 OpenAlex 回填 3.8 万人，覆盖率 82%） |
 | 机构类型 | 大学 / 医院 / 研究所 / 企业 | university / hospital / institute / company |
 | 机构名 | 清华 / 协和 / 哈佛 | Tsinghua / Peking Union Medical / Harvard |
 | 被引下限 | 高被引 / 被引超过 5000 | 1000 / 5000（0 结果时自动放宽并告知） |
@@ -110,7 +110,23 @@ BM25 + 向量 + RRF/DBSF 全参数可切，两套 gold set（按被引 / 随机�
 命中 **10** 人：1. Bo Yang — CN · Capital Medical University；被引 49,162（样本内 3 篇）
 ```
 
-### 5. 多 Agent：调度层，不是自主性
+### 6. 多轮上下文：指代要落在结果集上
+
+"那这些人里谁被引最高"没有任何实体，指谁只有上一轮知道。做法是把
+**上一轮的 pid 集合**存进会话表（`data/chat_ctx.db`），指代 = 集合继承，排序 = 换个 ORDER BY：
+
+```
+中国的呼吸科专家          → 22 人（Capital Medical University 9 人）
+那这些人里谁被引最高      → 在这 10 人里按被引排 → Bo Yang 49,162
+他们谁论文最多            → 在这 10 人里按作品数排
+```
+
+没有 LLM 也能多轮，代价是**"谁最年轻"答不了**——库里没有出生年份，
+此时会明说"按最近活跃度排"，而不是假装算得出来。没有上下文时的指代会要求澄清，不猜。
+
+见 [docs/m31-context.md](docs/m31-context.md)。
+
+### 7. 多 Agent：调度层，不是自主性
 
 - Supervisor 分派到 kb / task / web 三个 agent，仲裁时**分节标注**，绝不混证据；
 - 路由准确率：调参集 19/19（过拟合，不作数）、**留出集 9/10 = 90%**（旧版 40%）；
@@ -119,7 +135,7 @@ BM25 + 向量 + RRF/DBSF 全参数可切，两套 gold set（按被引 / 随机�
 - verifier 抓到过真实错误：把"晶体结构"方向的同名者从审稿人推荐里剔除；
 - 记忆层：同问题二次尽调 **45× 加速**（2,246ms → 50ms），带语料版本校验防旧结论。
 
-'### 6. 实体层：期刊与机构
+### 8. 实体层：期刊与机构
 
 对标 AMiner 的 `venue/*` 与 `organization/na` 补齐实体层：
 
@@ -132,7 +148,7 @@ BM25 + 向量 + RRF/DBSF 全参数可切，两套 gold set（按被引 / 随机�
 **不自动合并**——"University of York" 与 "York University" 是英加两所学校，
 机器分不出来，交给人。
 
-### 7. 可观测与运维'
+### 9. 可观测与运维
 
 - 中间件：令牌桶限流 + 参数脱敏（邮箱/手机/长 ID）+ 审计表 + 成本核算；
 - 链路追踪：`tasks / steps / spans`，`/trace/{tid}` 看每步耗时；
@@ -255,7 +271,7 @@ app/            judge(可信判定) search(检索) agent(单轮+工具) harness(
 web/index.html  单文件 SPA（专家墙/检索/画像/图谱/问答/尽调/复核）
 eval/           gold set、基线与路由评测集
 skills/         Markdown 技能（渐进式披露）
-docs/           m1~m28 里程碑报告
+docs/           m1~m31 里程碑报告
 ```
 
 ## 九、与 AMiner 的数据模型对照
