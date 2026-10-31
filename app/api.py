@@ -169,6 +169,8 @@ def search(q: str = Query(..., description="查询词"),
            country: str = Query("", description="国家（ISO2），仅 kind=people"),
            inst_kind: str = Query("", description="机构类型：university/hospital/institute/company"),
            cites_min: int = Query(0, description="被引下限"),
+           sort: str = Query("relevance", pattern="^(relevance|cites|works)$",
+                             description="relevance=按检索分；cites/works=筛选后再按该字段重排"),
            limit: int = 10) -> dict:
     """统一检索入口：单路（bm25/dense）或融合（hybrid + rrf/dbsf）。
 
@@ -208,6 +210,20 @@ def search(q: str = Query(..., description="查询词"),
             conn_f.close()
         hits = [(pid, s) for pid, s in hits if pid in allowed]
 
+    # 排序开关：默认保持检索相关度；显式要 cites/works 时才重排。
+    # 为什么默认不重排——筛选一开就按被引排，等于把"相关度"偷换成"影响力"。
+    if kind == "people" and sort != "relevance" and hits:
+        col = "cited_by_count" if sort == "cites" else "works_count"
+        ids = [h[0] for h in hits]
+        ph = ",".join("?" * len(ids))
+        conn_s = connect()
+        try:
+            vals = {r[0]: (r[1] or 0) for r in conn_s.execute(
+                f"SELECT pid,{col} FROM people WHERE pid IN ({ph})", ids)}
+        finally:
+            conn_s.close()
+        hits.sort(key=lambda kv: -vals.get(kv[0], 0))
+
     hits = hits[:limit]
 
     conn = connect()
@@ -217,7 +233,8 @@ def search(q: str = Query(..., description="查询词"),
             if kind == "people":
                 row = conn.execute(
                     "SELECT pid AS id,name,name_zh,last_inst,works_count,cited_by_count,"
-                    "confidence,headline,source,last_inst,topics FROM people WHERE pid=?", (ref_id,)).fetchone()
+                    "confidence,headline,source,country,country_src,topics "
+                    "FROM people WHERE pid=?", (ref_id,)).fetchone()
             else:
                 row = conn.execute(
                     "SELECT wid AS id,title,year,cites,venue FROM works WHERE wid=?",
@@ -233,6 +250,7 @@ def search(q: str = Query(..., description="查询词"),
                 items.append({**d, "score": round(float(score), 6)})
         return {"query": q, "kind": kind, "mode": mode,
                 "fusion": fusion if mode == "hybrid" else None,
+                "sort": sort,
                 "facets": {"country": country, "inst_kind": inst_kind,
                            "cites_min": cites_min} if kind == "people" else None,
                 "count": len(items), "items": items}

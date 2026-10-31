@@ -241,6 +241,7 @@ def person_profile(pid: int) -> dict | None:
             "works_count": row["works_count"], "cited_by_count": row["cited_by_count"],
             "h_index": row["h_index"], "last_inst": row["last_inst"],
             "country": row["country"],
+            "country_src": row["country_src"] if "country_src" in row.keys() else None,
             # 去重：外部导入的中文主题与 OpenAlex 概念可能重复（"慢阻肺"出现两次）
             "topics": list(dict.fromkeys(json.loads(row["topics"] or "[]"))),
             "topics_zh": list(dict.fromkeys(label_topic(t) for t in json.loads(row["topics"] or "[]"))),

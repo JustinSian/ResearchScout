@@ -227,6 +227,11 @@ window.addEventListener('error', function (e) {
         <option value="10000">被引 ≥ 10,000</option>
         <option value="50000">被引 ≥ 50,000</option>
       </select>
+      <select id="ssort" title="默认按相关度；改成按被引/作品会重排，不再是相关度顺序">
+        <option value="relevance">按相关度</option>
+        <option value="cites">按被引</option>
+        <option value="works">按作品数</option>
+      </select>
       <button class="primary" id="go">搜索</button>
     </div>
     <p class="hint">M2 实测：BM25 在本数据上优于向量；混合默认 RRF。筛选只作用于"专家"，按相关度取回后保序过滤。</p>
@@ -326,6 +331,15 @@ window.addEventListener('error', function (e) {
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// 国家 + 来源。三种来源的可信度不同，展示时必须区分：
+// author=现任机构（与 last_inst 同源）、affiliation=历史任职（需带年份）、institution=机构多数推断
+function countryChip(o){
+  if (!o || !o.country) return '';
+  const src = {author:'现任机构', affiliation:'历史任职', institution:'机构推断'}[o.country_src] || '';
+  return ` · 国家 <span class="badge" style="font-size:10.5px" title="${src ? '来源：' + src : '来源未知'}">${esc(o.country)}</span>`
+    + (src ? `<span style="color:#7f93ad;font-size:11.5px">（${src}）</span>` : '');
+}
 
 // 会话 id：多轮指代（"那这些人呢"）靠它把上一轮的结果集找回来
 const stSid = (() => {
@@ -479,7 +493,7 @@ async function loadWall(){
       return `<div class="expert" onclick="openPerson(${it.pid})">
         <div class="rank${rc}">${medal}</div>
         <div class="top">${avatar(it.name)}
-          <div class="who"><div class="nm">${esc(it.name_zh || it.name)}${it.name_zh ? ' <span style="color:#7f93ad;font-weight:500;font-size:12px">' + esc(it.name) + '</span>' : ''}${it.country ? ` <span class="badge" style="font-size:10.5px">${esc(it.country)}</span>` : ''}</div>
+          <div class="who"><div class="nm">${esc(it.name_zh || it.name)}${it.name_zh ? ' <span style="color:#7f93ad;font-weight:500;font-size:12px">' + esc(it.name) + '</span>' : ''}${it.country ? ` <span class="badge" style="font-size:10.5px" title="国家来源：${({author:'现任机构',affiliation:'历史任职',institution:'机构推断'})[it.country_src] || '未知'}">${esc(it.country)}</span>` : ''}</div>
             <div class="af">${esc(it.headline || it.inst_zh || it.inst || '机构未知')}</div></div>
         </div>
         <div class="bars">
@@ -534,7 +548,7 @@ async function loadPerson(){
             ? ' <span style="color:#7f93ad;font-weight:500;font-size:13px">' + esc(d.name) + '</span>' : ''}</h3>
           <div class="kv">${esc(d.headline || '')}</div>
           <div class="kv">${esc(d.inst_zh || d.last_inst || '机构未知')} · 状态 ${d.status} · 可信度 ${d.confidence}${d.source && d.source !== 'openalex' ? ' · 来源 ' + esc(d.source) : ''}</div>
-          <div class="kv">样本内 ${d.works_count} 篇 · 被引 ${fmt(d.cited_by_count)}</div>
+          <div class="kv">样本内 ${d.works_count} 篇 · 被引 ${fmt(d.cited_by_count)}${countryChip(d)}</div>
           ${d.name_zh ? '' : `<button class="ghost" style="padding:2px 8px;font-size:12px" onclick="setZhName(${d.pid})">补中文名</button>`}</div>
         <button class="ghost" style="margin-left:auto" onclick="openGraph(${d.pid})">看合作图谱</button>
       </div>
@@ -573,12 +587,14 @@ async function doSearch(){
   const country = kind === 'people' ? $('#scountry').value : '';
   const ikind   = kind === 'people' ? $('#sikind').value : '';
   const cites   = kind === 'people' ? $('#scites').value : '';
+  const sort    = kind === 'people' ? $('#ssort').value : 'relevance';
   $('#results').innerHTML = '<p class="muted">检索中…</p>';
   try{
     const p = new URLSearchParams({q, kind, mode, limit: 10});
     if (country) p.set('country', country);
     if (ikind)   p.set('inst_kind', ikind);
     if (cites)   p.set('cites_min', cites);
+    if (sort !== 'relevance') p.set('sort', sort);
     const d = await (await fetch('/search?' + p)).json();
     if (!d.items.length){
       $('#results').innerHTML = '<p class="muted">没有结果。' +
@@ -593,7 +609,7 @@ async function doSearch(){
       <div class="card"><div class="row" style="gap:12px">${avatar(it.name)}
         <div style="flex:1"><h3 style="margin:0">${esc(it.name)} <span class="score">${it.score}</span></h3>
           <div class="kv">${esc(it.inst_zh || it.inst || it.last_inst || '机构未知')} · 样本内 ${it.works_count} 篇 ·
-            被引 ${fmt(it.cited_by_count)} · 可信度 ${it.confidence}</div></div>
+            被引 ${fmt(it.cited_by_count)} · 可信度 ${it.confidence}${countryChip(it)}</div></div>
         <button class="ghost" onclick="openPerson(${it.id})">画像</button>
         <button class="ghost" onclick="openGraph(${it.id})">图谱</button></div></div>`).join('')
       : d.items.map(it=>`<div class="card"><h3>${esc(it.title||'(无标题)')}
@@ -833,9 +849,12 @@ function draw(){
     ctx.globalAlpha = 1;
     if (p.kind === 'org' || r > 11 || p === G.hover || (G.hover && G.byId.get(G.hover.id))){
       ctx.fillStyle = p.kind === 'org' ? '#ffe9b0' : '#dbe7f7';
-      ctx.font = '11px -apple-system,"Noto Sans SC",sans-serif';
+      // 字号按缩放反向补偿：世界坐标里写 11/k，屏幕上始终是 11px。
+      // 否则放大后标签糊成一片、缩小后完全看不见。
+      const fs = 11 / Math.max(v.k, 0.4);
+      ctx.font = `${fs}px -apple-system,"Noto Sans SC",sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText((p.label||'').slice(0,16), p.x, p.y + r + 13);
+      ctx.fillText((p.label||'').slice(0,16), p.x, p.y + r + fs + 2);
     }
   }
   ctx.restore();
@@ -854,12 +873,21 @@ function draw(){
   // 以画布上的某个点为锚缩放（滚轮缩放应该"跟着鼠标走"）
   function zoomAt(sx, sy, factor){
     const v = G.view;
-    const k2 = Math.max(0.25, Math.min(5, v.k * factor));
+    const k2 = Math.max(0.4, Math.min(3, v.k * factor));
     if (k2 === v.k) return;
     v.tx = sx - (sx - v.tx) * (k2 / v.k);
     v.ty = sy - (sy - v.ty) * (k2 / v.k);
     v.k = k2;
+    clampPan();
     draw();
+  }
+  // 限制平移范围：允许把图拖到边缘，但不允许拖丢（这是"精修"里最常见的坑）
+  function clampPan(){
+    const v = G.view;
+    const lx = cv.width * Math.max(1, v.k) * 0.9;
+    const ly = cv.height * Math.max(1, v.k) * 0.9;
+    v.tx = Math.max(-lx, Math.min(lx, v.tx));
+    v.ty = Math.max(-ly, Math.min(ly, v.ty));
   }
   $('#gzin').onclick  = () => zoomAt(cv.width/2, cv.height/2, 1.25);
   $('#gzout').onclick = () => zoomAt(cv.width/2, cv.height/2, 0.8);
@@ -879,6 +907,7 @@ function draw(){
       // 拖空白：平移视图
       G.view.tx = G.pan.tx + (pt.x - G.pan.x);
       G.view.ty = G.pan.ty + (pt.y - G.pan.y);
+      clampPan();
       draw(); return;
     }
     if (G.drag){

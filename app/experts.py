@@ -21,7 +21,7 @@ SORTS = {
     "recent": "p.pid DESC",
 }
 BASE = """
-SELECT p.pid, p.name, p.last_inst, p.works_count, p.cited_by_count, p.country,
+SELECT p.pid, p.name, p.last_inst, p.works_count, p.cited_by_count, p.country, p.country_src,
        p.confidence, p.topics, p.headline, p.source, p.name_zh, p.endorse,
        (SELECT COUNT(*) FROM edges e WHERE e.a = p.pid OR e.b = p.pid) AS collab,
        (SELECT COUNT(*) FROM person_org po WHERE po.pid = p.pid) AS org_count
@@ -118,7 +118,7 @@ def top_experts(sort: str = "cites", topic: str = "", inst: str = "",
                 "cites": r["cited_by_count"], "collab": r["collab"],
                 "confidence": r["confidence"],
                 "headline": r["headline"], "source": r["source"] or "openalex",
-                "country": r["country"],
+                "country": r["country"], "country_src": r["country_src"],
                 "endorse": r["endorse"],
                 "name_zh": r["name_zh"],
                 "topics": json.loads(r["topics"] or "[]")[:5],
