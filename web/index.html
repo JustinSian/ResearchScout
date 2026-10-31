@@ -415,30 +415,42 @@ function showView(v, navBtn){
 
 // ---------- 论文详情（引用 / 被引，只统计库内边） ----------
 const WStack = [];
-window.openWork = async function(wid, push){
+const WState = {wid: 0, refOff: 0, citOff: 0, limit: 20};
+
+window.openWork = function(wid, push){
   wid = Number(wid);
   if (!wid) return;
   if (push !== false && WStack[WStack.length-1] !== wid) WStack.push(wid);
+  WState.wid = wid; WState.refOff = 0; WState.citOff = 0;
   $('#wid').value = wid;
   showView('work');
+  renderWork();
+};
+
+async function renderWork(){
+  const wid = WState.wid;
+  if (!wid) return;
   $('#wdetail').innerHTML = '<p class="muted">加载中…</p>';
   try{
     const [w, refs, cited] = await Promise.all([
       fetch('/work/' + wid).then(r => r.ok ? r.json() : null),
-      fetch(`/work/${wid}/citations?limit=20`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`/work/${wid}/cited-by?limit=20`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/work/${wid}/citations?limit=${WState.limit}&offset=${WState.refOff}`)
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/work/${wid}/cited-by?limit=${WState.limit}&offset=${WState.citOff}`)
+        .then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
     if (!w || !w.found){
       $('#wdetail').innerHTML = `<p class="err">这篇论文不在本库（wid=${wid}）。</p>`;
       return;
     }
     const wk = w.work || {};
+    const pr = w.pagerank ? ` · PageRank 分位 ${w.pagerank_pct}%` : '';
     const head = `<div class="card">
       <h3 style="margin:0">${esc(wk.title || '(无标题)')}</h3>
       <div class="kv">${wk.year || '年份未知'} · ${esc(wk.venue || '未知来源')} ·
         总被引 ${fmt(wk.cites)} · DOI ${esc(wk.doi || '—')}</div>
       <div class="kv">库内：引用 <b>${w.refs_total}</b> 篇（其中 ${w.refs_in_corpus} 篇在本库）·
-        被 <b>${w.cited_by_in_corpus}</b> 篇引用</div></div>`;
+        被 <b>${w.cited_by_in_corpus}</b> 篇引用${pr}</div></div>`;
 
     const line = (x, isRef) => {
       if (isRef && !x.ref_wid){
@@ -450,19 +462,37 @@ window.openWork = async function(wid, push){
         · 《${esc(x.title || '(无标题)')}》${x.year ? '（' + x.year + '）' : ''}
         <span style="color:#7f93ad">· 被引 ${fmt(x.cites)}</span></div>`;
     };
+    const pager = (kind, off, total) => {
+      const from = off + 1, to = Math.min(off + WState.limit, total);
+      const canPrev = off > 0, canNext = off + WState.limit < total;
+      return `<div class="kv" style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <button class="ghost" data-p="${kind}" data-d="-1" ${canPrev ? '' : 'disabled'}>上一页</button>
+        <span style="color:#7f93ad">${total ? from + '–' + to + ' / ' + total : ''}</span>
+        <button class="ghost" data-p="${kind}" data-d="1" ${canNext ? '' : 'disabled'}>下一页</button>
+      </div>`;
+    };
     const refList = (refs && refs.items && refs.items.length)
-      ? refs.items.map(x => line(x, true)).join('')
+      ? refs.items.map(x => line(x, true)).join('') + pager('ref', WState.refOff, w.refs_total)
       : '<div class="kv">没有引用记录（可能刚入库，引用抓取未覆盖）。</div>';
     const citedList = (cited && cited.items && cited.items.length)
-      ? cited.items.map(x => line(x, false)).join('')
+      ? cited.items.map(x => line(x, false)).join('') + pager('cit', WState.citOff, w.cited_by_in_corpus)
       : '<div class="kv">本库内还没有论文引用它。</div>';
     $('#wdetail').innerHTML = head
       + `<div class="card"><h3 style="margin:0 0 6px">它引用了（${w.refs_total}）</h3>${refList}</div>`
       + `<div class="card"><h3 style="margin:0 0 6px">引用它的（库内 ${w.cited_by_in_corpus}）</h3>${citedList}</div>`;
+    document.querySelectorAll('#wdetail button[data-p]').forEach(b=>{
+      b.onclick = () => {
+        const d = Number(b.dataset.d) * WState.limit;
+        if (b.dataset.p === 'ref') WState.refOff = Math.max(0, WState.refOff + d);
+        else WState.citOff = Math.max(0, WState.citOff + d);
+        renderWork();
+      };
+    });
   }catch(e){
     $('#wdetail').innerHTML = `<p class="err">${esc(e.message)}</p>`;
   }
-};
+}
+
 $('#wgo').onclick = () => openWork($('#wid').value);
 $('#wid').addEventListener('keydown', e => { if (e.key === 'Enter') openWork($('#wid').value); });
 $('#wback').onclick = () => {
@@ -471,7 +501,6 @@ $('#wback').onclick = () => {
   if (prev) openWork(prev, false);
   else showView('search');
 };
-
 // ---------- 专家墙 ----------
 const wall = {sort:'cites', topic:'', inst:'', source:'', endorse:'',
               country:'', ikind:'', citesMin:'',

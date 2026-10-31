@@ -25,7 +25,8 @@ from app.config import DB_PATH, SCHEMA_PATH
 
 # 需要复制数据的表（其余由 schema 建空表即可）
 COPY_TABLES = ["people", "works", "work_authors", "edges", "dossier", "dossier_work",
-               "venues", "institutions", "orgs", "person_org", "person_impact", "work_refs", "meta"]
+               "venues", "institutions", "orgs", "person_org", "person_impact", "work_refs",
+               "work_rank", "meta"]
 
 
 def _create_schema(dst: sqlite3.Connection, src: sqlite3.Connection, log=print) -> None:
@@ -99,6 +100,10 @@ def build(out: Path | None = None, people: int = 60, works: int = 1200,
     counts["work_refs"] = copy(
         f"SELECT * FROM work_refs WHERE wid IN ({wh}) AND ref_wid IN ({wh})",
         _insert_sql(src, "work_refs"), tuple(wids) + tuple(wids))
+    # PageRank 只带 demo 论文的行，保证 clone 后论文页能显示分位
+    counts["work_rank"] = copy(
+        f"SELECT * FROM work_rank WHERE wid IN ({wh})",
+        _insert_sql(src, "work_rank"), tuple(wids))
     counts["edges"] = copy(
         f"SELECT * FROM edges WHERE a IN ({ph}) AND b IN ({ph})",
         _insert_sql(src, "edges"), (*pids, *pids))

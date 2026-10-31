@@ -34,13 +34,27 @@ def stats(wid: int) -> dict:
         citing = conn.execute(
             "SELECT COUNT(*) FROM work_refs WHERE ref_wid=?", (wid,)
         ).fetchone()[0]
-        return {"found": True, "work": w, "refs_total": total,
-                "refs_in_corpus": in_corpus, "cited_by_in_corpus": citing}
+        out = {"found": True, "work": w, "refs_total": total,
+               "refs_in_corpus": in_corpus, "cited_by_in_corpus": citing}
+        # PageRank 与直接计数是两种口径，一起给，便于对照（见 docs/m39）
+        try:
+            row = conn.execute(
+                "SELECT score, in_corpus_cited_by FROM work_rank WHERE wid=?", (wid,)
+            ).fetchone()
+            if row:
+                pct = conn.execute(
+                    "SELECT ROUND(100.0*SUM(CASE WHEN score<=? THEN 1 ELSE 0 END)/COUNT(*), 2) "
+                    "FROM work_rank", (row[0],)).fetchone()[0]
+                out["pagerank"] = round(row[0], 8)
+                out["pagerank_pct"] = pct
+        except Exception:
+            pass
+        return out
     finally:
         conn.close()
 
 
-def refs_of(wid: int, limit: int = 20) -> dict:
+def refs_of(wid: int, limit: int = 20, offset: int = 0) -> dict:
     """这篇论文引用了谁。库内的展开标题/年份，库外只给 id。"""
     conn = connect()
     try:
@@ -54,16 +68,17 @@ def refs_of(wid: int, limit: int = 20) -> dict:
                LEFT JOIN works w2 ON w2.wid = r.ref_wid
                WHERE r.wid = ?
                ORDER BY (r.ref_wid IS NULL), w2.cites DESC
-               LIMIT ?""", (wid, limit)).fetchall()
+               LIMIT ? OFFSET ?""", (wid, limit, max(0, offset))).fetchall()
         items = [dict(r) for r in rows]
         total = conn.execute("SELECT COUNT(*) FROM work_refs WHERE wid=?", (wid,)).fetchone()[0]
         return {"found": True, "work": w, "items": items, "total": total,
+                "offset": max(0, offset),
                 "in_corpus": sum(1 for i in items if i.get("ref_wid"))}
     finally:
         conn.close()
 
 
-def citing_of(wid: int, limit: int = 20) -> dict:
+def citing_of(wid: int, limit: int = 20, offset: int = 0) -> dict:
     """库内有哪些论文引用了它（同 corpus 内的被引关系）。"""
     conn = connect()
     try:
@@ -74,9 +89,11 @@ def citing_of(wid: int, limit: int = 20) -> dict:
             """SELECT w2.wid, w2.title, w2.year, w2.cites, w2.venue
                FROM work_refs r JOIN works w2 ON w2.wid = r.wid
                WHERE r.ref_wid = ?
-               ORDER BY w2.cites DESC LIMIT ?""", (wid, limit)).fetchall()
+               ORDER BY w2.cites DESC LIMIT ? OFFSET ?""",
+            (wid, limit, max(0, offset))).fetchall()
         total = conn.execute("SELECT COUNT(*) FROM work_refs WHERE ref_wid=?", (wid,)).fetchone()[0]
-        return {"found": True, "work": w, "items": [dict(r) for r in rows], "total": total}
+        return {"found": True, "work": w, "items": [dict(r) for r in rows],
+                "total": total, "offset": max(0, offset)}
     finally:
         conn.close()
 
@@ -192,16 +209,28 @@ def chain(wid: int, hops: int = 2, max_nodes: int = 40) -> dict:
         conn.close()
 
 
-def top_cited(limit: int = 10) -> list[dict]:
-    """库内被引用次数最多（以库内引用边计）。"""
+def top_cited(limit: int = 10, sort: str = "count") -> list[dict]:
+    """库内被引最多的论文。
+
+    sort="count"   按库内引用次数（默认，直观）
+    sort="pagerank" 按引用图 PageRank（区分"被重要论文引用"）
+    两种口径差异很大，见 docs/m39——稀疏图上 PageRank 会偏向小圈子。
+    """
     conn = connect()
     try:
-        rows = conn.execute(
-            """SELECT w.wid, w.title, w.year, w.cites,
-                      COUNT(*) AS in_corpus_cites
-               FROM work_refs r JOIN works w ON w.wid = r.ref_wid
-               GROUP BY w.wid ORDER BY in_corpus_cites DESC, w.cites DESC LIMIT ?""",
-            (limit,)).fetchall()
+        if sort == "pagerank":
+            rows = conn.execute(
+                """SELECT w.wid, w.title, w.year, w.cites,
+                          r.in_corpus_cited_by AS in_corpus_cites, r.score AS pagerank
+                   FROM work_rank r JOIN works w ON w.wid = r.wid
+                   ORDER BY r.score DESC LIMIT ?""", (limit,)).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT w.wid, w.title, w.year, w.cites,
+                          COUNT(*) AS in_corpus_cites
+                   FROM work_refs r JOIN works w ON w.wid = r.ref_wid
+                   GROUP BY w.wid ORDER BY in_corpus_cites DESC, w.cites DESC LIMIT ?""",
+                (limit,)).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()

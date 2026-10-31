@@ -156,24 +156,30 @@ def work_detail(wid: int) -> dict:
 
 
 @app.get("/work/{wid}/citations")
-def work_citations(wid: int, limit: int = 20) -> dict:
-    """这篇论文引用了谁（库内展开标题，库外只给 openalex id）。"""
+def work_citations(wid: int, limit: int = 20, offset: int = 0) -> dict:
+    """这篇论文引用了谁（库内展开标题，库外只给 openalex id）。支持分页。"""
     from app import citations as cit
-    return cit.refs_of(wid, limit=min(max(limit, 1), 100))
+    return cit.refs_of(wid, limit=min(max(limit, 1), 100), offset=max(0, offset))
 
 
 @app.get("/work/{wid}/cited-by")
-def work_cited_by(wid: int, limit: int = 20) -> dict:
-    """库里有哪些论文引用了它。"""
+def work_cited_by(wid: int, limit: int = 20, offset: int = 0) -> dict:
+    """库里有哪些论文引用了它。支持分页。"""
     from app import citations as cit
-    return cit.citing_of(wid, limit=min(max(limit, 1), 100))
+    return cit.citing_of(wid, limit=min(max(limit, 1), 100), offset=max(0, offset))
 
 
 @app.get("/citations/top")
-def citations_top(limit: int = 10) -> dict:
-    """库内被引最多的论文（按库内引用边计，不是 OpenAlex 的总被引）。"""
+def citations_top(limit: int = 10,
+                  sort: str = Query("count", pattern="^(count|pagerank)$")) -> dict:
+    """库内被引最多的论文。
+
+    sort=count 按库内引用次数；sort=pagerank 按引用图 PageRank。
+    两者差异很大：稀疏图上 PageRank 会偏向"被高分小圈子引用"的论文（见 docs/m39）。
+    """
     from app import citations as cit
-    return {"items": cit.top_cited(limit=min(max(limit, 1), 50))}
+    return {"sort": sort,
+            "items": cit.top_cited(limit=min(max(limit, 1), 50), sort=sort)}
 
 
 @app.get("/works")
