@@ -1,14 +1,11 @@
 """引用图上的论文聚类：把 11k 篇论文按"互相引用关系"分堆。
 
-为什么不用 Louvain：要额外依赖（networkx/python-louvain），而我们的图只有 11k 节点 / 30k 边，
-**标签传播**（label propagation）几秒就能跑完，且实现只有几十行、可完全单测。
+算法：**Louvain 局部移动**（按模块度增益移动节点）。
+一开始用标签传播，但它在"两个团 + 一条桥边"上会把两个团合并（见 docs/m41），
+所以生产用 Louvain，标签传播只保留作对照实现并钉在测试里。
 
-做法：把引用边当无向边，每个节点初始是自己的标签，
-反复让每个节点取"邻居里出现最多的标签"（并列取最小标签，保证确定性），
-直到不再变化。
-
-局限：标签传播容易把一个社区吞掉（大社区吸小社区），所以输出里带 `size`
-和"社区内被引最多"的代表论文，便于人工判断这堆是不是真的同一主题。
+额外能力：**桥接检测**——社区里存在"去掉它社区就断成几块"的论文
+（articulation point），这类论文通常就是跨领域的方法/综述，能把两个圈子粘在一起。
 """
 from __future__ import annotations
 
@@ -179,3 +176,142 @@ def top_clusters(limit: int = 10, per_cluster: int = 3) -> list[dict]:
 
 if __name__ == "__main__":
     build()
+
+
+def articulation_points(nodes: list[int], edges: list[tuple[int, int]]) -> set[int]:
+    """Tarjan 割点：去掉它会让连通块变多的节点（纯函数，确定性）。
+
+    用途：社区里"桥接两个子圈子"的论文，通常就是跨领域方法/综述。
+    """
+    if not nodes:
+        return set()
+    nodeset = set(nodes)
+    adj: dict[int, set[int]] = {n: set() for n in nodes}
+    for a, b in edges:
+        if a == b or a not in nodeset or b not in nodeset:
+            continue
+        adj[a].add(b)
+        adj[b].add(a)
+
+    disc: dict[int, int] = {}
+    low: dict[int, int] = {}
+    parent: dict[int, int | None] = {}
+    aps: set[int] = set()
+    timer = 0
+
+    for root in sorted(nodes):
+        if root in disc:
+            continue
+        # 迭代 DFS，避免深链递归爆栈
+        stack: list[tuple[int, int]] = [(root, 0)]
+        children_of_root = 0
+        disc[root] = low[root] = timer
+        timer += 1
+        parent[root] = None
+        while stack:
+            node, idx = stack.pop()
+            neighbors = sorted(adj[node])
+            if idx < len(neighbors):
+                stack.append((node, idx + 1))
+                nb = neighbors[idx]
+                if nb not in disc:
+                    parent[nb] = node
+                    disc[nb] = low[nb] = timer
+                    timer += 1
+                    if node == root:
+                        children_of_root += 1
+                    stack.append((nb, 0))
+                elif nb != parent.get(node):
+                    low[node] = min(low[node], disc[nb])
+            else:
+                p = parent.get(node)
+                if p is not None:
+                    low[p] = min(low[p], low[node])
+                    if p != root and low[node] >= disc[p]:
+                        aps.add(p)
+        if children_of_root > 1:
+            aps.add(root)
+    return aps
+
+
+def components_after_removal(nodes: list[int], edges: list[tuple[int, int]],
+                             removed: int) -> list[int]:
+    """去掉 `removed` 之后的连通块大小列表（降序）。"""
+    rest = [n for n in nodes if n != removed]
+    restset = set(rest)
+    adj: dict[int, list[int]] = {n: [] for n in rest}
+    for a, b in edges:
+        if a == removed or b == removed:
+            continue
+        if a in restset and b in restset:
+            adj[a].append(b)
+            adj[b].append(a)
+    seen: set[int] = set()
+    sizes: list[int] = []
+    for n in rest:
+        if n in seen:
+            continue
+        stack = [n]
+        seen.add(n)
+        cnt = 0
+        while stack:
+            cur = stack.pop()
+            cnt += 1
+            for nb in adj[cur]:
+                if nb not in seen:
+                    seen.add(nb)
+                    stack.append(nb)
+        sizes.append(cnt)
+    return sorted(sizes, reverse=True)
+
+
+def bridges(cluster_id: int, limit: int = 5) -> list[dict]:
+    """某个社区里的桥接论文：去掉后社区分裂得最厉害的若干个。"""
+    conn = connect()
+    try:
+        members = [r[0] for r in conn.execute(
+            "SELECT wid FROM work_cluster WHERE cluster_id=?", (cluster_id,))]
+        if not members:
+            return []
+        ph = ",".join("?" * len(members))
+        edges = [(r[0], r[1]) for r in conn.execute(
+            f"""SELECT wid, ref_wid FROM work_refs
+                WHERE ref_wid IN ({ph}) AND wid IN ({ph})""",
+            (*members, *members))]
+        aps = articulation_points(members, edges)
+        out = []
+        for wid in sorted(aps):
+            sizes = components_after_removal(members, edges, wid)
+            if len(sizes) < 2:
+                continue
+            row = conn.execute(
+                "SELECT title, year FROM works WHERE wid=?", (wid,)).fetchone()
+            total = sum(sizes)
+            out.append({"wid": wid, "title": (row[0] if row else ""),
+                        "year": (row[1] if row else None),
+                        "parts": len(sizes),
+                        "separated": total - sizes[0],
+                        "largest_share": round(sizes[0] / max(total, 1), 3)})
+        # 先看"被拆成几块"，再看"有多少节点被隔离出主块"
+        out.sort(key=lambda x: (-x["parts"], -x["separated"]))
+        return out[:limit]
+    finally:
+        conn.close()
+
+
+def bridge_status(wid: int) -> dict:
+    """这篇论文是不是所在社区的桥接点，以及去掉它社区会断成几块。"""
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT cluster_id FROM work_cluster WHERE wid=?", (wid,)).fetchone()
+        if not row:
+            return {"is_bridge": False}
+        cid = int(row[0])
+        for b in bridges(cid, limit=200):
+            if b["wid"] == wid:
+                return {"is_bridge": True, "cluster_id": cid,
+                        "parts": b["parts"], "largest_share": b["largest_share"]}
+        return {"is_bridge": False, "cluster_id": cid}
+    finally:
+        conn.close()

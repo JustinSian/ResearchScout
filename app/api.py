@@ -153,7 +153,20 @@ def work_detail(wid: int) -> dict:
     if not st.get("found"):
         raise HTTPException(status_code=404, detail=f"本库没有 wid={wid} 的论文")
     st["cluster"] = cit.cluster_of(wid, limit=8)
+    # 桥接检测：这篇论文是否是"去掉后社区断成几块"的胶水
+    try:
+        from app import cluster as cl
+        st["bridge"] = cl.bridge_status(wid)
+    except Exception:
+        st["bridge"] = {"is_bridge": False}
     return st
+
+
+@app.get("/clusters/{cid}/bridges")
+def cluster_bridges(cid: int, limit: int = 5) -> dict:
+    """某个社区里的桥接论文（割点）：去掉它社区会分裂成几块。"""
+    from app import cluster as cl
+    return {"cluster_id": cid, "items": cl.bridges(cid, limit=min(max(limit, 1), 50))}
 
 
 @app.get("/clusters/top")

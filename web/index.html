@@ -453,7 +453,10 @@ async function renderWork(){
         被 <b>${w.cited_by_in_corpus}</b> 篇引用${pr}</div>
       ${w.cluster && w.cluster.cluster_id != null
         ? `<div class="kv">研究社区 <span class="badge" style="font-size:10.5px">#${w.cluster.cluster_id}</span>
-           <span style="color:#7f93ad">（共 ${w.cluster.size} 篇互相引用的论文）</span></div>` : ""}</div>`;
+           <span style="color:#7f93ad">（共 ${w.cluster.size} 篇互相引用的论文）</span></div>` : ""}
+      ${w.bridge && w.bridge.is_bridge
+        ? `<div class="kv"><span class="badge" style="font-size:10.5px;border-color:#c9a227;color:#ffd166">社区桥接点</span>
+           <span style="color:#7f93ad">去掉它，这个社区会断成 ${w.bridge.parts} 块</span></div>` : ""}</div>`;
 
     const line = (x, isRef) => {
       if (isRef && !x.ref_wid){
