@@ -238,12 +238,20 @@ def graph_community(pid: int) -> dict:
 @app.get("/experts")
 def experts(sort: str = Query("cites", pattern="^(cites|works|collab|recent|network)$"),
             topic: str = "", inst: str = "", source: str = "", endorse: str = "",
+            country: str = "", inst_kind: str = "", cites_min: int = 0,
             near: int = 0,
             limit: int = 24, offset: int = 0,
             order: str = Query("desc", pattern="^(asc|desc)$")) -> dict:
-    """发布专家的浏览接口：专家墙用。source 可取 openalex / huafu 等。"""
+    """发布专家的浏览接口：专家墙用。
+
+    facet 筛选（与 /chat 的自然语言条件一致）：
+      country    ISO2，如 CN / US
+      inst_kind  university / hospital / institute / company
+      cites_min  被引下限
+    """
     return top_experts(sort=sort, topic=topic, inst=inst, source=source,
-                       endorse=endorse, near=near,
+                       endorse=endorse, country=country, inst_kind=inst_kind,
+                       cites_min=cites_min, near=near,
                        limit=limit, offset=offset, order=order)
 
 

@@ -180,6 +180,20 @@ window.addEventListener('error', function (e) {
         <option value="verified">仅独立核验</option>
         <option value="network">仅网络背书</option>
       </select>
+      <select id="country"><option value="">全部国家</option></select>
+      <select id="ikind">
+        <option value="">全部机构类型</option>
+        <option value="university">高校</option>
+        <option value="hospital">医院</option>
+        <option value="institute">研究所</option>
+        <option value="company">企业</option>
+      </select>
+      <select id="citesmin">
+        <option value="">不限被引</option>
+        <option value="1000">被引 ≥ 1,000</option>
+        <option value="10000">被引 ≥ 10,000</option>
+        <option value="50000">被引 ≥ 50,000</option>
+      </select>
       <button class="ghost" id="shuffle">换一批</button>
     </div>
     <div class="chips" id="topicchips"></div>
@@ -338,7 +352,24 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
 });
 
 // ---------- 专家墙 ----------
-const wall = {sort:'cites', topic:'', inst:'', source:'', endorse:'', near:0, nearName:'', offset:0, limit:24, maxCites:1};
+const wall = {sort:'cites', topic:'', inst:'', source:'', endorse:'',
+              country:'', ikind:'', citesMin:'',
+              near:0, nearName:'', offset:0, limit:24, maxCites:1};
+
+// facet 筛选项：从后端拿国家与机构类型的人数分布，动态填下拉框
+fetch('/experts/facets').then(r=>r.json()).then(d=>{
+  const cn = {'US':'美国','CN':'中国','GB':'英国','DE':'德国','FR':'法国','JP':'日本',
+              'CA':'加拿大','AU':'澳大利亚','NL':'荷兰','CH':'瑞士','SG':'新加坡',
+              'KR':'韩国','IN':'印度','IT':'意大利','ES':'西班牙','SE':'瑞典','BR':'巴西',
+              'HK':'中国香港','TW':'中国台湾'};
+  const cs = $('#country');
+  (d.countries||[]).forEach(x=>{
+    const o = document.createElement('option');
+    o.value = x.value; o.textContent = `${cn[x.value] || x.value}（${x.n}）`;
+    cs.appendChild(o);
+  });
+}).catch(()=>{});
+
 
 fetch('/experts/hero').then(r=>r.json()).then(d=>{
   wall.maxCites = d.max_cites || 1;
@@ -357,6 +388,9 @@ $('#topic').onchange = e => { wall.topic = e.target.value; wall.offset = 0; load
 $('#inst').onchange = e => { wall.inst = e.target.value; wall.offset = 0; loadWall(); };
 $('#src').onchange = e => { wall.source = e.target.value; wall.offset = 0; loadWall(); };
 $('#endorse').onchange = e => { wall.endorse = e.target.value; wall.offset = 0; loadWall(); };
+$('#country').onchange = e => { wall.country = e.target.value; wall.offset = 0; loadWall(); };
+$('#ikind').onchange = e => { wall.ikind = e.target.value; wall.offset = 0; loadWall(); };
+$('#citesmin').onchange = e => { wall.citesMin = e.target.value; wall.offset = 0; loadWall(); };
 $('#shuffle').onclick = () => {
   wall.offset = Math.floor(Math.random() * Math.max(1, Math.min(1200, (wall.total||600) - wall.limit)));
   loadWall();
@@ -370,7 +404,10 @@ let facetsLoaded = false;
 async function loadWall(){
   $('#wall').innerHTML = Array.from({length:8},()=>'<div class="skel"></div>').join('');
   const p = new URLSearchParams({sort:wall.sort, topic:wall.topic, inst:wall.inst,
-                                 source:wall.source, endorse:wall.endorse, limit:wall.limit, offset:wall.offset});
+                                 source:wall.source, endorse:wall.endorse,
+                                 country:wall.country, inst_kind:wall.ikind,
+                                 limit:wall.limit, offset:wall.offset});
+  if (wall.citesMin) p.set('cites_min', wall.citesMin);
   if (wall.near) { p.set('near', wall.near); p.set('sort', 'network'); }
   try{
     const d = await (await fetch('/experts?'+p)).json();
@@ -408,7 +445,7 @@ async function loadWall(){
       return `<div class="expert" onclick="openPerson(${it.pid})">
         <div class="rank${rc}">${medal}</div>
         <div class="top">${avatar(it.name)}
-          <div class="who"><div class="nm">${esc(it.name_zh || it.name)}${it.name_zh ? ' <span style="color:#7f93ad;font-weight:500;font-size:12px">' + esc(it.name) + '</span>' : ''}</div>
+          <div class="who"><div class="nm">${esc(it.name_zh || it.name)}${it.name_zh ? ' <span style="color:#7f93ad;font-weight:500;font-size:12px">' + esc(it.name) + '</span>' : ''}${it.country ? ` <span class="badge" style="font-size:10.5px">${esc(it.country)}</span>` : ''}</div>
             <div class="af">${esc(it.headline || it.inst_zh || it.inst || '机构未知')}</div></div>
         </div>
         <div class="bars">
@@ -506,7 +543,7 @@ async function doSearch(){
     $('#results').innerHTML = kind==='people' ? d.items.map(it=>`
       <div class="card"><div class="row" style="gap:12px">${avatar(it.name)}
         <div style="flex:1"><h3 style="margin:0">${esc(it.name)} <span class="score">${it.score}</span></h3>
-          <div class="kv">${esc(it.inst_zh || it.last_inst || '机构未知')} · 样本内 ${it.works_count} 篇 ·
+          <div class="kv">${esc(it.inst_zh || it.inst || it.last_inst || '机构未知')} · 样本内 ${it.works_count} 篇 ·
             被引 ${fmt(it.cited_by_count)} · 可信度 ${it.confidence}</div></div>
         <button class="ghost" onclick="openPerson(${it.id})">画像</button>
         <button class="ghost" onclick="openGraph(${it.id})">图谱</button></div></div>`).join('')

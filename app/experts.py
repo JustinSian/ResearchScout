@@ -21,7 +21,7 @@ SORTS = {
     "recent": "p.pid DESC",
 }
 BASE = """
-SELECT p.pid, p.name, p.last_inst, p.works_count, p.cited_by_count,
+SELECT p.pid, p.name, p.last_inst, p.works_count, p.cited_by_count, p.country,
        p.confidence, p.topics, p.headline, p.source, p.name_zh, p.endorse,
        (SELECT COUNT(*) FROM edges e WHERE e.a = p.pid OR e.b = p.pid) AS collab,
        (SELECT COUNT(*) FROM person_org po WHERE po.pid = p.pid) AS org_count
@@ -53,6 +53,7 @@ def _facets(conn) -> dict:
 
 def top_experts(sort: str = "cites", topic: str = "", inst: str = "",
                 source: str = "", endorse: str = "", near: int = 0,
+                country: str = "", inst_kind: str = "", cites_min: int = 0,
                 limit: int = 24, offset: int = 0, order: str = "desc") -> dict:
     order_sql = SORTS.get(sort, SORTS["cites"])
     if order == "asc":
@@ -67,6 +68,16 @@ def top_experts(sort: str = "cites", topic: str = "", inst: str = "",
     if source:
         where += " AND IFNULL(p.source,'openalex') = ?"
         args.append(source)
+    # Facet 过滤（与 app/facets.py 的维度保持一致，供专家墙筛选条使用）
+    if country:
+        where += " AND p.country = ?"
+        args.append(country)
+    if inst_kind:
+        where += " AND p.inst_id IN (SELECT iid FROM institutions WHERE kind = ?)"
+        args.append(inst_kind)
+    if cites_min:
+        where += " AND p.cited_by_count >= ?"
+        args.append(int(cites_min))
     if endorse == "verified":
         where += " AND p.endorse IS NULL"
     elif endorse == "network":
@@ -107,6 +118,7 @@ def top_experts(sort: str = "cites", topic: str = "", inst: str = "",
                 "cites": r["cited_by_count"], "collab": r["collab"],
                 "confidence": r["confidence"],
                 "headline": r["headline"], "source": r["source"] or "openalex",
+                "country": r["country"],
                 "endorse": r["endorse"],
                 "name_zh": r["name_zh"],
                 "topics": json.loads(r["topics"] or "[]")[:5],
@@ -114,6 +126,7 @@ def top_experts(sort: str = "cites", topic: str = "", inst: str = "",
             })
         return {"total": total, "offset": offset, "count": len(items),
                 "sort": sort, "topic": topic, "inst": inst, "source": source,
+                "country": country, "inst_kind": inst_kind, "cites_min": cites_min,
                 "endorse": endorse,
                 "near": near,
                 "items": items, "facets": _facets(conn)}
