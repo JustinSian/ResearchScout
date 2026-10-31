@@ -157,13 +157,19 @@ def build_paths(start: int, edges: list[dict], hops: int = 2,
     return [p for p in out if len(p) >= 2][:max_paths]
 
 
-def chain(wid: int, hops: int = 2, max_nodes: int = 40) -> dict:
-    """两跳引用链（被引方向，仅库内边）。
+def chain(wid: int, hops: int = 2, max_nodes: int = 40,
+          direction: str = "cited_by") -> dict:
+    """引用链（仅库内边）。
+
+    direction:
+      - "cited_by"（默认，向后）：谁引用了它 → X ← A ← B
+      - "refs"（向前）：它引用了谁 → X → A → B
 
     只看库内：`ref_wid IS NULL` 的边无法继续走，链就停在那一层。
     超出 `max_nodes` 时置 `truncated=True`，不静默截断。
     """
     hops = max(1, min(int(hops or 1), 2))
+    backward = direction != "refs"
     conn = connect()
     try:
         w = _work(conn, wid)
@@ -178,22 +184,26 @@ def chain(wid: int, hops: int = 2, max_nodes: int = 40) -> dict:
             if not frontier:
                 break
             ph = ",".join("?" * len(frontier))
-            rows = conn.execute(
-                f"""SELECT r.wid AS citing, r.ref_wid AS cited
-                    FROM work_refs r WHERE r.ref_wid IN ({ph})""",
-                sorted(frontier)).fetchall()
+            if backward:
+                sql = (f"SELECT r.wid AS a, r.ref_wid AS b FROM work_refs r "
+                       f"WHERE r.ref_wid IN ({ph})")
+            else:
+                sql = (f"SELECT r.wid AS a, r.ref_wid AS b FROM work_refs r "
+                       f"WHERE r.wid IN ({ph}) AND r.ref_wid IS NOT NULL")
+            rows = conn.execute(sql, sorted(frontier)).fetchall()
             nxt: set[int] = set()
             for r in rows:
-                citing, cited = int(r["citing"]), int(r["cited"])
-                edges.append({"src": citing, "dst": cited, "depth": depth})
-                if citing not in nodes:
+                src, dst = int(r["a"]), int(r["b"])
+                edges.append({"src": src, "dst": dst, "depth": depth})
+                nxt_node = src if backward else dst
+                if nxt_node not in nodes:
                     if len(nodes) >= max_nodes:
                         truncated = True
                         continue
-                    row = _work(conn, citing)
+                    row = _work(conn, nxt_node)
                     if row:
-                        nodes[citing] = {**row, "depth": depth}
-                nxt.add(citing)
+                        nodes[nxt_node] = {**row, "depth": depth}
+                nxt.add(nxt_node)
             frontier = nxt
         seen, uniq = set(), []
         for e in edges:
@@ -201,9 +211,11 @@ def chain(wid: int, hops: int = 2, max_nodes: int = 40) -> dict:
             if k not in seen:
                 seen.add(k)
                 uniq.append(e)
-        return {"found": True, "work": w, "nodes": list(nodes.values()),
-                "edges": uniq,
-                "paths": build_paths(wid, uniq, hops=hops, max_paths=8),
+        # build_paths 走的是"被引方向"（dst←src）；向前模式把边反转再喂
+        walk_edges = uniq if backward else [{"src": e["dst"], "dst": e["src"]} for e in uniq]
+        return {"found": True, "direction": direction, "work": w,
+                "nodes": list(nodes.values()), "edges": uniq,
+                "paths": build_paths(wid, walk_edges, hops=hops, max_paths=8),
                 "truncated": truncated}
     finally:
         conn.close()
@@ -212,18 +224,22 @@ def chain(wid: int, hops: int = 2, max_nodes: int = 40) -> dict:
 def top_cited(limit: int = 10, sort: str = "count") -> list[dict]:
     """库内被引最多的论文。
 
-    sort="count"   按库内引用次数（默认，直观）
-    sort="pagerank" 按引用图 PageRank（区分"被重要论文引用"）
-    两种口径差异很大，见 docs/m39——稀疏图上 PageRank 会偏向小圈子。
+    sort="count"          按库内引用次数（默认，直观）
+    sort="pagerank"       按引用图 PageRank（区分"被重要论文引用"）
+    sort="pagerank_recent" 时间衰减版（半衰期 8 年，给近作加权）
+    三种口径差异很大，见 docs/m39/m40——稀疏图上 PageRank 会偏向小圈子。
     """
     conn = connect()
     try:
-        if sort == "pagerank":
+        if sort in ("pagerank", "pagerank_recent"):
+            col = "score" if sort == "pagerank" else "score_recent"
             rows = conn.execute(
-                """SELECT w.wid, w.title, w.year, w.cites,
-                          r.in_corpus_cited_by AS in_corpus_cites, r.score AS pagerank
-                   FROM work_rank r JOIN works w ON w.wid = r.wid
-                   ORDER BY r.score DESC LIMIT ?""", (limit,)).fetchall()
+                f"""SELECT w.wid, w.title, w.year, w.cites,
+                           r.in_corpus_cited_by AS in_corpus_cites,
+                           r.{col} AS pagerank
+                    FROM work_rank r JOIN works w ON w.wid = r.wid
+                    WHERE r.{col} IS NOT NULL
+                    ORDER BY r.{col} DESC LIMIT ?""", (limit,)).fetchall()
         else:
             rows = conn.execute(
                 """SELECT w.wid, w.title, w.year, w.cites,

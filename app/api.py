@@ -169,9 +169,17 @@ def work_cited_by(wid: int, limit: int = 20, offset: int = 0) -> dict:
     return cit.citing_of(wid, limit=min(max(limit, 1), 100), offset=max(0, offset))
 
 
+@app.get("/work/{wid}/chain")
+def work_chain(wid: int, hops: int = 2,
+               direction: str = Query("cited_by", pattern="^(cited_by|refs)$")) -> dict:
+    """引用链：cited_by=谁引用它（X ← A ← B）；refs=它引用谁（X → A → B）。"""
+    from app import citations as cit
+    return cit.chain(wid, hops=max(1, min(hops, 2)), direction=direction)
+
+
 @app.get("/citations/top")
 def citations_top(limit: int = 10,
-                  sort: str = Query("count", pattern="^(count|pagerank)$")) -> dict:
+                  sort: str = Query("count", pattern="^(count|pagerank|pagerank_recent)$")) -> dict:
     """库内被引最多的论文。
 
     sort=count 按库内引用次数；sort=pagerank 按引用图 PageRank。

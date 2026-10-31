@@ -58,3 +58,18 @@ def test_unknown_nodes_in_edges_are_skipped():
     # 边里出现不在 nodes 里的 id：忽略而不是抛异常
     s = pagerank([1, 2], [(99, 1), (2, 1)])
     assert abs(sum(s.values()) - 1.0) < 1e-9
+
+
+def test_weighted_reset_favors_biased_node():
+    """时间衰减：给 2 更高权重，即使没人引用它，分数也应更高。"""
+    from app.rank import pagerank
+    base = pagerank([1, 2, 3], [(2, 1), (3, 1)])
+    biased = pagerank([1, 2, 3], [(2, 1), (3, 1)], weights={1: 1.0, 2: 5.0, 3: 1.0})
+    assert biased[2] > base[2]
+
+
+def test_weighted_reset_still_normalized():
+    from app.rank import pagerank
+    s = pagerank([1, 2, 3, 4], [(2, 1), (3, 1)], weights={1: 1, 2: 100, 3: 1, 4: 0})
+    assert abs(sum(s.values()) - 1.0) < 1e-9
+    assert all(v > 0 for v in s.values())     # 权重 0 也不能把分数清零
