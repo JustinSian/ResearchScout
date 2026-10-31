@@ -195,17 +195,20 @@ def tool_collaborators(pid: int | None = None, name: str | None = None,
 def _cite_query(q: str) -> str:
     """把"这篇论文引用了谁"里的功能词剥掉，只留标题线索。"""
     s = re.sub(r"这篇|那篇|论文|文章|引用了谁|引用了哪些|谁引用了|被谁引用|被引|引用|"
+               r"两跳|二跳|多跳|间接|传播|影响|"
                r"citations?|cite[sd]?|references?|who|whom|which|what|of", " ",
                q or "", flags=re.I)
     s = re.sub(r"[，,。;；:：!?！？、]+", " ", s)
     return re.sub(r"\s+", " ", s).strip()
 
 
-def tool_citations(query: str, limit: int = 5) -> dict:
+def tool_citations(query: str, limit: int = 5, hops: int = 1) -> dict:
     """引用链：这篇论文引用了谁 / 谁引用了它（对标 AMiner 的 paper/relation）。
 
     只有被引论文也在本库时才能展开标题；库外的引用只保留 openalex id，
     不编造标题和作者。
+
+    hops=2 时额外给"两跳链"：谁引用了引用它的论文（仍只走库内边）。
     """
     from app import citations as cit
 
@@ -215,13 +218,16 @@ def tool_citations(query: str, limit: int = 5) -> dict:
                 "note": f"库里没找到标题匹配「{query}」的论文"}
     refs = cit.refs_of(w["wid"], limit=limit)
     citing = cit.citing_of(w["wid"], limit=limit)
-    return {"tool": "citations", "count": 1, "items": [{
+    item = {
         "wid": w["wid"], "title": w["title"], "year": w["year"], "cites": w["cites"],
         "venue": w.get("venue"),
         "refs_total": refs["total"], "refs_in_corpus": refs.get("in_corpus", 0),
         "refs": refs["items"][:limit],
         "cited_by_total": citing["total"], "cited_by": citing["items"][:limit],
-    }]}
+    }
+    if hops and int(hops) >= 2:
+        item["chain"] = cit.chain(w["wid"], hops=2)
+    return {"tool": "citations", "count": 1, "items": [item]}
 
 
 def tool_works(query: str, limit: int = 5) -> dict:
@@ -424,7 +430,9 @@ def plan_node(state: AgentState) -> dict:
         plan = [{"tool": "profile", "args": {"name": names[0]}}]
     elif _CN_CITE.search(q):
         # 引用链要排在 works 之前：否则"这篇论文引用了谁"会被"论文"抢走
-        plan = [{"tool": "citations", "args": {"query": _cite_query(q)}}]
+        # "两跳/间接/谁影响了" → 多走一层（仍只走库内边）
+        _hops = 2 if re.search(r"两跳|二跳|间接|影响|传播|谁引用过|多跳", q) else 1
+        plan = [{"tool": "citations", "args": {"query": _cite_query(q), "hops": _hops}}]
     elif _CN_WORKS.search(q):
         plan = [{"tool": "works", "args": {"query": q_en}}]
     else:
@@ -635,6 +643,19 @@ def compose_node(state: AgentState) -> dict:
                              f"（{r.get('year') or '—'}，被引 {r.get('cites') or 0}）")
         if not it["refs_total"] and not it["cited_by_total"]:
             lines.append("- 本库还没有这篇论文的引用记录（可能刚入库，引用抓取未覆盖）。")
+        ch = it.get("chain")
+        if ch:
+            if ch.get("found") and ch.get("paths"):
+                by_wid = {n["wid"]: n for n in ch["nodes"]}
+                lines.append("- 两跳链（仅库内，A ← B 表示 B 引用了 A）：")
+                for i, path in enumerate(ch["paths"][:5], 1):
+                    titles = " ← ".join(
+                        f"《{(by_wid.get(w) or {}).get('title') or w}》" for w in path)
+                    lines.append(f"  {i}. {titles}")
+                if ch.get("truncated"):
+                    lines.append(f"  （节点超过上限，只展示前 {len(ch['nodes'])} 篇）")
+            elif ch.get("found"):
+                lines.append("- 两跳链：本库内没有两跳引用路径（被引论文多指向库外）。")
         answer = "\n".join(lines)
         cites = [_cite("work", it["wid"], it["title"], {"year": it.get("year")})]
 

@@ -108,6 +108,90 @@ def resolve_work(query: str) -> dict | None:
         conn.close()
 
 
+def build_paths(start: int, edges: list[dict], hops: int = 2,
+                max_paths: int = 10) -> list[list[int]]:
+    """从边集里枚举"被引方向"的路径（纯函数，便于测试）。
+
+    edges 形如 [{"src": 引用方, "dst": 被引方}]：src → dst 表示"src 引用了 dst"。
+    从 start 出发沿 dst 向上走，得到 start ← A ← B 这样的链。
+    """
+    children: dict[int, list[int]] = {}
+    for e in edges or []:
+        children.setdefault(int(e["dst"]), []).append(int(e["src"]))
+    out: list[list[int]] = []
+
+    def walk(node: int, path: list[int]) -> None:
+        if len(out) >= max_paths:
+            return
+        if len(path) - 1 >= hops:
+            out.append(list(path))
+            return
+        nxt = children.get(node) or []
+        if not nxt:
+            if len(path) > 1:
+                out.append(list(path))
+            return
+        for c in nxt[:5]:                      # 每层最多展开 5 个，防爆炸
+            if c in path:
+                continue
+            walk(c, path + [c])
+
+    walk(start, [start])
+    return [p for p in out if len(p) >= 2][:max_paths]
+
+
+def chain(wid: int, hops: int = 2, max_nodes: int = 40) -> dict:
+    """两跳引用链（被引方向，仅库内边）。
+
+    只看库内：`ref_wid IS NULL` 的边无法继续走，链就停在那一层。
+    超出 `max_nodes` 时置 `truncated=True`，不静默截断。
+    """
+    hops = max(1, min(int(hops or 1), 2))
+    conn = connect()
+    try:
+        w = _work(conn, wid)
+        if not w:
+            return {"found": False, "nodes": [], "edges": [], "paths": [],
+                    "truncated": False}
+        nodes: dict[int, dict] = {wid: {**w, "depth": 0}}
+        edges: list[dict] = []
+        frontier = {wid}
+        truncated = False
+        for depth in range(1, hops + 1):
+            if not frontier:
+                break
+            ph = ",".join("?" * len(frontier))
+            rows = conn.execute(
+                f"""SELECT r.wid AS citing, r.ref_wid AS cited
+                    FROM work_refs r WHERE r.ref_wid IN ({ph})""",
+                sorted(frontier)).fetchall()
+            nxt: set[int] = set()
+            for r in rows:
+                citing, cited = int(r["citing"]), int(r["cited"])
+                edges.append({"src": citing, "dst": cited, "depth": depth})
+                if citing not in nodes:
+                    if len(nodes) >= max_nodes:
+                        truncated = True
+                        continue
+                    row = _work(conn, citing)
+                    if row:
+                        nodes[citing] = {**row, "depth": depth}
+                nxt.add(citing)
+            frontier = nxt
+        seen, uniq = set(), []
+        for e in edges:
+            k = (e["src"], e["dst"])
+            if k not in seen:
+                seen.add(k)
+                uniq.append(e)
+        return {"found": True, "work": w, "nodes": list(nodes.values()),
+                "edges": uniq,
+                "paths": build_paths(wid, uniq, hops=hops, max_paths=8),
+                "truncated": truncated}
+    finally:
+        conn.close()
+
+
 def top_cited(limit: int = 10) -> list[dict]:
     """库内被引用次数最多（以库内引用边计）。"""
     conn = connect()
