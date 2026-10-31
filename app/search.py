@@ -280,7 +280,7 @@ def graph_neighbors(pid: int, depth: int = 1) -> dict:
             f"SELECT a,b,weight FROM edges WHERE kind='coauthor' AND a IN ({ph}) AND b IN ({ph})",
             ids + ids)]
         people = {r["pid"]: dict(r) for r in conn.execute(
-            f"SELECT pid,name,name_zh,last_inst,works_count FROM people WHERE pid IN ({ph})", ids)}
+            f"SELECT pid,name,name_zh,last_inst,works_count,country FROM people WHERE pid IN ({ph})", ids)}
         # 社区（Louvain）用于前端着色：同一社区同色，能看出"学派/圈子"
         try:
             comm = {r["pid"]: (r["community"], r["csize"]) for r in conn.execute(

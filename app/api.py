@@ -166,18 +166,49 @@ def search(q: str = Query(..., description="查询词"),
            mode: str = Query("hybrid", pattern="^(bm25|dense|hybrid)$"),
            fusion: str = Query("rrf", pattern="^(rrf|dbsf)$"),
            rrf_k: int = 60,
+           country: str = Query("", description="国家（ISO2），仅 kind=people"),
+           inst_kind: str = Query("", description="机构类型：university/hospital/institute/company"),
+           cites_min: int = Query(0, description="被引下限"),
            limit: int = 10) -> dict:
     """统一检索入口：单路（bm25/dense）或融合（hybrid + rrf/dbsf）。
 
     M2 的 A/B 就靠这几个参数在同一批 gold 查询上扫。
+
+    facet 过滤只作用于 kind=people：先按相关度取回一批候选，再按
+    国家/机构类型/被引**保序过滤**——不重排，避免把"相关度"换成"被引"。
     """
+    faceted = kind == "people" and bool(country or inst_kind or cites_min)
+    # 有筛选时要多取一些候选，否则筛完可能不够 limit 条
+    fetch_n = min(300, max(limit * 6, 60)) if faceted else limit
+
     if mode == "bm25":
-        hits = (search_people(q, limit=limit) if kind == "people"
-                else search_works(q, limit=limit))
+        hits = (search_people(q, limit=fetch_n) if kind == "people"
+                else search_works(q, limit=fetch_n))
     elif mode == "dense":
-        hits = search_dense(q, kind=kind, limit=limit)
+        hits = search_dense(q, kind=kind, limit=fetch_n)
     else:
-        hits = search_hybrid(q, kind=kind, limit=limit, fusion=fusion, rrf_k=rrf_k)
+        hits = search_hybrid(q, kind=kind, limit=fetch_n, fusion=fusion, rrf_k=rrf_k)
+
+    if faceted and hits:
+        conds, args = [], []
+        if country:
+            conds.append("p.country = ?")
+            args.append(country)
+        if inst_kind:
+            conds.append("p.inst_id IN (SELECT iid FROM institutions WHERE kind = ?)")
+            args.append(inst_kind)
+        if cites_min:
+            conds.append("p.cited_by_count >= ?")
+            args.append(int(cites_min))
+        conn_f = connect()
+        try:
+            allowed = {r[0] for r in conn_f.execute(
+                f"SELECT p.pid FROM people p WHERE {' AND '.join(conds)}", args)}
+        finally:
+            conn_f.close()
+        hits = [(pid, s) for pid, s in hits if pid in allowed]
+
+    hits = hits[:limit]
 
     conn = connect()
     try:
@@ -202,6 +233,8 @@ def search(q: str = Query(..., description="查询词"),
                 items.append({**d, "score": round(float(score), 6)})
         return {"query": q, "kind": kind, "mode": mode,
                 "fusion": fusion if mode == "hybrid" else None,
+                "facets": {"country": country, "inst_kind": inst_kind,
+                           "cites_min": cites_min} if kind == "people" else None,
                 "count": len(items), "items": items}
     finally:
         conn.close()
@@ -216,7 +249,7 @@ def graph_path(a: int, b: int, max_depth: int = 4) -> dict:
     try:
         names = {}
         for pid in r.get("path") or []:
-            row = conn.execute("SELECT name,last_inst FROM people WHERE pid=?", (pid,)).fetchone()
+            row = conn.execute("SELECT name,last_inst,country FROM people WHERE pid=?", (pid,)).fetchone()
             names[pid] = dict(row) if row else {"name": str(pid)}
         return {**r, "people": [{"pid": p, **names[p]} for p in r.get("path") or []]}
     finally:

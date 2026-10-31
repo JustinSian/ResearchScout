@@ -213,9 +213,23 @@ window.addEventListener('error', function (e) {
       <select id="kind"><option value="people">专家</option><option value="works">论文</option></select>
       <select id="mode"><option value="bm25">BM25</option><option value="hybrid">混合(RRF)</option>
         <option value="dense">向量</option></select>
+      <select id="scountry"><option value="">全部国家</option></select>
+      <select id="sikind">
+        <option value="">全部机构类型</option>
+        <option value="university">高校</option>
+        <option value="hospital">医院</option>
+        <option value="institute">研究所</option>
+        <option value="company">企业</option>
+      </select>
+      <select id="scites">
+        <option value="">不限被引</option>
+        <option value="1000">被引 ≥ 1,000</option>
+        <option value="10000">被引 ≥ 10,000</option>
+        <option value="50000">被引 ≥ 50,000</option>
+      </select>
       <button class="primary" id="go">搜索</button>
     </div>
-    <p class="hint">M2 实测：BM25 在本数据上优于向量；混合默认 RRF。</p>
+    <p class="hint">M2 实测：BM25 在本数据上优于向量；混合默认 RRF。筛选只作用于"专家"，按相关度取回后保序过滤。</p>
     <div id="results"></div>
   </section>
 
@@ -242,13 +256,17 @@ window.addEventListener('error', function (e) {
       <select id="depth"><option value="1">1 跳</option><option value="2">2 跳</option></select>
       <select id="gcolor"><option value="inst">按机构着色</option>
         <option value="comm">按社区着色</option>
-        <option value="cites">按影响力着色</option></select>
+        <option value="cites">按影响力着色</option>
+        <option value="country">按国家着色</option></select>
       <button class="primary" id="ggo">生成</button>
       <button class="ghost" id="gfreeze">暂停布局</button>
+      <button class="ghost" id="gzin" title="放大">＋</button>
+      <button class="ghost" id="gzout" title="缩小">－</button>
+      <button class="ghost" id="gzreset" title="复位（也可双击画布）">复位</button>
       <button class="ghost" id="gwall">在专家墙看这些人</button>
     </div>
     <p class="hint" id="ghint">节点颜色=合作社区（Louvain 划分），大小=作品数，线粗=共同论文数；
-      可拖动节点、悬停看详情、点击打开画像。</p>
+      可拖动节点、滚轮缩放、拖空白平移、双击复位、悬停看详情、点击打开画像。</p>
     <div style="position:relative">
       <canvas id="gcanvas" width="1240" height="560"
         style="width:100%;height:560px;background:#0b121c;border:1px solid var(--line);
@@ -377,6 +395,12 @@ fetch('/experts/facets').then(r=>r.json()).then(d=>{
     const o = document.createElement('option');
     o.value = x.value; o.textContent = `${cn[x.value] || x.value}（${x.n}）`;
     cs.appendChild(o);
+    // 检索页也用同一份国家清单（没有人数，保持紧凑）
+    if ($('#scountry')) {
+      const o2 = o.cloneNode(true);
+      o2.textContent = cn[x.value] || x.value;
+      $('#scountry').appendChild(o2);
+    }
   });
 }).catch(()=>{});
 
@@ -546,11 +570,26 @@ $('#q').addEventListener('keydown', e=>{ if(e.key==='Enter') doSearch(); });
 async function doSearch(){
   const q = $('#q').value.trim(); if(!q) return;
   const kind = $('#kind').value, mode = $('#mode').value;
+  const country = kind === 'people' ? $('#scountry').value : '';
+  const ikind   = kind === 'people' ? $('#sikind').value : '';
+  const cites   = kind === 'people' ? $('#scites').value : '';
   $('#results').innerHTML = '<p class="muted">检索中…</p>';
   try{
-    const d = await (await fetch(`/search?q=${encodeURIComponent(q)}&kind=${kind}&mode=${mode}&limit=10`)).json();
-    if (!d.items.length){ $('#results').innerHTML = '<p class="muted">没有结果。</p>'; return; }
-    $('#results').innerHTML = kind==='people' ? d.items.map(it=>`
+    const p = new URLSearchParams({q, kind, mode, limit: 10});
+    if (country) p.set('country', country);
+    if (ikind)   p.set('inst_kind', ikind);
+    if (cites)   p.set('cites_min', cites);
+    const d = await (await fetch('/search?' + p)).json();
+    if (!d.items.length){
+      $('#results').innerHTML = '<p class="muted">没有结果。' +
+        (country || ikind || cites ? '（已加筛选条件，试试放宽）' : '') + '</p>';
+      return;
+    }
+    const note = (country || ikind || cites)
+      ? `<p class="hint">已筛选：${[country && '国家=' + country,
+           ikind && '机构类型=' + ikind, cites && '被引≥' + cites].filter(Boolean).join('、')}
+         ，命中 ${d.count}</p>` : '';
+    $('#results').innerHTML = note + (kind==='people' ? d.items.map(it=>`
       <div class="card"><div class="row" style="gap:12px">${avatar(it.name)}
         <div style="flex:1"><h3 style="margin:0">${esc(it.name)} <span class="score">${it.score}</span></h3>
           <div class="kv">${esc(it.inst_zh || it.inst || it.last_inst || '机构未知')} · 样本内 ${it.works_count} 篇 ·
@@ -559,13 +598,16 @@ async function doSearch(){
         <button class="ghost" onclick="openGraph(${it.id})">图谱</button></div></div>`).join('')
       : d.items.map(it=>`<div class="card"><h3>${esc(it.title||'(无标题)')}
           <span class="score">${it.score}</span></h3>
-          <div class="kv">${it.year||'—'} · ${esc(it.venue||'未知来源')} · 被引 ${fmt(it.cites)}</div></div>`).join('');
+          <div class="kv">${it.year||'—'} · ${esc(it.venue||'未知来源')} · 被引 ${fmt(it.cites)}</div></div>`).join(''));
   }catch(e){ $('#results').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
 // ---------- 图谱（Canvas 力导向 + 社区着色 + 路径模式） ----------
 const G = {mode:'ego', nodes:[], edges:[], alpha:1, drag:null, hover:null,
-           frozen:false, raf:null, byId:new Map()};
+           frozen:false, raf:null, byId:new Map(),
+           // 视图变换：滚轮缩放 + 拖空白平移。物理布局仍在"世界坐标"里算，
+           // 只影响绘制与命中测试，避免把布局逻辑和缩放耦合。
+           view:{k:1, tx:0, ty:0}, pan:null};
 window.openGraph = pid => {
   $('#gpid').value = pid;
   document.querySelector('nav button[data-v="graph"]').click();
@@ -579,6 +621,7 @@ document.querySelectorAll('#gmode button').forEach(b=>b.onclick=()=>{
   buildGraph();
 });
 $('#ggo').onclick = buildGraph;
+$('#gcolor').onchange = () => { renderLegend(); draw(); };
 $('#gfreeze').onclick = () => {
   G.frozen = !G.frozen;
   $('#gfreeze').textContent = G.frozen ? '继续布局' : '暂停布局';
@@ -591,6 +634,11 @@ function hashHue(s){
 }
 function colorOf(p){
   const mode = ($("#gcolor") && $("#gcolor").value) || "inst";
+  if (mode === "country"){
+    // 没有国家数据的人统一灰色，不硬猜
+    if (!p.country) return "hsl(210 8% 42%)";
+    return `hsl(${hashHue(p.country)} 68% 56%)`;
+  }
   if (mode === "inst") return `hsl(${hashHue(p.inst||"unknown")} 62% 55%)`;
   if (mode === "cites"){
     const k = Math.min(1, Math.log10(1 + (p.cites||0)) / 6);
@@ -599,6 +647,34 @@ function colorOf(p){
   const c = p.community;
   if (c === null || c === undefined) return "hsl(210 10% 45%)";
   return `hsl(${(c * 47) % 360} 68% 56%)`;
+}
+
+// 图例随着色方式变化：国家/社区有分组，机构/影响力是连续量，不画图例
+function renderLegend(){
+  const el = $('#glegend'); if (!el) return;
+  const mode = ($('#gcolor') || {}).value || 'inst';
+  const people = G.nodes.filter(n => n.kind !== 'org');
+  if (mode === 'country'){
+    const cnt = {};
+    people.forEach(n => { const c = n.country || '未知'; cnt[c] = (cnt[c] || 0) + 1; });
+    const top = Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,7);
+    el.innerHTML = top.map(([c,n])=>
+      `<span style="display:flex;align-items:center;gap:5px">
+         <i style="width:9px;height:9px;border-radius:99px;background:${colorOf({country:c==='未知'?null:c})};display:inline-block"></i>
+         ${esc(c)}（${n}）</span>`).join('');
+    return;
+  }
+  if (mode === 'comm'){
+    const cnt = {};
+    people.forEach(n => { if (n.community != null) cnt[n.community] = (cnt[n.community]||0)+1; });
+    const top = Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,6);
+    el.innerHTML = top.map(([c,n])=>
+      `<span style="display:flex;align-items:center;gap:5px">
+         <i style="width:9px;height:9px;border-radius:99px;background:${colorOf({community:+c})};display:inline-block"></i>
+         社区 ${c}（${n} 人）</span>`).join('');
+    return;
+  }
+  el.innerHTML = '';
 }
 
 async function buildGraph(){
@@ -623,7 +699,7 @@ async function buildGraph(){
       }
       const people = d.people || [];
       G.nodes = people.map((p,i)=>({id:p.pid, label:p.name, size:i===0||i===people.length-1?20:14,
-        community:i, sub:p.last_inst || '机构未知'}));
+        community:i, country:p.country, sub:p.last_inst || '机构未知'}));
       G.edges = [];
       for (let i=0;i<G.nodes.length-1;i++) G.edges.push({a:G.nodes[i].id, b:G.nodes[i+1].id, w:1});
       $('#gpath').innerHTML = `<div class="card"><h3>最短合作链（${d.hops} 跳）</h3>
@@ -636,7 +712,8 @@ async function buildGraph(){
       if (!d.nodes.length){ $('#ghint').textContent = '没有节点。'; return; }
       const maxW = Math.max(...d.nodes.map(n=>n.works_count||1), 1);
       G.nodes = d.nodes.map(n=>({id:n.pid, label:n.name, size:6+Math.sqrt((n.works_count||1)/maxW)*22,
-        community:n.community ?? 999, sub:`${n.last_inst||'机构未知'} · 作品 ${n.works_count||0} · 社区 ${n.community ?? '—'}(${n.csize||0}人)`}));
+        community:n.community ?? 999, country:n.country,
+        sub:`${n.last_inst||'机构未知'} · 作品 ${n.works_count||0} · 社区 ${n.community ?? '—'}(${n.csize||0}人)`}));
       G.edges = d.edges.map(e=>({a:e.a, b:e.b, w:e.weight}));
       // 组织层：某学术图谱来源的"平台/机构"关系，画成方块 + 虚线
       const orgs = d.orgs || [];
@@ -646,20 +723,11 @@ async function buildGraph(){
           community:-1, sub:`${o.kind || '机构'} · ${o.relation || ''} · 权重 ${o.weight}`});
         G.edges.push({a:Number(pid), b:oid, w:1, kind:'org'});
       });
-      const comms = {};
-      d.nodes.forEach(n=>{ if(n.community!=null) comms[n.community]=(comms[n.community]||0)+1; });
-      const top = Object.entries(comms).sort((a,b)=>b[1]-a[1]).slice(0,6);
-      $('#glegend').innerHTML = top.map(([c,n])=>
-        `<span style="display:flex;align-items:center;gap:5px">
-           <i style="width:9px;height:9px;border-radius:99px;background:${colorOf({community:+c})};display:inline-block"></i>
-           社区 ${c}（${n} 人）</span>`).join('')
-        + (orgs.length ? `<span style="display:flex;align-items:center;gap:5px">
-           <i style="width:9px;height:9px;background:#ffd166;display:inline-block"></i>
-           机构/平台（${orgs.length}）</span>` : '');
+      renderLegend();
       $('#ghint').textContent = `网络：${d.nodes.length} 位同行 / ${d.edges.length} 条共著边`
         + (d.truncated ? `（已显示前 ${d.truncated.shown - 1} 位，共 ${d.truncated.total - 1} 位）` : '')
         + (orgs.length ? ` + ${orgs.length} 个机构/平台（虚线）` : '')
-        + `；颜色=${($('#gcolor')||{}).value === 'comm' ? '社区' : ($('#gcolor')||{}).value === 'cites' ? '影响力' : '机构'}，大小=作品数。`;
+        + `；颜色=${({comm:'社区', cites:'影响力', country:'国家', inst:'机构'})[($('#gcolor')||{}).value] || '机构'}，大小=作品数。`;
     }
     initPhysics();
   }catch(e){ $('#ghint').textContent = '加载失败：' + e.message; }
@@ -667,6 +735,8 @@ async function buildGraph(){
 
 function initPhysics(){
   const W = $('#gcanvas').width, H = $('#gcanvas').height, cx = W/2, cy = H/2;
+  // 换图就复位视角，否则新图会沿用上一张的缩放
+  G.view = {k:1, tx:0, ty:0}; G.pan = null;
   G.byId = new Map(G.nodes.map(n=>[n.id, n]));
   G.nodes.forEach((n,i)=>{
     const a = 2*Math.PI*i/Math.max(G.nodes.length,1);
@@ -725,6 +795,10 @@ function tick(){
 function draw(){
   const cv = $('#gcanvas'), ctx = cv.getContext('2d');
   ctx.clearRect(0,0,cv.width,cv.height);
+  // 所有绘制都在"世界坐标"里，缩放/平移通过画布变换施加
+  ctx.save();
+  const v = G.view || {k:1, tx:0, ty:0};
+  ctx.setTransform(v.k, 0, 0, v.k, v.tx, v.ty);
   // 边
   ctx.lineWidth = 1;
   for (const e of G.edges){
@@ -764,6 +838,7 @@ function draw(){
       ctx.fillText((p.label||'').slice(0,16), p.x, p.y + r + 13);
     }
   }
+  ctx.restore();
 }
 
 // 交互
@@ -771,13 +846,48 @@ function draw(){
   const cv = $('#gcanvas');
   const pos = ev => { const r = cv.getBoundingClientRect();
     return {x:(ev.clientX-r.left)*cv.width/r.width, y:(ev.clientY-r.top)*cv.height/r.height}; };
-  const pick = pt => G.nodes.find(n=>Math.hypot(n.x-pt.x, n.y-pt.y) <= (n.size||10)+4);
+  // 屏幕坐标 → 世界坐标（逆变换）
+  const toWorld = pt => ({x:(pt.x - G.view.tx)/G.view.k, y:(pt.y - G.view.ty)/G.view.k});
+  const pick = pt => { const w = toWorld(pt);
+    return G.nodes.find(n=>Math.hypot(n.x-w.x, n.y-w.y) <= (n.size||10) + 4); };
+
+  // 以画布上的某个点为锚缩放（滚轮缩放应该"跟着鼠标走"）
+  function zoomAt(sx, sy, factor){
+    const v = G.view;
+    const k2 = Math.max(0.25, Math.min(5, v.k * factor));
+    if (k2 === v.k) return;
+    v.tx = sx - (sx - v.tx) * (k2 / v.k);
+    v.ty = sy - (sy - v.ty) * (k2 / v.k);
+    v.k = k2;
+    draw();
+  }
+  $('#gzin').onclick  = () => zoomAt(cv.width/2, cv.height/2, 1.25);
+  $('#gzout').onclick = () => zoomAt(cv.width/2, cv.height/2, 0.8);
+  $('#gzreset').onclick = () => { G.view = {k:1, tx:0, ty:0}; draw(); };
+
+  cv.addEventListener('wheel', ev=>{
+    ev.preventDefault();
+    const pt = pos(ev);
+    zoomAt(pt.x, pt.y, ev.deltaY < 0 ? 1.12 : 1/1.12);
+  }, {passive:false});
+
+  cv.addEventListener('dblclick', ()=>{ G.view = {k:1, tx:0, ty:0}; draw(); });
+
   cv.addEventListener('mousemove', ev=>{
     const pt = pos(ev);
-    if (G.drag){ G.drag.x = pt.x; G.drag.y = pt.y; G.alpha = Math.max(G.alpha, .25); return; }
+    if (G.pan){
+      // 拖空白：平移视图
+      G.view.tx = G.pan.tx + (pt.x - G.pan.x);
+      G.view.ty = G.pan.ty + (pt.y - G.pan.y);
+      draw(); return;
+    }
+    if (G.drag){
+      const w = toWorld(pt);
+      G.drag.x = w.x; G.drag.y = w.y; G.alpha = Math.max(G.alpha, .25); return;
+    }
     const hit = pick(pt);
     G.hover = hit || null;
-    cv.style.cursor = hit ? 'pointer' : 'grab';
+    cv.style.cursor = hit ? 'pointer' : (G.pan ? 'grabbing' : 'grab');
     const tip = $('#gtip');
     if (hit){
       tip.style.display = 'block';
@@ -786,8 +896,14 @@ function draw(){
       tip.innerHTML = `<b>${esc(hit.label||hit.id)}</b><br><span class="kv">${esc(hit.sub||'')}</span>`;
     } else tip.style.display = 'none';
   });
-  cv.addEventListener('mousedown', ev=>{ const hit = pick(pos(ev)); if (hit){ G.drag = hit; cv.style.cursor='grabbing'; } });
-  window.addEventListener('mouseup', ()=>{ G.drag = null; });
+
+  cv.addEventListener('mousedown', ev=>{
+    const pt = pos(ev);
+    const hit = pick(pt);
+    if (hit){ G.drag = hit; cv.style.cursor='grabbing'; }
+    else { G.pan = {x: pt.x, y: pt.y, tx: G.view.tx, ty: G.view.ty}; cv.style.cursor='grabbing'; }
+  });
+  window.addEventListener('mouseup', ()=>{ G.drag = null; G.pan = null; cv.style.cursor='grab'; });
   cv.addEventListener('mouseleave', ()=>{ $('#gtip').style.display='none'; G.hover=null; });
   cv.addEventListener('click', ev=>{
     const hit = pick(pos(ev));
