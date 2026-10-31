@@ -46,7 +46,7 @@ CASES = [
 def main() -> None:
     rows = []
     for q, expect_tool, should_refuse in CASES:
-        r = answer(q)
+        r = answer(q, allow_fallback=False)
         tools = [p["tool"] for p in r["plan"]]
         tool_ok = bool(tools) and tools[0] == expect_tool
         refused = bool(r["refused"])

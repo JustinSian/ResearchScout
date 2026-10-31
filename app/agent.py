@@ -76,6 +76,12 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "") -> dict:
             parsed["topic_en"] = []
     structured = ctx["inherit"] or any([parsed.get("country"), parsed.get("inst_kind"),
                                        parsed.get("inst_name"), parsed.get("cites_min")])
+    # 纯中文的"主题类"提问（"引用最多的呼吸专家"）没有硬条件，但 CE 路径用中文查不到
+    # 英文论文标题，会一路走到 0 结果 → 拒答 → 联网。这类问题改用 facet 检索
+    # （主题已由词表翻成英文）。含拉丁词的问题仍走 CE 路径，避免影响英文查询质量。
+    _latin = bool(re.search(r"[A-Za-z]{2,}", query or ""))
+    if not structured and not _latin and parsed.get("topic_en"):
+        structured = True
     if structured:
         # 用户说"前 20 条"时，facet 里的 limit 应优先于工具默认的 5
         res = facet_mod.search(parsed, limit=int(parsed.get("limit") or limit))
@@ -348,6 +354,10 @@ _CN_WORKS = re.compile(r"论文|文章|著作|paper|publication", re.I)
 # 引用链（对标 AMiner 的 paper/relation）：注意要排在 _CN_WORKS 之前判断，
 # 否则"这篇论文引用了谁"会被"论文"抢走
 _CN_CITE = re.compile(r"引用|被引|谁引|citation|cite[sd]?\b|references?\b", re.I)
+# 真正要走"引用链"的问法（"引用最多的专家"是排序问题，不能被它抢走）
+_CITE_CHAIN = re.compile(
+    r"引用了谁|引用了哪些|谁引用了|被谁引用|引用链|两跳|二跳|多跳|间接引用|"
+    r"citation|cite[sd]?|references?", re.I)
 _CN_COMPARE = re.compile(r"对比|比较|谁更|差异|区别|compare|versus|vs\b", re.I)
 # "研究方向/专长"类问题：交给档案（dossier），不是找专家
 _CN_AREA = re.compile(r"研究方向|研究领域|方向|领域|专长|擅长|做什么研究|研究什么|学术画像", re.I)
@@ -355,6 +365,28 @@ _CN_AREA = re.compile(r"研究方向|研究领域|方向|领域|专长|擅长|�
 _CN_REL = re.compile(r"关系|合作|共著|一起写|同事", re.I)
 # 审稿类问题：必须优先于"比较"判断——"谁更适合审…"里含"谁更"，会被误判成比较
 _CN_REVIEW = re.compile(r"审稿|审一篇|审这篇|评审|reviewer|referee", re.I)
+
+
+_KNOWN_CACHE: dict[str, bool] = {}
+
+def _known_person(name: str) -> bool:
+    """库里是否真有这个中文名（people.name_zh 或 name），进程内缓存。"""
+    if name in _KNOWN_CACHE:
+        return _KNOWN_CACHE[name]
+    ok = False
+    try:
+        from app.db import connect
+        conn = connect()
+        try:
+            ok = conn.execute(
+                "SELECT 1 FROM people WHERE name_zh=? OR name=? LIMIT 1", (name, name)
+            ).fetchone() is not None
+        finally:
+            conn.close()
+    except Exception:
+        ok = False
+    _KNOWN_CACHE[name] = ok
+    return ok
 
 
 def extract_names(query: str) -> list[str]:
@@ -375,7 +407,10 @@ def extract_names(query: str) -> list[str]:
                       r"介绍|研究|专家|学者|哪些|什么|方向|领域|相关|合作者|合作|论文|文章|"
                       r"近五年|近十年|最近五年|最近|近|五年|十年|几年|的研究方向|研究方向|"
                       r"更适合|适合|谁更|对比|比较|和|与|的|请|查|看)", " ", q)
-    cands += re.findall(r"[\u4e00-\u9fa5]{2,4}", stripped)
+    zh = re.findall(r"[一-龥]{2,4}", stripped)
+    # 中文候选必须"库里真有这个人"：否则"一起写""带头人""关系"这类残留会被
+    # 当成人名，把"谁和 X 一起写论文"路由成 relation、"介绍某领域"路由成 profile。
+    cands += [c for c in zh if _known_person(c)]
     seen, out = set(), []
     for c in cands:
         c = c.strip()
@@ -428,7 +463,7 @@ def plan_node(state: AgentState) -> dict:
     elif _CN_PROFILE.search(q) and names:
         # 只有抽到了"像人名"的片段才走画像；否则"介绍某个领域"应走找专家
         plan = [{"tool": "profile", "args": {"name": names[0]}}]
-    elif _CN_CITE.search(q):
+    elif _CITE_CHAIN.search(q):
         # 引用链要排在 works 之前：否则"这篇论文引用了谁"会被"论文"抢走
         # "两跳/间接/谁影响了" → 多走一层（仍只走库内边）
         _hops = 2 if re.search(r"两跳|二跳|间接|影响|传播|谁引用过|多跳", q) else 1
@@ -446,7 +481,9 @@ def plan_node(state: AgentState) -> dict:
         # 指代问题（"他们谁论文最多"）本身没有结构化条件，但必须传原文：
         # q_en 会把"他们"删掉，上下文就断了（踩过：直接跑到网络兜底）
         from app.context import has_anaphora as _has_anaphora
-        _keep = _structured or _has_anaphora(q)
+        # 纯中文问题会被 latin_query 清成空串（"引用最多的呼吸专家" → ""），
+        # 空检索必然 0 结果 → 拒答 → 联网。这里兜住：没有拉丁片段就用原文。
+        _keep = _structured or _has_anaphora(q) or not (q_en or "").strip()
         plan = [{"tool": "find_expert", "args": {"query": q if _keep else q_en,
                                                    "sid": state.get("sid") or ""}}]
     return {"plan": plan, "query_en": q_en}
@@ -510,7 +547,11 @@ def compose_node(state: AgentState) -> dict:
             f = r0.get("facets") or {}
             label = {"country": "国家", "inst_kind": "机构类型", "inst_name": "机构",
                      "cites_min": "被引下限", "sort": "排序", "topic": "主题"}
-            conds = "、".join(f"{label.get(k, k)}={v}" for k, v in f.items() if v)
+            # 回显要说人话：国家 CN → 中国，机构类型 hospital → 医院
+            from app.facets import COUNTRY_ZH, KIND_ZH
+            zh = {"country": COUNTRY_ZH, "inst_kind": KIND_ZH}
+            nice = {k: (zh.get(k, {}) or {}).get(str(v), v) for k, v in f.items() if v}
+            conds = "、".join(f"{label.get(k, k)}={v}" for k, v in nice.items())
             head = f"我把它理解成了结构化条件：**{conds or '（无）'}**。"
             if r0.get("inherited"):
                 head += f"（在这个问题的上一批 **{r0['inherited']}** 人里筛选）"
