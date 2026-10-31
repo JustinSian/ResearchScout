@@ -11,9 +11,23 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import time
 
-from app.db import connect, init_db
+from app.config import DB_PATH
+
+# 会话状态单独放一个小库：主库有后台任务在写（补国家等），
+# 共用会撞 "database is locked"（SSE 里真实踩到过）
+CTX_DB = DB_PATH.parent / "chat_ctx.db"
+
+
+def connect() -> sqlite3.Connection:
+    CTX_DB.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(CTX_DB), timeout=10.0)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=8000")
+    return conn
 
 # 指代词：出现任意一个就认为"在说上一轮的结果"
 ANAPHORA = ("这些人", "这批人", "这几位", "他们", "它们", "上述", "上面", "刚才",
@@ -40,7 +54,6 @@ MAX_KEEP = 60  # 最多保留多少个 sid（防止无限增长）
 
 
 def init() -> None:
-    init_db()
     conn = connect()
     try:
         conn.execute(DDL)
@@ -118,7 +131,8 @@ def resolve(query: str, sid: str) -> dict:
             # 库里没有出生年份，不能假装能算年龄
             out["note"] = "库里没有出生年份，无法按年龄排序；这里按最近活跃度排。"
         else:
-            out["note"] = f"在这 {len(prev['pids'])} 人里按{hint}排序。"
+            zh = {"cites": "被引", "works": "作品数", "recent": "最近活跃"}.get(hint, hint)
+            out["note"] = f"在这 {len(prev['pids'])} 人里按{zh}排序。"
     else:
         out["note"] = f"沿用上一轮的 {len(prev['pids'])} 人。"
     return out

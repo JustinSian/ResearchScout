@@ -515,7 +515,8 @@ async def chat_stream(q: str = Query(...), sid: str = Query("")):
         r = await asyncio.to_thread(supervise, q, sid=sid)
         if r.get("fallback"):
             yield sse("think", {"t": "知识库里没有直接证据，我改查公开网络（结果会标注来源，未经本库核验）。"})
-        for p in r["plan"]:
+        # supervisor 合并后的结果不一定带 plan（纯网络/澄清路径就没有），要安全取值
+        for p in (r.get("plan") or []):
             yield sse("think", {"t": narrate.step_narration("执行", p["tool"])})
         if r["refused"]:
             yield sse("think", {"t": narrate.closing(True, r.get("reason"))})

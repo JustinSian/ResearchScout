@@ -41,7 +41,15 @@ tool_find_expert: facets["pids"] = 上一轮的 pid → SQL "p.pid IN (...)"
 supervisor 的 `decide()` 看到"谁被引最高"没有实体，默认转 web。
 现在 `run()` 先看上下文：有继承就强制走 kb，不进路由。
 
-## 诚实的边界
+'## 第四个坑：主库被后台任务占着
+
+`chat_ctx` 一开始建在主库里，结果 SSE 报 `sqlite3.OperationalError: database is locked`——
+后台补国家的任务每隔几秒就 commit 一次，会话写入抢不到锁。
+
+改成**独立小库** `data/chat_ctx.db`（WAL + busy_timeout=8s）。
+会话状态本来就是易失数据，不该和主数据抢锁。
+
+## 诚实的边界'
 
 **"谁最年轻"答不了**——库里没有出生年份，只有被引/作品/h-index。
 所以问"年轻"时会明确说明：
