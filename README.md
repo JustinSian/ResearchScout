@@ -89,6 +89,27 @@ BM25 + 向量 + RRF/DBSF 全参数可切，两套 gold set（按被引 / 随机�
 有答案 ≥ 0.858    无答案 ≤ 0.425    阈值 0.60
 ```
 
+### 5. Facet 检索：把"条件"和"语义"分开
+
+"中国的呼吸科专家，被引超过 1000"这种问题里，「中国」「被引≥1000」是**硬过滤条件**，
+不是语义相似度能表达的。`app/facets.py` 先把它解析成结构化条件：
+
+| 维度 | 输入示例 | 解析 |
+|---|---|---|
+| 主题 | 呼吸科 / 机器学习 / AI | 中英词表映射（同义词之间用 OR，不能用 AND） |
+| 国家 | 中国 / 美国 / 英国 | CN / US / GB（后台已从 OpenAlex 回填 7,900+ 人） |
+| 机构类型 | 大学 / 医院 / 研究所 / 企业 | university / hospital / institute / company |
+| 机构名 | 清华 / 协和 / 哈佛 | Tsinghua / Peking Union Medical / Harvard |
+| 被引下限 | 高被引 / 被引超过 5000 | 1000 / 5000（0 结果时自动放宽并告知） |
+| 排序 | 引用最多 / 论文最多 / 最近活跃 | cites / works / recent |
+
+回答会**先回显条件再给结果**，用户看到理解偏了可以直接改说法：
+
+```
+我把它理解成了结构化条件：**主题=呼吸、国家=CN、被引下限=1000、排序=cites、limit=5**。
+命中 **10** 人：1. Bo Yang — CN · Capital Medical University；被引 49,162（样本内 3 篇）
+```
+
 ### 5. 多 Agent：调度层，不是自主性
 
 - Supervisor 分派到 kb / task / web 三个 agent，仲裁时**分节标注**，绝不混证据；
@@ -208,6 +229,7 @@ tools/call nope → JSON-RPC -32601 unknown tool
 ```
 GET  /stats                 规模统计
 GET  /people/{pid}          画像        GET  /experts   专家墙（排序/筛选/网络）
+GET  /experts/facets        可选筛选项（国家/机构类型及人数）
 GET  /works                 论文检索
 GET  /search                混合检索（bm25/dense/hybrid）
 GET  /graph/{pid}           合作网络    GET  /graph/path      最短合作链

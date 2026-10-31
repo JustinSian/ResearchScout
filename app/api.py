@@ -22,6 +22,7 @@ from app.labels import label_inst, label_topic
 from app.graph_analytics import (community_of, institution_graph, shortest_path)
 from app.dossiers import dossier as get_dossier, dossiers_summary
 from app import hooks, memory
+from app import facets as facet_mod
 from app import institutions as inst_mod
 from app import venues as venue_mod
 from app.onboard import welcome as chat_welcome
@@ -376,6 +377,13 @@ def person_affiliation(pid: int) -> dict:
     """某位专家归一化后的机构 + 常发期刊（审稿人匹配的两个关键信号）。"""
     return {"pid": pid, "institution": inst_mod.for_person(pid),
             "venues": venue_mod.person_venues(pid, limit=5)}
+
+@app.get("/experts/facets")
+def experts_facets() -> dict:
+    """可选的筛选维度（国家 / 机构类型）及各自人数，供前端做筛选条。"""
+    return {"countries": facet_mod.facet_counts("country", 12),
+            "inst_kinds": facet_mod.facet_counts("inst_kind", 8)}
+
 
 @app.get("/dossiers")
 def dossiers(limit: int = 100) -> dict:

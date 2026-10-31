@@ -50,6 +50,16 @@ LEX = {
     "儿科": ["pediatric"],
     "影像": ["imaging", "radiology"],
     "生物信息": ["bioinformatics"],
+    # 通用学科（让 facet 检索不只覆盖医学）
+    "机器学习": ["machine learning"], "人工智能": ["artificial intelligence"],
+    "深度学习": ["deep learning"], "神经网络": ["neural network"],
+    "计算机视觉": ["computer vision"], "自然语言处理": ["natural language processing"],
+    "大模型": ["large language model"], "数据挖掘": ["data mining"],
+    "强化学习": ["reinforcement learning"], "图神经网络": ["graph neural network"],
+    "材料": ["materials"], "化学": ["chemistry"], "物理": ["physics"],
+    "数学": ["mathematics"], "统计": ["statistics"], "计算机": ["computer science"],
+    "基因": ["gene"], "蛋白质": ["protein"], "免疫": ["immunology"],
+    "神经科学": ["neuroscience"], "心理学": ["psychology"], "经济学": ["economics"],
 }
 
 

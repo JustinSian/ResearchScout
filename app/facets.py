@@ -1,0 +1,303 @@
+"""Facet 解析与筛选检索：把自然语言变成结构化条件。
+
+对标 AMiner 智能对话助手的思路：用户说"中国的呼吸科专家"，
+真正的做法不是把这个句子丢进向量检索，而是拆成
+  {topic: 呼吸, country: CN, sort: cites}
+再走"过滤 + 排序"，并把识别到的条件**回显给用户**（可纠正）。
+
+支持的维度：
+  topic       研究主题（中英映射后走 FTS）
+  country     国家/地区（ISO2，来自 OpenAlex country_code）
+  inst_kind   机构类型（university / hospital / institute / company）
+  inst_name   机构名片段（如"清华"→ Tsinghua）
+  cites_min   被引下限（"高被引"/"被引超过 5000"）
+  sort        排序（cites / works / recent）
+  limit       条数（"前 10"）
+
+设计原则：**能解析才解析，解析不到就当普通检索词**，绝不硬猜。
+"""
+from __future__ import annotations
+
+import json
+import re
+
+from app.db import connect
+
+# 国家/地区：中文与英文 → ISO2（只列我们数据里可能出现的）
+COUNTRY = {
+    "中国": "CN", "国内": "CN", "china": "CN", "chinese": "CN",
+    "美国": "US", "usa": "US", "united states": "US", "american": "US",
+    "英国": "GB", "uk": "GB", "united kingdom": "GB", "england": "GB", "britain": "GB",
+    "德国": "DE", "germany": "DE", "german": "DE",
+    "法国": "FR", "france": "FR", "french": "FR",
+    "日本": "JP", "japan": "JP", "japanese": "JP",
+    "加拿大": "CA", "canada": "CA",
+    "澳大利亚": "AU", "澳洲": "AU", "australia": "AU",
+    "荷兰": "NL", "netherlands": "NL",
+    "瑞士": "CH", "switzerland": "CH",
+    "新加坡": "SG", "singapore": "SG",
+    "韩国": "KR", "korea": "KR",
+    "印度": "IN", "india": "IN",
+    "意大利": "IT", "italy": "IT",
+    "西班牙": "ES", "spain": "ES",
+    "瑞典": "SE", "sweden": "SE",
+    "巴西": "BR", "brazil": "BR",
+    "香港": "HK", "hong kong": "HK",
+    "台湾": "TW", "taiwan": "TW",
+}
+
+# 机构类型
+INST_KIND = [
+    ("hospital", re.compile(r"医院|附院|医学中心|临床|hospital|clinic|medical cent", re.I)),
+    ("university", re.compile(r"大学|高校|学院|学校|university|college|school", re.I)),
+    ("institute", re.compile(r"研究所|研究院|实验室|研究中心|institute|laborator|academy", re.I)),
+    ("company", re.compile(r"企业|公司|工业界|业界|大厂|company|labs?\b|inc\b|corp\b|industry", re.I)),
+]
+
+# 机构名片段（中文 → 英文关键词）
+INST_NAME = {
+    "清华": "Tsinghua", "北大": "Peking University", "浙江大学": "Zhejiang University",
+    "复旦": "Fudan", "上海交大": "Shanghai Jiao Tong", "中山大学": "Sun Yat-sen",
+    "广医": "Guangzhou Medical", "广州医科大学": "Guangzhou Medical",
+    "协和": "Peking Union Medical", "中科院": "Chinese Academy of Sciences",
+    "哈佛": "Harvard", "麻省理工": "MIT", "斯坦福": "Stanford", "牛津": "Oxford",
+    "剑桥": "Cambridge", "东京大学": "University of Tokyo", "新加坡国立": "National University of Singapore",
+    "google": "Google", "微软": "Microsoft", "deepmind": "DeepMind", "openai": "OpenAI",
+}
+
+SORT_WORDS = [
+    ("recent", re.compile(r"最近活跃|近年活跃|近期|最新|recent", re.I)),
+    ("works", re.compile(r"论文最多|作品最多|产出最多|发表最多|most works|most papers", re.I)),
+    ("cites", re.compile(r"引用最多|被引最多|影响力|影响力最大|权威|大牛|top|leading", re.I)),
+]
+
+HIGH_CITES = re.compile(r"高被引|高引|大牛|顶尖|顶流|影响力大|famous|highly cited", re.I)
+CITES_NUM = re.compile(r"被引(?:数|量)?\s*(?:超过|大于|>|>=)\s*(\d{2,7})")
+TOP_N = re.compile(r"(?:前|top)\s*(\d{1,3})", re.I)
+
+# 解析时要剥掉的功能词，避免它们污染主题
+STOP_PHRASES = re.compile(
+    r"帮我找|帮我|找一下|找|查一下|查|列出|推荐|介绍|有哪些|有哪些人|哪些|谁|什么|"
+    r"专家|学者|教授|研究员|医生|老师|人才|的人|人员|"
+    r"中国|国内|美国|英国|德国|法国|日本|加拿大|澳大利亚|澳洲|荷兰|瑞士|新加坡|韩国|印度|意大利|西班牙|瑞典|巴西|香港|台湾|"
+    r"大学|高校|学院|医院|研究所|研究院|实验室|企业|公司|工业界|业界|"
+    r"高被引|顶尖|大牛|影响力|"
+    r"引用最多|论文最多|最近活跃|近年活跃|"
+    r"一下|的|在|做|从事|研究|学科|科|系|专业|领域|方向|里|中", re.I)
+
+
+def parse(query: str) -> dict:
+    """自然语言 → 结构化条件 + 回显说明。解析不到的条件保持 None。"""
+    q = (query or "").strip()
+    facets: dict = {"topic": "", "country": None, "inst_kind": None,
+                    "inst_name": None, "cites_min": None, "sort": "cites", "limit": 10}
+    notes: list[str] = []
+
+    for zh, iso in COUNTRY.items():
+        if zh in q.lower():
+            facets["country"] = iso
+            notes.append(f"国家={iso}")
+            break
+
+    for kind, rx in INST_KIND:
+        if rx.search(q):
+            facets["inst_kind"] = kind
+            notes.append(f"机构类型={kind}")
+            break
+
+    for zh, en in INST_NAME.items():
+        if zh in q.lower():
+            facets["inst_name"] = en
+            notes.append(f"机构≈{en}")
+            break
+
+    if HIGH_CITES.search(q):
+        facets["cites_min"] = 1000
+        notes.append("被引≥1000")
+    m = CITES_NUM.search(q)
+    if m:
+        facets["cites_min"] = int(m.group(1))
+        notes.append(f"被引≥{m.group(1)}")
+
+    for name, rx in SORT_WORDS:
+        if rx.search(q):
+            facets["sort"] = name
+            notes.append(f"排序={name}")
+            break
+
+    m = TOP_N.search(q)
+    if m:
+        facets["limit"] = max(1, min(int(m.group(1)), 50))
+        notes.append(f"取前{m.group(1)}")
+
+    # 把已识别的条件短语从主题里剥掉，避免"呼吸科 ，被引超过 1000，前 5"这种垃圾主题
+    rest = q
+    rest = CITES_NUM.sub(" ", rest)
+    rest = re.sub(r"被引(?:数|量)?\s*(?:超过|大于|>|>=)?\s*\d{2,7}", " ", rest)
+    rest = TOP_N.sub(" ", rest)
+    rest = HIGH_CITES.sub(" ", rest)
+    for zh in COUNTRY:
+        rest = re.sub(re.escape(zh), " ", rest, flags=re.I)
+    for _kind, rx in INST_KIND:
+        rest = rx.sub(" ", rest)
+    for zh in INST_NAME:
+        rest = rest.replace(zh, " ")
+    for _name, rx in SORT_WORDS:
+        rest = rx.sub(" ", rest)
+    topic = STOP_PHRASES.sub(" ", rest)
+    topic = re.sub(r"[，,。;；:：!?！？、]+", " ", topic)
+    topic = re.sub(r"\s+", " ", topic).strip()
+    facets["topic"] = topic
+    facets["topic_en"] = topic_en(topic)
+    if topic:
+        notes.append(f"主题≈{topic}")
+    facets["notes"] = notes
+    return facets
+
+
+def topic_en(topic: str, max_terms: int = 3) -> list[str]:
+    """中文主题 → 英文检索词（语料是英文，不翻译基本搜不到）。"""
+    if not topic:
+        return []
+    try:
+        from app.subagents import _keywords
+        terms = [t for t in _keywords(topic, limit=max_terms) if t]
+    except Exception:
+        terms = []
+    # 缩写单独处理：词表按整词匹配，"AI"/"ML" 这类两字母词既进不了词表也进不了英文分词
+    low = (topic or "").lower()
+    if re.search(r"\bai\b", low) and "artificial intelligence" not in terms:
+        terms.insert(0, "artificial intelligence")
+    if re.search(r"\bml\b", low) and "machine learning" not in terms:
+        terms.insert(0, "machine learning")
+    return terms[:max_terms]
+
+
+def search(facets: dict, limit: int = 0) -> dict:
+    """按 facets 过滤 + 排序，返回命中列表与条件回显。"""
+    from app.search import _fts_query
+
+    limit = limit or facets.get("limit") or 10
+    where = ["p.status = 'published'"]
+    args: list = []
+
+    topic = (facets.get("topic") or "").strip()
+    terms = facets.get("topic_en") or topic_en(topic)
+    # 同义词之间必须是 OR：respiratory 与 pulmonary 同时出现在同一个人身上概率很低，
+    # 用 AND 会把「中国的呼吸科专家」查成 0 人（踩过）。
+    match_expr = " OR ".join(f"({_fts_query(t)})" for t in terms if _fts_query(t)) if terms else ""
+    if match_expr:
+        where.append("p.pid IN (SELECT rowid FROM people_fts WHERE people_fts MATCH ?)")
+        args.append(match_expr)
+
+    if facets.get("country"):
+        where.append("p.country = ?")
+        args.append(facets["country"])
+
+    if facets.get("inst_kind"):
+        where.append("i.kind = ?")
+        args.append(facets["inst_kind"])
+
+    if facets.get("inst_name"):
+        where.append("i.name LIKE ?")
+        args.append(f"%{facets['inst_name']}%")
+
+    if facets.get("cites_min"):
+        where.append("p.cited_by_count >= ?")
+        args.append(int(facets["cites_min"]))
+
+    order = {"cites": "p.cited_by_count DESC",
+             "works": "p.works_count DESC",
+             "recent": "p.updated_at DESC"}.get(facets.get("sort") or "cites",
+                                                "p.cited_by_count DESC")
+
+    sql = f"""
+        SELECT p.pid, p.name, p.name_zh, p.country, p.works_count, p.cited_by_count,
+               i.name AS inst, i.kind AS inst_kind
+        FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id
+        WHERE {' AND '.join(where)}
+        ORDER BY {order}
+        LIMIT ?
+    """
+    conn = connect()
+    try:
+        rows = [dict(r) for r in conn.execute(sql, (*args, limit))]
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id "
+            f"WHERE {' AND '.join(where)}", args).fetchone()[0]
+    finally:
+        conn.close()
+
+    # FTS 没命中但确实有主题词 → 用 LIKE 在 topics 上兜底（英文概念就存在这里）
+    if not rows and terms:
+        try:
+            conn2 = connect()
+            like = " OR ".join(["p.topics LIKE ?"] * len(terms))
+            like_args = [f"%{t}%" for t in terms]
+            # 复用除 FTS 之外的过滤条件（where[0] 恒为 status，其后才是各 facet）
+            extra = where[1:] if match_expr else where[:]
+            if match_expr:
+                extra = where[1:]
+                # where 里 FTS 条件在第 1 位，其余条件与 args 的对应关系需同步裁剪
+                extra_args = [a for a in args[1:]]
+            else:
+                extra_args = list(args)
+            conds = extra + [f"({like})"]
+            sql2 = (f"SELECT p.pid, p.name, p.name_zh, p.country, p.works_count, "
+                    f"p.cited_by_count, i.name AS inst, i.kind AS inst_kind "
+                    f"FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id "
+                    f"WHERE {' AND '.join(conds)} ORDER BY {order} LIMIT ?")
+            rows = [dict(r) for r in conn2.execute(sql2, (*extra_args, *like_args, limit))]
+            total = max(total, len(rows))
+            conn2.close()
+        except Exception:
+            pass
+
+    # 条件过严导致 0 结果 → 放宽被引门槛再试一次，并把"为什么放宽"告诉用户
+    relaxed = ""
+    if not rows and facets.get("cites_min"):
+        relaxed = f"没有同时满足「被引≥{facets['cites_min']}」的人，已自动放宽该条件"
+        retry = dict(facets)
+        retry["cites_min"] = None
+        retry["topic_en"] = terms
+        sub = search(retry, limit=limit)
+        rows, total = sub["items"], sub["total"]
+        facets = sub["facets"]
+        facets["notes"] = [n for n in facets.get("notes", []) if "被引" not in n]
+
+    return {"facets": facets, "count": len(rows), "total": total, "items": rows,
+            "order": order.split()[0], "terms": terms, "relaxed": relaxed}
+
+
+def facet_counts(kind: str = "country", limit: int = 12) -> list[dict]:
+    """给前端/助手的"当前可选条件"：国家、机构类型、主题。"""
+    conn = connect()
+    try:
+        if kind == "country":
+            rows = conn.execute(
+                """SELECT country AS value, COUNT(*) n FROM people
+                   WHERE status='published' AND country IS NOT NULL AND country != ''
+                   GROUP BY country ORDER BY n DESC LIMIT ?""", (limit,)).fetchall()
+        elif kind == "inst_kind":
+            rows = conn.execute(
+                """SELECT i.kind AS value, COUNT(*) n FROM people p
+                   JOIN institutions i ON i.iid = p.inst_id
+                   WHERE p.status='published' GROUP BY i.kind ORDER BY n DESC LIMIT ?""",
+                (limit,)).fetchall()
+        else:
+            rows = []
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    for q in ("中国的呼吸科专家，被引超过 1000，前 5",
+              "美国做机器学习的大学教授",
+              "企业里的 AI 专家",
+              "清华的高被引学者"):
+        f = parse(q)
+        print(f"\nQ: {q}")
+        print("  facets:", {k: v for k, v in f.items() if k != 'notes' and v})
+        r = search(f, limit=3)
+        print(f"  共 {r['total']} 人，示例:", [(x['name_zh'] or x['name'], x['country']) for x in r['items']])

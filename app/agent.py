@@ -50,7 +50,25 @@ def tool_find_expert(query: str, limit: int = 5) -> dict:
     为什么不是"直接检索人物"：人物的 topics 是 OpenAlex 的粗粒度概念
     （"Computer science" 这种），CE 对 "graph neural network" 只有 0.025 分；
     而论文标题/摘要里通常写着具体方法。实测这条路径把 GOOD 查询的 CE 分从 0.03 拉到 0.9+。
+
+    但如果查询里带了**结构化条件**（国家/机构类型/机构名/被引门槛），
+    先走 facet 过滤——这类问题用论文相关性排序回答不了（"中国的呼吸科专家"
+    里"中国"是硬条件，不是语义相似度能表达的）。
     """
+    from app import facets as facet_mod
+    parsed = facet_mod.parse(query)
+    structured = any([parsed.get("country"), parsed.get("inst_kind"),
+                      parsed.get("inst_name"), parsed.get("cites_min")])
+    if structured:
+        res = facet_mod.search(parsed, limit=limit)
+        if res["count"]:
+            return {"tool": "find_expert", "mode": "facet",
+                    "items": res["items"], "count": res["count"], "total": res["total"],
+                    "facets": {k: v for k, v in parsed.items()
+                               if k not in ("notes", "topic_en") and v},
+                    "notes": parsed.get("notes") or [],
+                    "relaxed": res.get("relaxed", "")}
+
     import math
 
     from app.config import CE_REFUSE
@@ -393,18 +411,44 @@ def compose_node(state: AgentState) -> dict:
         }
 
     if tool == "find_expert":
-        lines = ["找到以下相关专家（按相关度）："]
-        cites = []
-        for i, it in enumerate(items[:5], 1):
-            lines.append(f"{i}. **{it['name']}** — {it.get('inst') or '机构未知'}；"
-                         f"样本内 {it['works']} 篇 / 被引 {it['cites']:,}")
-            for p in (it.get("passages") or [])[:1]:
-                snippet = (p.get("text") or "")[:110].replace("\n", " ")
-                lines.append(f"   > 证据（{p.get('year')}《{(p.get('title') or '')[:40]}》）：{snippet}…")
-            cites.append(_cite("person", it["pid"], it["name"],
-                               {"inst": it.get("inst"), "works": it["works"],
-                                "passages": len(it.get("passages") or [])}))
-        answer = "\n".join(lines)
+        # facet 模式：先回显"我理解成了什么条件"，再给结果（用户可纠正）
+        if first.get("mode") == "facet":
+            r0 = first
+            f = r0.get("facets") or {}
+            label = {"country": "国家", "inst_kind": "机构类型", "inst_name": "机构",
+                     "cites_min": "被引下限", "sort": "排序", "topic": "主题"}
+            conds = "、".join(f"{label.get(k, k)}={v}" for k, v in f.items() if v)
+            lines = [f"我把它理解成了结构化条件：**{conds or '（无）'}**。",
+                     f"命中 **{r0.get('total', r0.get('count', 0))}** 人"
+                     + (f"（{r0.get('relaxed')}）" if r0.get("relaxed") else "") + "："]
+            cites = []
+            for i, it in enumerate(r0.get("items", [])[:5], 1):
+                cc = f"{it.get('country')} · " if it.get("country") else ""
+                # works_count 是"样本内"收录篇数，不是全部论文数；
+                # 直接写"N 篇 / 被引 M"会让人以为 3 篇被引 4.9 万，必须标注清楚
+                lines.append(f"{i}. **{it.get('name_zh') or it.get('name')}** — "
+                             f"{cc}{it.get('inst') or '机构未知'}；"
+                             f"被引 {it.get('cited_by_count', 0):,}"
+                             f"（样本内 {it.get('works_count', 0)} 篇）")
+                cites.append(_cite("person", it["pid"], it.get("name_zh") or it.get("name"),
+                                   {"country": it.get("country"), "inst": it.get("inst")}))
+            if r0.get("notes"):
+                lines.append("")
+                lines.append("> 识别依据：" + "；".join(r0["notes"]))
+            answer = "\n".join(lines)
+        else:
+            lines = ["找到以下相关专家（按相关度）："]
+            cites = []
+            for i, it in enumerate(items[:5], 1):
+                lines.append(f"{i}. **{it['name']}** — {it.get('inst') or '机构未知'}；"
+                             f"样本内 {it['works']} 篇 / 被引 {it['cites']:,}")
+                for p in (it.get("passages") or [])[:1]:
+                    snippet = (p.get("text") or "")[:110].replace("\n", " ")
+                    lines.append(f"   > 证据（{p.get('year')}《{(p.get('title') or '')[:40]}》）：{snippet}…")
+                cites.append(_cite("person", it["pid"], it["name"],
+                                   {"inst": it.get("inst"), "works": it["works"],
+                                    "passages": len(it.get("passages") or [])}))
+            answer = "\n".join(lines)
 
     elif tool == "task":
         it = items[0] if items else {}
