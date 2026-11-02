@@ -19,6 +19,8 @@ data/vfs/
 *.log
 *.pid
 *.jsonl
+# 评测集必须入库：否则 clone 下来无法复现 m51/m53 的数字
+!eval/*.jsonl
 
 # ---- 一次性运维脚本（历史脚本已归档到 scripts/archive/）----
 scripts/_*.sh

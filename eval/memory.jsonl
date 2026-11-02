@@ -1,0 +1,50 @@
+{"id": "ext-01", "ability": "extraction", "setup_queries": ["我现在主要做阿尔茨海默病早期诊断"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["阿尔茨海默病"], "note": true}}
+{"id": "ext-02", "ability": "extraction", "setup_queries": ["我研究肺癌免疫治疗"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["肺癌免疫治疗"], "note": true}}
+{"id": "ext-03", "ability": "extraction", "setup_queries": ["我的研究方向是肠道菌群"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["肠道菌群"], "note": true}}
+{"id": "ext-04", "ability": "extraction", "setup_queries": ["我现在只做帕金森"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["帕金森"], "note": true}}
+{"id": "ext-05", "ability": "extraction", "setup_queries": ["我更喜欢临床数据扎实的论文"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["临床数据扎实"], "note": true}}
+{"id": "ext-06", "ability": "extraction", "setup_queries": ["我在北京协和医院工作"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["北京协和医院"], "note": true}}
+{"id": "ext-07", "ability": "extraction", "setup_queries": ["I work on protein structure prediction"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["protein structure"], "note": true}}
+{"id": "ext-08", "ability": "extraction", "setup_queries": ["我搞图神经网络"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["图神经网络"], "note": true}}
+{"id": "ext-09", "ability": "extraction", "setup_queries": ["我研究方向为单细胞测序"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["单细胞测序"], "note": true}}
+{"id": "ext-10", "ability": "extraction", "setup_queries": ["我专注肿瘤免疫微环境"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["肿瘤免疫微环境"], "note": true}}
+{"id": "ms-01", "ability": "multi_session", "setup_queries": ["我现在主要做阿尔茨海默病早期诊断"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["阿尔茨海默病"], "note": true}}
+{"id": "ms-02", "ability": "multi_session", "setup_queries": ["我研究肺癌免疫治疗"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["肺癌免疫治疗"], "note": true}}
+{"id": "ms-03", "ability": "multi_session", "setup_queries": ["我的研究方向是肠道菌群"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["肠道菌群"], "note": true}}
+{"id": "ms-04", "ability": "multi_session", "setup_queries": ["我现在只做帕金森"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["帕金森"], "note": true}}
+{"id": "ms-05", "ability": "multi_session", "setup_queries": ["我搞图神经网络"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["图神经网络"], "note": true}}
+{"id": "ms-06", "ability": "multi_session", "setup_queries": ["我研究方向为单细胞测序"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["单细胞测序"], "note": true}}
+{"id": "ms-07", "ability": "multi_session", "setup_queries": ["我专注肿瘤免疫微环境"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["肿瘤免疫微环境"], "note": true}}
+{"id": "ms-08", "ability": "multi_session", "setup_queries": ["我研究蛋白质结构预测"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["蛋白质结构预测"], "note": true}}
+{"id": "ms-09", "ability": "multi_session", "setup_queries": ["我的研究方向是强化学习"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["强化学习"], "note": true}}
+{"id": "ms-10", "ability": "multi_session", "setup_queries": ["我现在只做医学影像分割"], "turns": ["介绍一下钟南山", "推荐几个专家"], "expect": {"fact_any": ["医学影像分割"], "note": true}}
+{"id": "tp-01", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "阿尔茨海默病", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "帕金森", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["阿尔茨海默病"], "note": true}}
+{"id": "tp-02", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "肺癌", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "乳腺癌", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["肺癌"], "note": true}}
+{"id": "tp-03", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "肠道菌群", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "皮肤菌群", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["肠道菌群"], "note": true}}
+{"id": "tp-04", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "图神经网络", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "扩散模型", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["图神经网络"], "note": true}}
+{"id": "tp-05", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "强化学习", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "模仿学习", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["强化学习"], "note": true}}
+{"id": "tp-06", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "蛋白质结构", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "蛋白质设计", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["蛋白质结构"], "note": true}}
+{"id": "tp-07", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "医学影像", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "病理图像", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["医学影像"], "note": true}}
+{"id": "tp-08", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "单细胞测序", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "空间转录组", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["单细胞测序"], "note": true}}
+{"id": "tp-09", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "药物发现", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "药物重定位", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["药物发现"], "note": true}}
+{"id": "tp-10", "ability": "temporal", "setup_facts": [{"key": "topic", "value": "自然语言处理", "at": "2024-01-01T00:00:00+00:00"}, {"key": "topic", "value": "多模态", "at": "2026-01-01T00:00:00+00:00"}], "as_of": "2024-06-01T00:00:00+00:00", "turns": ["推荐几个专家"], "expect": {"fact_any": ["自然语言处理"], "note": true}}
+{"id": "up-01", "ability": "update", "setup_queries": ["我做阿尔茨海默病", "我现在不做阿尔茨海默病了，转做帕金森"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["帕金森"], "fact_none": ["阿尔茨海默病"], "note": true}}
+{"id": "up-02", "ability": "update", "setup_queries": ["我做肺癌", "我现在不做肺癌了，转做乳腺癌"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["乳腺癌"], "fact_none": ["肺癌"], "note": true}}
+{"id": "up-03", "ability": "update", "setup_queries": ["我做肠道菌群", "我现在不做肠道菌群了，转做皮肤菌群"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["皮肤菌群"], "fact_none": ["肠道菌群"], "note": true}}
+{"id": "up-04", "ability": "update", "setup_queries": ["我做图神经网络", "我现在不做图神经网络了，转做扩散模型"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["扩散模型"], "fact_none": ["图神经网络"], "note": true}}
+{"id": "up-05", "ability": "update", "setup_queries": ["我做强化学习", "我现在不做强化学习了，转做模仿学习"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["模仿学习"], "fact_none": ["强化学习"], "note": true}}
+{"id": "up-06", "ability": "update", "setup_queries": ["我做蛋白质结构", "我现在不做蛋白质结构了，转做蛋白质设计"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["蛋白质设计"], "fact_none": ["蛋白质结构"], "note": true}}
+{"id": "up-07", "ability": "update", "setup_queries": ["我做医学影像", "我现在不做医学影像了，转做病理图像"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["病理图像"], "fact_none": ["医学影像"], "note": true}}
+{"id": "up-08", "ability": "update", "setup_queries": ["我做单细胞测序", "我现在不做单细胞测序了，转做空间转录组"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["空间转录组"], "fact_none": ["单细胞测序"], "note": true}}
+{"id": "up-09", "ability": "update", "setup_queries": ["我做药物发现", "我现在不做药物发现了，转做药物重定位"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["药物重定位"], "fact_none": ["药物发现"], "note": true}}
+{"id": "up-10", "ability": "update", "setup_queries": ["我做自然语言处理", "我现在不做自然语言处理了，转做多模态"], "turns": ["推荐几个专家"], "expect": {"fact_any": ["多模态"], "fact_none": ["自然语言处理"], "note": true}}
+{"id": "ab-01", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}
+{"id": "ab-02", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}
+{"id": "ab-03", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}
+{"id": "ab-04", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}
+{"id": "ab-05", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}
+{"id": "ab-06", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}
+{"id": "ab-07", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}
+{"id": "ab-08", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}
+{"id": "ab-09", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}
+{"id": "ab-10", "ability": "abstain", "setup_queries": [], "turns": ["推荐几个专家"], "expect": {"note": false}}

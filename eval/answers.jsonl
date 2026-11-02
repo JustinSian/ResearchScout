@@ -1,0 +1,20 @@
+{"id": "facet-cn-resp", "q": "中国的呼吸科专家", "tools": ["find_expert"], "must_any": ["呼吸"], "must_not": ["没有找到"]}
+{"id": "facet-cn-hospital", "q": "中国的医院里的呼吸专家", "tools": ["find_expert"], "must_any": ["医院"]}
+{"id": "facet-tsinghua", "q": "清华的高被引学者", "tools": ["find_expert"], "must_any": ["Tsinghua", "清华"]}
+{"id": "facet-us-ml", "q": "美国做机器学习的大学教授", "tools": ["find_expert"], "must_any": ["大学", "University"]}
+{"id": "facet-company", "q": "企业里的 AI 专家", "tools": ["find_expert"], "must_any": ["企业", "公司"]}
+{"id": "facet-cites", "q": "被引超过 50000 的免疫专家，前 3 条", "tools": ["find_expert"], "must_any": ["被引"]}
+{"id": "profile-zhong", "q": "介绍一下钟南山", "tools": ["profile"], "must_any": ["钟南山"]}
+{"id": "area-zhong", "q": "钟南山的研究方向", "tools": ["research_area"], "must_any": ["呼吸", "Respiratory", "respiratory"]}
+{"id": "collab-zhong", "q": "谁和钟南山合作过", "tools": ["collaborators"], "must_any": ["钟南山"]}
+{"id": "compare-two", "q": "对比钟南山和李兰娟", "tools": ["task", "compare"], "must_all": ["钟南山", "李兰娟"]}
+{"id": "works-bert", "q": "找 BERT 相关的论文", "tools": ["works"], "must_any": ["BERT", "预训练"]}
+{"id": "cite-single", "q": "这篇论文引用了谁：Clinical Characteristics of Coronavirus Disease 2019", "tools": ["citations"], "must_any": ["引用"]}
+{"id": "cite-two-hop", "q": "两跳引用：Clinical Characteristics of Coronavirus Disease 2019", "tools": ["citations"], "must_any": ["两跳"]}
+{"id": "multi-turn-1", "q": "中国的呼吸科专家", "turns": ["中国的呼吸科专家", "那这些人里谁被引最高"], "tools": ["find_expert"], "must_any": ["上一批"], "sid": "eval-mt-1"}
+{"id": "multi-turn-2", "q": "他们谁论文最多", "turns": ["中国的呼吸科专家", "他们谁论文最多"], "tools": ["find_expert"], "must_any": ["作品数", "论文"], "sid": "eval-mt-2"}
+{"id": "refuse-quantum", "q": "找研究 quantum gravity phenology 的专家", "kb_refuse": true}
+{"id": "refuse-poetry", "q": "谁研究 medieval icelandic poetry", "kb_refuse": true}
+{"id": "clarify-no-ctx", "q": "那这些人里谁被引最高", "must_any": ["哪一批", "条件", "请把"], "sid": "eval-new-session", "refuse": true}
+{"id": "sort-intent", "q": "引用最多的呼吸专家有哪些", "must_any": ["被引", "引用"]}
+{"id": "inst-filter", "q": "中国的高校里的机器学习专家", "must_any": ["高校", "大学"]}
