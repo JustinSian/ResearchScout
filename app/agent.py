@@ -435,7 +435,48 @@ def latin_query(query: str) -> str:
     return " ".join(toks) if toks else (query or "")
 
 
+_LLM_PLAN_CACHE: dict = {}
+
+
+def _llm_call(q: str, sid: str) -> dict | None:
+    """LLM 规划（可选）。任何失败都返回 None，调用方用规则兜底。"""
+    try:
+        from app import plan_llm
+        if not plan_llm.enabled():
+            return None
+    except Exception:
+        return None
+    key = (q, sid or "")
+    if key in _LLM_PLAN_CACHE:
+        return _LLM_PLAN_CACHE[key]
+    hint = ""
+    try:
+        from app.context import has_anaphora, resolve
+        if has_anaphora(q):
+            ctx = resolve(q, sid or "")
+            if ctx:
+                hint = str(ctx)[:300]
+    except Exception:
+        pass
+    parsed = plan_llm.plan(q, hint)
+    call = plan_llm.to_call(parsed, q) if parsed else None
+    if call:
+        call.update({"planner": "llm",
+                     "usage": parsed.get("usage") or {},
+                     "cost_usd": parsed.get("cost_usd", 0.0)})
+    if len(_LLM_PLAN_CACHE) > 256:
+        _LLM_PLAN_CACHE.clear()
+    _LLM_PLAN_CACHE[key] = call
+    return call
+
+
+
 def plan_node(state: AgentState) -> dict:
+    # 可选：LLM 规划（ST_PLANNER=llm|auto 且已配置 key）；失败自动退回规则
+    _llm_plan = _llm_call(state["query"], state.get("sid") or "")
+    if _llm_plan:
+        return {"plan": [_llm_plan]}
+
     q = state["query"]
     q_en = latin_query(q)
     names = extract_names(q)
