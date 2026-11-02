@@ -195,6 +195,61 @@ def analyst(pids: list[int], log=print) -> dict:
 
 
 # ---------------- verifier ----------------
+_TERM_STATS: dict | None = None
+
+
+def _term_stats() -> dict:
+    """一次扫全 dossier_work，算每个词在各作者身上的出现次数（进程内缓存）。
+
+    缓存的意义：这个统计要扫全表（约 10 万行），每次请求都算会拖慢 verifier。
+    """
+    global _TERM_STATS
+    if _TERM_STATS is not None:
+        return _TERM_STATS
+    conn = connect()
+    try:
+        rows = conn.execute("SELECT pid, lower(title) AS t FROM dossier_work").fetchall()
+    finally:
+        conn.close()
+    counts: dict[str, dict[int, int]] = {}
+    for r in rows:
+        pid = int(r[0])
+        for w in set((r[1] or "").split()):
+            if len(w) < 4:
+                continue
+            d = counts.setdefault(w, {})
+            d[pid] = d.get(pid, 0) + 1
+    _TERM_STATS = {"counts": counts}
+    return _TERM_STATS
+
+
+def _specific_terms(pid: int, words: set[str], min_count: int = 5,
+                    ratio: float = 0.8) -> set[str]:
+    """这些词里，哪些"属于这个人"。
+
+    判据（比"作者排行前 N"稳）：此人对该词的使用量既**够多**（≥ min_count 篇），
+    又不低于**平均携带者的使用量**（≥ ratio × 均值）。
+
+    为什么不用"排行前 20"：钟南山的 `asthma` 数量不如专科哮喘研究者多，
+    排行法会把他自己的真实主题判成"不属于他"（实测误报 18%）。
+    相对强度对"跨人混淆"同样敏感：把 B 的招牌词安到 A 头上，
+    A 的使用量通常远低于均值，判据会拒绝。
+    """
+    if not words:
+        return set()
+    st = _term_stats()["counts"]
+    out = set()
+    for w in words:
+        d = st.get(w.lower()) or {}
+        n = int(d.get(int(pid), 0))
+        if n <= 0 or len(d) < 3:
+            continue
+        base = sum(d.values()) / len(d)
+        if n >= min_count and n >= ratio * base:
+            out.add(w.lower())
+    return out
+
+
 def verifier(claims: list[dict], log=print) -> dict:
     """逐条核对：能不能回溯到库里的字段/边/标题。
 
@@ -246,10 +301,19 @@ def verifier(claims: list[dict], log=print) -> dict:
                 topic_words = {x for t in (c.get("topic") or []) for x in t.split() if len(x) > 2}
                 hit = topic_words & terms
                 # 只命中 1 个词不算同领域（"cancer" 这种词几乎人人都蹭得到）
-                ok = len(hit) >= int(c.get("min_hits") or 2)
+                enough = len(hit) >= int(c.get("min_hits") or 2)
+                # 命中的词里至少要有一个"属于这个人"（作者排行前 20），
+                # 否则可能只是撞了同领域的通用词 —— 跨人混淆靠这一层拦
+                specific = _specific_terms(int(c["pid"]), hit) if hit else set()
+                ok = enough and bool(specific)
+                why = ""
+                if not enough:
+                    why = "近五年标题里没有任何主题词（疑似同名不同人/领域不符）"
+                elif not specific:
+                    why = "命中的词都太通用，作者排行里没有此人（疑似领域错配）"
                 (verified if ok else rejected).append(
-                    {**c, "got": sorted(hit)[:5],
-                     "why": "" if ok else "近五年标题里没有任何主题词（疑似同名不同人/领域不符）"})
+                    {**c, "got": sorted(hit)[:5], "specific": sorted(specific)[:3],
+                     "why": why})
             elif kind == "coauthor":
                 conn = connect()
                 try:

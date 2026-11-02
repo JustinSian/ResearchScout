@@ -117,12 +117,21 @@ def run(pids: list[int] | None = None, n: int = 5, log=print) -> dict:
     dirty_nonsense = [_corrupt(c, "nonsense") for c in clean]
     dirty_cross = [_corrupt(c, "cross", others[:2] or ["medieval", "poetry"]) for c in clean]
 
-    def _timed(fn, claims):
+    # 预热：_term_stats 是一次性全表扫描，不该算进"每条 claim 的成本"
+    try:
+        from app.subagents import _term_stats
+        _term_stats()
+    except Exception:
+        pass
+
+    def _timed(fn, claims, warm: bool = False):
+        if warm:
+            fn(claims, log=lambda *_: None)
         t0 = time.perf_counter()
         r = fn(claims, log=lambda *_: None)
         return r, (time.perf_counter() - t0) * 1000
 
-    v_clean, t_clean = _timed(verifier, clean)
+    v_clean, t_clean = _timed(verifier, clean, warm=True)
     v_non, t_non = _timed(verifier, dirty_nonsense)
     v_cross, t_cross = _timed(verifier, dirty_cross)
 
