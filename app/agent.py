@@ -82,6 +82,36 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
     out.sort(key=lambda it: (-(it.get("cites") or 0), -it.get("topic_score", 0)))
     return out[:limit]
 
+
+_CONCEPT_STOP = ("介绍", "是谁", "合作", "论文", "引用", "评审", "审稿", "对比", "比较",
+                 "compare", "who", "paper", "cite", "review")
+
+# 显式条件词：出现任意一个，就不是"纯领域名"查询
+_CONSTRAINT_MARK = re.compile(
+    r"中国|美国|英国|日本|德国|法国|加拿大|澳大利亚|荷兰|瑞士|新加坡|韩国|印度|"
+    r"医院|大学|高校|企业|公司|研究所|学院|实验室|"
+    r"被引|引用|高被引|最多|最高|最活跃|前\s*\d+|top\s*\d+|近\s*\d+\s*年|最近|"
+    r"(cn|us|uk|hospital|university|company|institute)", re.I)
+
+
+def _is_concept_query(q: str) -> bool:
+    """判断是不是"纯领域名"查询（Gastroenterology / 帕金森 / 单细胞测序）。
+
+    这类查询没有动词、没有硬条件，用户要的就是"这个领域的专家"，
+    应该以**人物标签 + 被引**为主排序；混入论文结果会挤掉高被引专家。
+
+    注意：不能用 facets.parse 的结果判断——它总给 sort/limit 填默认值。
+    """
+    q = (q or "").strip()
+    if not q or any(w in q.lower() for w in _CONCEPT_STOP):
+        return False
+    if any(ch in q for ch in "，。？?！!；;：:、"):
+        return False
+    if len(q.split()) > 4 or len(q) > 30:
+        return False
+    return not _CONSTRAINT_MARK.search(q)
+
+
 def tool_find_expert(query: str, limit: int = 5, sid: str = "",
                      hint: dict | None = None) -> dict:
     """按研究方向找专家：**论文优先**，再用 CE 判相关性，最后聚合到作者。
@@ -119,6 +149,18 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "",
         if not any(parsed.get(k) for k in ("country", "inst_kind", "inst_name", "cites_min")):
             parsed["topic"] = ""
             parsed["topic_en"] = []
+    # 纯领域名：优先用人物标签排序（CE 结果留作补充），否则高被引专家会被论文结果挤掉
+    if not ctx["inherit"] and _is_concept_query(query):
+        concept_items = _topic_experts(query, limit)
+        if len(concept_items) >= max(1, limit // 2):
+            try:
+                ctx_mod.save(sid, query, [it["pid"] for it in concept_items], {})
+            except Exception:
+                pass
+            return {"tool": "find_expert", "mode": "topic", "memory": _mem,
+                    "items": concept_items, "count": len(concept_items),
+                    "context": ctx}
+
     structured = ctx["inherit"] or any([parsed.get("country"), parsed.get("inst_kind"),
                                        parsed.get("inst_name"), parsed.get("cites_min")])
     # 纯中文的"主题类"提问（"引用最多的呼吸专家"）没有硬条件，但 CE 路径用中文查不到
