@@ -735,8 +735,21 @@ def _timed_supervise(q: str, sid: str, uid: str = "") -> dict:
     import time as _t
 
     t0 = _t.perf_counter()
-    r = supervise(q, sid=sid, uid=uid) if uid else supervise(q, sid=sid)
+    # 默认走 LLM Agent（长短期记忆 + 工具循环）；未配置 key 或 classic 模式时回退
+    r = None
+    try:
+        from app import agent_llm
+        if agent_llm.enabled():
+            r = agent_llm.chat(q, uid=uid, sid=sid)
+            if not r.get("ok"):
+                r = None
+    except Exception:
+        r = None
+    if r is None:
+        r = supervise(q, sid=sid, uid=uid) if uid else supervise(q, sid=sid)
+        r["engine"] = "classic"
     r["elapsed_ms"] = round((_t.perf_counter() - t0) * 1000, 1)
+    r.setdefault("engine", "llm" if r.get("steps") else "classic")
     src = []
     if r.get("answer") and not r.get("kb_refused"):
         src.append("kb")

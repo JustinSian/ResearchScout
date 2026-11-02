@@ -2,85 +2,87 @@
 
 # ResearchScout
 
-**学术专家检索 · 长期记忆 · 分层评测 · 受控自我改进**
+**会记住你的科研 Agent —— 长期记忆 · 多轮对话 · 受控自我改进**
 
-从 OpenAlex 到 4.7 万学者知识库：混合检索、引用图分析、跨会话记忆，以及一套"能证明自己有效"的评测。
+用自然语言找专家、查论文、追问合作关系；它会记住你的研究方向，并用自己的评测集持续改进自己。
 
 [![CI](https://github.com/JustinSian/ResearchScout/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinSian/ResearchScout/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-211%20passed-brightgreen.svg)](#测试)
-[![Docs](https://img.shields.io/badge/docs-53%20milestones-informational.svg)](docs/)
+[![Tests](https://img.shields.io/badge/tests-230%20passed-brightgreen.svg)](#测试与评测)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-[快速开始](#快速开始) · [实测结果](#实测结果) · [架构](#架构) · [设计取舍](#设计取舍) · [文档索引](#文档索引)
+[快速开始](#快速开始) · [核心能力](#核心能力) · [架构](#架构) · [评测](#测试与评测) · [API](#api)
 
 </div>
 
 ---
 
-## 这是什么
+## 产品是什么
 
-一个学术专家知识库 + 检索 Agent。它不追求"功能多"，而是追求**每个能力都能回答"你怎么知道它有效"**：
+科研人员找一个领域的专家，通常要跨三个工具：学术搜索引擎、机构主页、合作关系网。而且每次都要重新描述一遍"我是做什么的、我要什么条件"。
 
-- **数据可信**：4.7 万学者不是"拉到就入库"，而是四组加权证据 + 复核队列，国家字段带来源标记；
-- **检索可证**：BM25 + 向量 + RRF 融合，但**融合没赢过单路就不启用**（有对照实验）；
-- **答不上来会说不知道**：交叉编码器判拒答；库外问题才转网络，且明确标注"未经本库核验"；
-- **会记住你**：三层长期记忆（语义/情景/程序），事实带 `valid_from/valid_to`，转向后旧值失效但保留历史；
-- **会改进自己，但受控**：白名单策略空间 + dev/held-out 双闸门 + 预算上限 + 一键回滚。
+**ResearchScout 把这件事收进一个 Agent**：
 
-## 为什么不是"又一个 RAG"
+- 你用一句话描述需求（"找做帕金森早期诊断、近三年活跃的专家"），它自己决定查什么、查几次；
+- 它会记住你是做什么的（跨会话），下次只说"推荐几个"就够了；
+- 它的每一条结论都能回溯到库里的专家/论文，查不到时明确说不知道；
+- 它用一套评测集衡量自己，并在受控范围内改进自己的检索策略。
 
-| 常见做法 | 本项目的做法 | 证据 |
+底库是 **47,569 位学者 / 11,104 篇论文 / 30,101 条库内引用边 / 101,414 条合作边**，国家覆盖 97%（带来源标记）。
+
+## 核心能力
+
+| 能力 | 实现 | 用户看到什么 |
 |---|---|---|
-| 拉到人就入库 | 四组加权证据打分 + 复核队列，门槛可审计 | [m1](docs/m1-report.md) · [m5](docs/m5-report.md) |
-| 检索只做 BM25 | BM25 + 向量 + RRF，**但融合赢不过单路就回退** | `app/eval_*.py` |
-| 上多智能体 | **先做对照实验**再决定要不要 | [m45](docs/m45-ab-single-vs-multi.md) |
-| 上 LLM 做规划 | 规则与 LLM 各跑一遍，按数据选 | [m49](docs/m49-llm-planner.md) · [m50](docs/m50-react-loop.md) |
-| 记忆=向量库 | 三层记忆 + 时间有效区间，可回答"我以前做什么" | [m51](docs/m51-user-memory.md) |
-| 自我改进=让模型改自己 | 白名单变异 + 双闸门 + 预算 + 回滚 | [m53](docs/m53-rsi.md) |
+| **LLM Agent 循环** | 模型自主选择 8 个工具（找专家/画像/方向/合作者/论文/对比/引用/记忆），最多 3 轮 4 次调用，含预算与强制收尾 | "它自己查了 3 次，然后给出 5 位专家和依据" |
+| **长期记忆** | 三层结构（语义/情景/程序），事实带 `valid_from/valid_to`，转向后旧值失效但保留历史 | "我转做帕金森了" → 下次推荐自动切换，并能回答"我以前做什么" |
+| **短期记忆** | 会话滚动摘要（超过 10 轮压缩）+ 最近 8 轮原文注入 | 第 10 轮之后它仍记得"你要的是医院的、被引高的" |
+| **多轮对话** | 指代解析（"那这些人里谁被引最高"）+ 上一轮结果集继承 | 不用重复条件，追问能接上 |
+| **检索与图分析** | FTS5 + 向量 + RRF 混合检索；引用链、PageRank、Louvain 聚类、割点/边介数桥接 | 专家、论文、合作网络、研究流派 |
+| **受控 RSI** | 白名单策略变异 → dev 评估 → held-out 闸门 → 晋级/回滚，全程预算与审计 | 检索策略变好，但可以被"拒绝"和"回滚" |
+| **评测数据集** | Agent 14 条（多轮/记忆/拒答）+ 记忆 50 条（五能力）+ RSI dev/heldout/perturbed | 每个数字都能用仓库内命令复现 |
 
-## 实测结果
+## 技术栈
 
-不报"跑通了"，只报对照数字（全部可用仓库内命令复现）。
-
-| 实验 | 结果 |
-|---|---|
-| 单 agent vs supervisor 编排 | 通过率 85% → **100%**；p50 447 → **123 ms**（[m45](docs/m45-ab-single-vs-multi.md)） |
-| 规则规划 vs LLM 规划 | 通过率 100% vs 100%；p50 **135.7 ms vs 1422.9 ms**；成本 **$0 vs $0.0039**（[m49](docs/m49-llm-planner.md)） |
-| 规则路径 vs ReAct 工具循环 | 100% vs 80%；工具调用 **0.95 vs 5.9**；p50 1.6 s vs 8.5 s（[m50](docs/m50-react-loop.md)） |
-| verifier 故障注入 | 误报 **0%**；无意义注入检出 **100%**；跨人注入 **100%**（[m48](docs/m48-injection-bug-correction.md)） |
-| 长期记忆（50 条五能力） | 通过率 **100%**；过期事实误用 **0%**；记忆进检索 **76%**（[m51](docs/m51-user-memory.md)） |
-| 受控自我改进（5 代） | dev 8% → **25%**，held-out 12% → **38%**；**1 代晋级 / 4 代被拒**（[m53](docs/m53-rsi.md)） |
-
-数据规模：**47,569** 位学者（发布集 8,490）· **11,104** 篇论文 · **30,101** 条库内引用边 · 国家覆盖 **97%**（作者 39,062 / 机构 7,425 / 未知 1,082）· **101,414** 条合作边 · 50 个 API 端点 · **211** 项测试 · 53 篇里程碑文档。
+| 层 | 选型 | 为什么 |
+|---|---|---|
+| API | **FastAPI** + uvicorn | 50+ 端点、SSE 流式、写接口 `X-API-Key` |
+| Agent | **DeepSeek V4.1 Flash**（function calling）+ 自研循环 | 工具调用、强制收尾、成本/步数预算 |
+| 短期记忆 | SQLite `session_turn` / `session_summary` | 滚动窗口 + LLM 摘要，控制 token |
+| 长期记忆 | SQLite `mem_fact`（时间区间）/ `mem_event` / `mem_policy` | 可回答"以前/现在"，可回滚策略 |
+| 检索 | SQLite **FTS5** + 本地向量 + **RRF** | 单机可跑，无需外部向量库 |
+| 重排 | ONNX bge-reranker + 交叉编码器拒答 | 判定"库里到底有没有" |
+| 图分析 | 纯 Python PageRank / Louvain / Tarjan / Brandes | 无重型依赖，可单测 |
+| 自我改进 | 自研 RSI（变异 + 双闸门 + 快照） | 可控、可审计、可回滚 |
+| 前端 | 单文件 `web/index.html`（8 视图，零构建） | clone 即跑 |
 
 ## 架构
 
 ```
-                        ┌──────────────────────────────┐
-用户问题 + uid ────────▶ │ 长期记忆召回（事实/时间衰减） │
-                        └──────────────┬───────────────┘
-                                       ▼
-                        ┌──────────────────────────────┐
-                        │ Supervisor（路由 + 仲裁合并） │
-                        └───┬──────────┬───────────┬───┘
-                            ▼          ▼           ▼
-                      kb_agent    task_agent   web_agent
-                    （工具集）   （多步尽调）  （AnySearch）
-                            │          │           │
-                    ┌───────┴────┐ ┌───┴─────┐     │
-                    ▼            ▼ ▼         ▼     ▼
-              facets 检索    引用图      三角色   网络结果
-            (FTS+向量+RRF) (PageRank/   researcher  (标注未核验)
-                            聚类/桥接)  analyst
-                                        verifier
-                            │
-                            ▼
-                    答案 + 引用 + 记忆说明
+                        ┌─────────────────────────────────────────────┐
+用户 ── query, uid, sid ▶│ Agent（LLM 在环）                            │
+                        │  system = 人设 + 长期记忆 + 会话摘要 + 策略     │
+                        └───────────────┬─────────────────────────────┘
+                                        │  function calling（≤3 轮 / ≤4 次）
+              ┌─────────────────────────┼──────────────────────────┐
+              ▼                         ▼                          ▼
+      知识库工具                  remember 工具              强制收尾（预算/轮数）
+  find_expert / profile /        写入长期记忆               不带工具再问一次
+  research_area / collaborators       │
+  / works / compare / citations       │
+              │                       │
+              ▼                       ▼
+   证据（pid/wid + 计数）       mem_fact（时间区间）
+              │                       │
+              ▼                       ▼
+        答案 + 引用 + trace      情景记忆 mem_event
+              │
+              ▼
+   会话记忆：追加本轮 → 超 10 轮压缩摘要
 
-侧边两套"证据机器"：
-  eval/     检索 nDCG · 路由 · 答案级 20 条 · 记忆 50 条 · 注入实验
-  RSI 回路   变异 → dev 评估 → held-out 闸门 → 晋级/回滚
+离线两条回路：
+  评测  eval/agent_cases · eval/memory.jsonl · eval/rsi_dev+heldout+perturbed
+  RSI   变异（synonyms / plan_prompt）→ dev → held-out 闸门 → 晋级 / 回滚
 ```
 
 ## 快速开始
@@ -89,142 +91,123 @@
 git clone https://github.com/JustinSian/ResearchScout.git
 cd ResearchScout
 
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 用 6.6 MB 的演示快照直接起（无需采集、无需模型）
+# 必需：Agent 走 LLM（DeepSeek）
+echo "DEEPSEEK_API_KEY=sk-你的key" >> .env
+
+# 用演示快照直接起（6.6 MB，无需采集）
 ST_DB=data/snapshot/demo.db uvicorn app.api:app --host 0.0.0.0 --port 8020
 ```
 
-打开 <http://127.0.0.1:8020> 即可：专家墙 / 检索 / 画像 / 合作图谱 / Agent 问答 / 尽调 / 复核 / 记忆。
+打开 <http://127.0.0.1:8020>：专家墙 / 检索 / 画像 / 合作图谱 / **Agent 问答** / 尽调 / 复核 / 记忆。
+
+### 一次带记忆的多轮对话
 
 ```bash
-# 直接问
-curl "http://127.0.0.1:8020/chat?q=中国的呼吸科专家"
-curl "http://127.0.0.1:8020/chat?q=找研究帕金森的专家&uid=demo"   # 带长期记忆
+# 第一轮：告诉它你是谁
+curl "http://127.0.0.1:8020/chat?q=我研究帕金森&uid=demo&sid=s1"
+
+# 第二轮：不用再说方向
+curl "http://127.0.0.1:8020/chat?q=推荐几个专家&uid=demo&sid=s1"
+
+# 第三轮：指代追问
+curl "http://127.0.0.1:8020/chat?q=那这些人里谁被引最高&uid=demo&sid=s1"
 ```
 
-## 它能做什么
+返回里除了 `answer` / `citations`，还有 `engine: "llm"`、`steps`（每次工具调用与耗时）、`cost_usd`、`memory`（命中的长期记忆）。
 
-| 输入 | 输出 |
+## 测试与评测
+
+```bash
+python -m pytest tests -q          # 230 项测试
+python -m app.eval_agent           # Agent 级：多轮 + 记忆 + 拒答（14 条）
+python -m app.eval_memory          # 记忆五能力（50 条）
+python -m app.rsi --generations 3 --dry-run   # 自我改进（不落库）
+```
+
+当前实测（DeepSeek V4.1 Flash）：
+
+| 评测 | 结果 |
 |---|---|
-| 中国的呼吸科专家 | 结构化 facet 检索（国家/机构/被引/排序），回显识别到的条件 |
-| 谁和钟南山合作过 | 合作网络遍历（检索做不到的关系问题） |
-| 这篇论文引用了谁 / 两跳 | 库内引用链（双向，含 PageRank 与聚类） |
-| 那这些人里谁被引最高 | 多轮指代：在上一轮结果集内重排 |
-| 我研究帕金森 | 写入长期记忆；之后的"推荐几个专家"自动按你的方向检索 |
-| 找研究 quantum gravity 的专家 | 明确拒答（而不是编造），并可降级到公开网络并标注 |
+| **Agent 级（14 条）** | 通过率 **100%**（14/14）· 工具命中 100% · 记忆使用 21% · 平均 **1.14 轮** · 单次 **$0.0020** · p50 **8.8 s** |
+| 记忆五能力（50 条） | 通过率 **100%** · 过期事实误用 **0%** · 记忆进检索 76% |
+| 受控 RSI（5 代） | dev 8% → **25%**，held-out 12% → **38%**；**1 代晋级 / 4 代被拒**（附拒绝原因） |
+| 检索 / 路由 | nDCG 基线、路由留出集（脚本见 `app/eval_*.py`） |
 
-## 常用命令
+> 说明：这 14 条里有一条"库外主题该不该拒答"的边界 case，历史 3 次运行中有 1 次模型用常识作答被判失败（其余为 13/14）。上面是最近一次成绩，未为了凑 100% 改判定。
 
-```bash
-python -m pytest tests -q                 # 211 项测试
-python -m app.eval_answers                # 答案级评测（20 条 gold set）
-python -m app.eval_memory                 # 记忆五能力评测（50 条）
-python -m app.ab_planner                  # 规则 vs LLM 规划
-python -m app.ab_loop                     # 规则 vs ReAct 循环
-python -m app.ab_verifier                 # verifier 故障注入
-python -m app.rsi --generations 3 --dry-run   # 受控自我改进（不落库）
+## 自我改进（RSI）
+
+它改进的是**策略**，不是代码：
+
+```
+提议变异（模型/规则，白名单：synonyms / plan_prompt）
+   → dev 集评估（不退化）
+   → held-out 集闸门（提升 > 1pt）
+   → 预算/代数上限
+   → 晋级（写快照）或拒绝（记录原因）
+可随时 rollback(gen)
 ```
 
-> 完整库（`data/scholar.db`，387 MB）不随仓库分发；演示快照够跑 UI 与大部分接口，评测类命令需要完整库。
+`plan_prompt` 会直接进入 Agent 的 system prompt；`synonyms` 会进入检索词扩展。
+5 代实验里 4 代被拒，原因写进了 `rsi_log`——**能拒绝自己，才算受控**。
 
-## 主要 API
+## API
 
 | 端点 | 说明 |
 |---|---|
-| `GET /chat?q=&sid=&uid=` | 一次问答（路由/记忆/引用） |
-| `GET /chat/stream` | SSE 流式：思考叙述 → 逐字 → 引用 |
-| `GET /search` | facet 检索（country / inst_kind / cites_min / sort / topic_high） |
-| `GET /people/{pid}` · `/work/{wid}` | 学者 / 论文详情（含引用、社区、桥接） |
-| `GET /citations/top?sort=count\|pagerank\|pagerank_recent` | 引用榜（三种口径） |
-| `POST /memory/fact` · `GET /memory/timeline` | 写入 / 查看长期记忆（写接口需 `X-API-Key`） |
-| `GET /rsi/status` · `POST /rsi/run` | 自我改进状态 / 跑一代 |
+| `GET /chat?q=&uid=&sid=` | 一次 Agent 会话（LLM + 长短记忆） |
+| `GET /chat/stream` | SSE：叙述 → 逐字 → 引用 |
+| `GET /search` | facet 检索（国家/机构/被引/排序/主题分层） |
+| `GET /people/{pid}` · `/work/{wid}` | 专家 / 论文详情（引用、社区、桥接） |
+| `GET /citations/top?sort=count\|pagerank\|pagerank_recent` | 引用榜三口径 |
+| `POST /memory/fact` · `GET /memory/timeline` | 写 / 读长期记忆（写需 `X-API-Key`） |
+| `POST /memory/feedback` | 采纳/否决反馈 |
+| `GET /rsi/status` · `POST /rsi/run` · `POST /rsi/rollback` | 自我改进状态/运行/回滚 |
 | `GET /health` | 六项健康检查 |
 
 ## 目录结构
 
 ```
 app/
-  api.py            FastAPI 入口（50 个端点）
-  supervisor.py     路由与仲裁（kb / task / web / hybrid）
-  agent.py          工具集（find_expert / profile / collaborators / works / citations …）
-  facets.py         自然语言 → 结构化条件
-  search.py         FTS5 + 向量 + RRF 混合检索
-  citations.py      引用链 / 被引 / PageRank 口径
-  cluster.py        Louvain 聚类 + 割点/边介数桥接
-  user_memory.py    三层长期记忆（时间有效区间）
-  memory_extract.py 记忆抽取（规则优先，LLM 可选）
-  memory_recall.py  记忆召回与注入（只填空不覆盖）
-  rsi.py            受控自我改进（变异 → 双闸门 → 晋级/回滚）
-  llm.py            DeepSeek 客户端（可选路径，带成本记账）
-  ab_*.py           五组对照实验
-eval/               评测集（answers / memory / rsi_dev / rsi_heldout / rsi_perturbed）
-docs/               53 篇里程碑文档（m1–m53）
-web/index.html      单文件前端（8 个视图，零构建）
-tests/              211 项测试
+  agent_llm.py      ★ Agent 主循环（LLM 工具调用 + 预算 + 强制收尾）
+  session_memory.py ★ 短期记忆（滚动摘要 + 最近轮次）
+  user_memory.py    ★ 长期记忆（时间有效区间）
+  memory_extract.py   记忆抽取（规则优先，模型可调用 remember）
+  memory_recall.py    记忆召回与注入
+  rsi.py            ★ 受控自我改进（变异 → 双闸门 → 晋级/回滚）
+  eval_agent.py     ★ Agent 级评测（多轮/记忆/拒答/成本）
+  eval_memory.py      记忆五能力评测
+  supervisor.py       路由与仲裁（classic 回退路径）
+  agent.py            知识库工具集
+  facets.py / search.py / citations.py / cluster.py
+  api.py            FastAPI（50+ 端点）
+web/index.html      单文件前端（8 视图）
+eval/               agent_cases · memory · rsi_dev/heldout/perturbed · answers
+docs/               里程碑设计文档
+tests/              230 项测试
 ```
 
-## 设计取舍
+## 设计取舍与局限
 
-这一节比功能列表重要——每个选择都有代价。
-
-1. **默认链路不含 LLM**。规则路由 + 模板作答，换来零 token 成本、可复现、p50 ~120 ms。
-   LLM 只作为可选路径（`ST_PLANNER=auto`），并且有对照数据证明它在这个闭域问题上不划算。
-2. **不做"自由多智能体"**。supervisor 是确定性编排；子 agent 之间用结构化 dict 通信，没有消息队列。
-   ——这个规模（单机、秒级任务）上 MQ 只会增加故障面。
-3. **只统计库内引用**。`被引 1807` 是库内口径，和 Google Scholar 不可比；这是刻意的，否则无法自证。
-4. **PageRank 不并入专家排名**。稀疏图（库内链回率 5.3%）会让 6 次引用的论文排第一，只作可选口径。
-5. **RSI 只改白名单里的同义词**。其余三类动作（提示词/权重/工具顺序）只做校验不生效——先跑通闭环，再扩动作空间。
-
-## 已知局限
-
-- 语料是 OpenAlex 子集，库内引用链回率 **5.3%**，跨库引用不可见；
-- 评测集偏小（答案 20 条 / 记忆 50 条 / RSI dev 12 条），结论的置信区间较宽；
-- 记忆抽取以规则为主，否定句（"我不喜欢综述"）会抽成正向偏好；
-- RSI 的 held-out 是**问法留出**，不能迁移到没见过的主题；
-- 单机单进程部署，无鉴权体系（只有写接口的 `X-API-Key`）、无限流。
+- **LLM 是默认路径，但不是唯一路径**：`ST_CHAT_ENGINE=classic` 可回退到确定性链路（演示/离线场景不依赖 key）。
+- **工具调用有硬预算**（3 轮 / 4 次 / $0.03）：宁可强制收尾，也不让一次会话失控。
+- **拒答优先于流畅**：所有工具都没返回条目时，即使模型写出了像答案的段落，也会被改成"没有找到"。
+- **长期记忆只补空位**：用户这句话里显式给的条件永远优先于记忆。
+- **RSI 的动作空间很小**：目前只接通 `synonyms` 与 `plan_prompt`，避免"自我改进"变成不可审计的漂移。
+- 已知局限：库内引用链回率 5.3%；评测集偏小（Agent 14 / 记忆 50）；单次会话 p50 约 8.8s，成本约 $0.002；单机部署、无鉴权体系（仅写接口有 key）。
 
 ## Roadmap
 
-- [ ] 把 `eval/rsi_perturbed.jsonl` 接入最终验收（现在只生成未使用）
+- [ ] 并发工具调用 + 结果去重，把 p50 从 8.8s 压到 5s 内
 - [ ] 记忆冲突检测（同时有效的两个方向应告警）
 - [ ] 情景记忆参与个性化排序（现在只记录）
 - [ ] 评测集扩到 150 条并分层统计
-- [ ] 前端把"记忆时间线"做成演示脚本（说完"转帕金森"即时看到变化）
+- [ ] `plan_prompt` 加入 RSI 的正式评测集
+- [ ] 多用户隔离与配额
 
-## 文档索引
+## License
 
-53 篇里程碑文档按主题分组（全量见 [docs/](docs/)）：
-
-| 主题 | 文档 |
-|---|---|
-| 采集与可信准入 | m1–m12、m26–m33 |
-| 检索与融合 | m6、m16、m20–m25、m34–m38 |
-| 引用与图分析 | m39–m43 |
-| Agent 与调度 | m14、m44–m50 |
-| 长期记忆与 RSI | m51–m53 |
-| 工程与运维 | m17–m19、m28、m31 |
-
-关键几篇：[m33 国家字段的静默错误](docs/m33-country.md) · [m39 PageRank 的口径](docs/m39-pagerank.md) · [m45 多智能体对照](docs/m45-ab-single-vs-multi.md) · [m48 更正自己的实验 bug](docs/m48-injection-bug-correction.md) · [m51 长期记忆](docs/m51-user-memory.md) · [m53 受控 RSI](docs/m53-rsi.md)
-
-## 贡献
-
-```bash
-pip install -r requirements.txt
-python -m pytest tests -q          # 提交前必须全绿
-python -m compileall -q app        # CI 还会做语法检查
-```
-
-- 新增能力请附一份 `docs/mNN-*.md`：做了什么、数字多少、**遗留什么**；
-- 改评测逻辑必须同时更新对应对照实验，不接受"只改阈值不提数据"；
-- 发现旧结论有误，**不要改历史文档**，新增一篇更正并互相引用（见 m46 → m48）。
-
-## 致谢与许可
-
-- 数据来自 [OpenAlex](https://openalex.org/)（CC0）；
-- 可选 LLM 路径使用 [DeepSeek API](https://platform.deepseek.com/)；
-- 依赖 FastAPI / LangGraph / transformers / onnxruntime。
-
-[MIT](LICENSE) © 2026 · 本项目从 [ScholarTrust](https://github.com/JustinSian/ScholarTrust) 演进而来。
+[MIT](LICENSE) · 数据来自 [OpenAlex](https://openalex.org/)（CC0），LLM 使用 [DeepSeek API](https://platform.deepseek.com/)。
