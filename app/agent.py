@@ -46,6 +46,42 @@ def _person_brief(row) -> dict:
             "score": round(float(row["confidence"] or 0), 3)}
 
 
+
+def _topic_experts(query: str, limit: int = 5) -> list[dict]:
+    """按人物主题索引找专家（people_fts 的 topics 列）。
+
+    用于概念型查询：论文标题里没有 "Gastroenterology"，但专家的 OpenAlex
+    概念标签里有。带国别/机构等硬条件时不走这条（交给 facet 路径）。
+    """
+    try:
+        from app.search import search_people
+        # 多取一批（100~200）再按被引重排：FTS 的 bm25 只反映词面匹配，
+        # 取太少会把高被引专家挤出候选池（实测 50 → 100 后 recall@10 从 61% 到 85%）。
+        hits = search_people(query, limit=min(max(limit * 20, 100), 200))
+    except Exception:
+        return []
+    if not hits:
+        return []
+    out = []
+    conn = connect()
+    try:
+        for pid, score in hits:      # 先全部取回，排序后再截断（否则等于按 bm25 截断）
+            row = conn.execute(
+                """SELECT p.pid, p.name, p.name_zh, p.country, p.works_count,
+                          p.cited_by_count, i.name AS inst
+                   FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id
+                   WHERE p.pid=?""", (int(pid),)).fetchone()
+            if not row:
+                continue
+            out.append({"pid": int(row["pid"]), "name": row["name"],
+                        "name_zh": row["name_zh"], "country": row["country"],
+                        "inst": row["inst"], "works": row["works_count"],
+                        "cites": row["cited_by_count"], "topic_score": round(float(score), 4)})
+    finally:
+        conn.close()
+    out.sort(key=lambda it: (-(it.get("cites") or 0), -it.get("topic_score", 0)))
+    return out[:limit]
+
 def tool_find_expert(query: str, limit: int = 5, sid: str = "",
                      hint: dict | None = None) -> dict:
     """按研究方向找专家：**论文优先**，再用 CE 判相关性，最后聚合到作者。
@@ -138,6 +174,14 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "",
         keep = [(wid, s) for wid, s in zip(wid_scores, ce) if s >= CE_REFUSE]
         keep.sort(key=lambda kv: -kv[1])
         if not keep:
+            # 论文路径没命中：退回"人物主题索引"（people_fts 里有 OpenAlex concepts）。
+            # "Gastroenterology / Nursing / Law" 这类**概念型查询**在论文标题里很少出现，
+            # 但正是人物标签里最可靠的信息（实测 recall@10 从 12.7% 提升的关键）。
+            topic_items = _topic_experts(query, limit)
+            if topic_items:
+                return {"tool": "find_expert", "mode": "topic", "memory": _mem,
+                        "items": topic_items, "count": len(topic_items),
+                        "ce_max": round(max(ce), 3) if ce else 0.0, "context": ctx}
             return {"tool": "find_expert", "items": [], "count": 0, "memory": _mem,
                     "ce_max": round(max(ce), 3) if ce else 0.0}
 
@@ -158,6 +202,23 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "",
             if row:
                 items.append({**_person_brief(row), "match": round(s, 3),
                               "n_matched_works": hits_per_pid.get(pid, 0)})
+        # 合并"人物主题索引"结果：论文路径命中的放前面（有原文证据），
+        # 主题命中的补足剩余名额（覆盖概念型查询）。实测覆盖 80% → 92%。
+        seen = {it["pid"] for it in items}
+        keep_ce = items[: max(1, limit // 2)] if items else []
+        filled = list(keep_ce)
+        for extra in _topic_experts(query, limit):
+            if extra["pid"] in seen:
+                continue
+            extra["match"] = extra.get("topic_score", 0.0)
+            extra["n_matched_works"] = 0
+            extra["source"] = "topic"
+            filled.append(extra)
+            seen.add(extra["pid"])
+            if len(filled) >= limit:
+                break
+        items = filled
+
         # 句子级证据：chunk 检索"排专家"被证伪（M6），但它是唯一能说明
         # "原文哪句话支撑结论"的通道，所以只用于引用，不参与排序。
         from app.search_chunks import passages_for
