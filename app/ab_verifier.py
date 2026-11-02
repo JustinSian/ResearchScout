@@ -112,10 +112,20 @@ def run(pids: list[int] | None = None, n: int = 5, log=print) -> dict:
         clean += _clean_claims(pid)
     clean = clean[: max(n * 4, 8)]
 
-    # 两条注入线：无意义词（简单）/ 换成另一个人的真实主题（难）
-    others = [t for p in pids for t in _real_terms(p, 2)]
+    # 两条注入线：无意义词（简单）/ 换成**另一个人**的真实主题（难）
+    # 注意：必须按 claim 的 pid 换"别人"的词。第一版用全局 others[:2]，
+    # 结果对第一个人注入的是他自己的词 —— 那不是跨人，必然漏检（实验 bug）。
+    terms_by_pid = {p: _real_terms(p, 2) for p in pids}
+
+    def _other_terms(pid: int) -> list[str]:
+        for q, t in terms_by_pid.items():
+            if q != pid and t:
+                return list(t)
+        return ["medieval", "poetry"]
+
     dirty_nonsense = [_corrupt(c, "nonsense") for c in clean]
-    dirty_cross = [_corrupt(c, "cross", others[:2] or ["medieval", "poetry"]) for c in clean]
+    dirty_cross = [_corrupt(c, "cross", _other_terms(int(c.get("pid") or 0)))
+                   for c in clean]
 
     # 预热：_term_stats 是一次性全表扫描，不该算进"每条 claim 的成本"
     try:

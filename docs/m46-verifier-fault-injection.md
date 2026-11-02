@@ -1,5 +1,9 @@
 # M46：verifier 的故障注入实验（多智能体内部唯一没量化的部分）
 
+> **更正（见 [m48](m48-injection-bug-correction.md)）**：本文"跨人 67%"是注入器 bug——
+> 对第一个人的注入用的是他自己的词。修正后跨人检出 **100%**。
+
+
 ## 问题
 
 task 流程是 researcher → analyst → verifier 三角色协作，但前面只量化了
