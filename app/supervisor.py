@@ -123,9 +123,19 @@ def _merge(query: str, kb: dict | None, web: dict | None) -> dict:
             "refused": True, "reason": reason, "refinements": []}
 
 
-def run(query: str, force_route: str | None = None, log=print, sid: str = "") -> dict:
+def run(query: str, force_route: str | None = None, log=print, sid: str = "",
+        uid: str = "") -> dict:
     """执行一次调度：探测 → 决策 → 跑 agent → 仲裁。"""
     from app import context as ctx_mod
+
+    # 长期记忆：空 uid 时不查库，行为与改动前完全一致
+    hint = {}
+    if (uid or "").strip():
+        try:
+            from app import memory_recall
+            hint = memory_recall.build_hint(uid, query)
+        except Exception:
+            hint = {}
 
     ctx = ctx_mod.resolve(query, sid)
     if ctx.get("inherit"):
@@ -177,7 +187,10 @@ def run(query: str, force_route: str | None = None, log=print, sid: str = "") ->
                 who = p_["names"][0]
             if who:
                 kb_query = "介绍一下" + who
-        kb = kb_answer(kb_query, allow_fallback=False, sid=sid)
+        _kw = {"allow_fallback": False, "sid": sid}
+        if hint:                      # 没有记忆时不传，保持对旧实现/测试桩的兼容
+            _kw["hint"] = hint
+        kb = kb_answer(kb_query, **_kw)
         if route == "kb" and kb.get("refused") and websearch.available():
             route = "web"
     if route in ("web", "hybrid"):
@@ -187,12 +200,31 @@ def run(query: str, force_route: str | None = None, log=print, sid: str = "") ->
     merged = _merge(query, kb, web)
     merged.update({
         "query": query, "route": route, "agents": d["agents"],
+        "memory": ({"note": hint.get("note"), "facts": hint.get("facts")}
+                   if hint else None),
+        # 记忆是否真的进了检索（fills 来自 tool_find_expert），便于评测与排查
+        "memory_fills": (((kb or {}).get("evidence") or [{}])[0].get("memory") or {}).get("fills") or [],
         "route_reason": d["reason"],
         "kb_refused": bool((kb or {}).get("refused")),
         "web_used": bool(web and web.get("ok")),
         "plan": (kb or {}).get("plan") or [{"tool": "web"}],
         "task_error": task_error,
     })
+    # 记忆说明要加在**最终**答案上：kb 拒答走 web 时，agent 那一层加不上
+    if hint and not merged.get("refused"):
+        try:
+            from app import memory_recall
+            _n = memory_recall.note(hint)
+            if _n and _n not in (merged.get("answer") or ""):
+                merged["answer"] = _n + chr(10) + (merged.get("answer") or "")
+        except Exception:
+            pass
+    if (uid or "").strip():
+        try:
+            from app import memory_recall
+            memory_recall.log_event(uid, sid, query, merged)
+        except Exception:
+            pass
     return merged
 
 

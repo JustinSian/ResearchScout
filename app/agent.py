@@ -36,6 +36,7 @@ class AgentState(TypedDict, total=False):
     refused: bool
     reason: str
     sid: str                  # 会话 id：多轮上下文（"那这些人呢"）靠它找回上一轮结果
+    hint: dict                # 长期记忆提示（memory_recall.build_hint）
 
 
 # ---------------- 工具 ----------------
@@ -45,7 +46,8 @@ def _person_brief(row) -> dict:
             "score": round(float(row["confidence"] or 0), 3)}
 
 
-def tool_find_expert(query: str, limit: int = 5, sid: str = "") -> dict:
+def tool_find_expert(query: str, limit: int = 5, sid: str = "",
+                     hint: dict | None = None) -> dict:
     """按研究方向找专家：**论文优先**，再用 CE 判相关性，最后聚合到作者。
 
     为什么不是"直接检索人物"：人物的 topics 是 OpenAlex 的粗粒度概念
@@ -63,6 +65,13 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "") -> dict:
 
     ctx = ctx_mod.resolve(query, sid)
     parsed = facet_mod.parse(query)
+    # 长期记忆只补空字段：用户这句话里显式给的条件永远优先（见 memory_recall.apply_to_parsed）
+    _mem = {}
+    if hint:
+        from app import memory_recall
+        parsed = memory_recall.apply_to_parsed(parsed, hint)
+        _mem = {"fills": parsed.get("memory_fills") or [],
+                "keeps": parsed.get("explicit_keeps") or []}
     if ctx["inherit"]:
         parsed["pids"] = ctx["pids"]
         if ctx["sort"]:
@@ -88,7 +97,7 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "") -> dict:
         if res["count"]:
             ctx_mod.save(sid, query, [it["pid"] for it in res["items"]],
                          {k: v for k, v in parsed.items() if k not in ("notes", "topic_en")})
-            return {"tool": "find_expert", "mode": "facet",
+            return {"tool": "find_expert", "mode": "facet", "memory": _mem,
                     "items": res["items"], "count": res["count"], "total": res["total"],
                     "facets": {k: v for k, v in parsed.items()
                                if k not in ("notes", "topic_en", "pids") and v},
@@ -118,7 +127,7 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "") -> dict:
         keep = [(wid, s) for wid, s in zip(wid_scores, ce) if s >= CE_REFUSE]
         keep.sort(key=lambda kv: -kv[1])
         if not keep:
-            return {"tool": "find_expert", "items": [], "count": 0,
+            return {"tool": "find_expert", "items": [], "count": 0, "memory": _mem,
                     "ce_max": round(max(ce), 3) if ce else 0.0}
 
         # 匹配到的论文 → 作者 → 按"命中论文的 CE 分之和"聚合
@@ -146,7 +155,7 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "") -> dict:
         # 非 facet 路径也要记上下文，"那这些人的论文呢"才接得上
         ctx_mod.save(sid, query, [it["pid"] for it in items], {})
         return {"tool": "find_expert", "items": items, "count": len(items),
-                "ce_max": round(max(ce), 3) if ce else 0.0, "context": ctx}
+                "memory": _mem, "ce_max": round(max(ce), 3) if ce else 0.0, "context": ctx}
     finally:
         conn.close()
 
@@ -438,7 +447,7 @@ def latin_query(query: str) -> str:
 _LLM_PLAN_CACHE: dict = {}
 
 
-def _llm_call(q: str, sid: str) -> dict | None:
+def _llm_call(q: str, sid: str, hint: dict | None = None) -> dict | None:
     """LLM 规划（可选）。任何失败都返回 None，调用方用规则兜底。"""
     try:
         from app import plan_llm
@@ -446,7 +455,13 @@ def _llm_call(q: str, sid: str) -> dict | None:
             return None
     except Exception:
         return None
-    key = (q, sid or "")
+    # hint 必须进缓存键：decide() 先规划一次（无 hint），answer() 再规划一次（有 hint），
+    # 只用 (q,sid) 做键会把"没带记忆"的那份计划复用过来，记忆就永远进不了检索。
+    try:
+        _hk = str(sorted((hint or {}).get("facts", []))) if hint else ""
+    except Exception:
+        _hk = str(bool(hint))
+    key = (q, sid or "", _hk)
     if key in _LLM_PLAN_CACHE:
         return _LLM_PLAN_CACHE[key]
     hint = ""
@@ -486,8 +501,14 @@ def plan_node(state: AgentState) -> dict:
     except Exception:
         _anaphora = False
     if not _anaphora:
-        _llm_plan = _llm_call(state["query"], state.get("sid") or "")
+        _llm_plan = _llm_call(state["query"], state.get("sid") or "",
+                              state.get("hint") or None)
         if _llm_plan:
+            # LLM 分支是提前 return 的，hint 必须在这里补上，
+            # 否则"记忆补全"只在规则路径生效（评测里表现为 fills=0）。
+            _h = state.get("hint") or None
+            if _h and _llm_plan.get("tool") == "find_expert":
+                _llm_plan.setdefault("args", {})["hint"] = _h
             return {"plan": [_llm_plan]}
 
     q = state["query"]
@@ -540,6 +561,11 @@ def plan_node(state: AgentState) -> dict:
         _keep = _structured or _has_anaphora(q) or not (q_en or "").strip()
         plan = [{"tool": "find_expert", "args": {"query": q if _keep else q_en,
                                                    "sid": state.get("sid") or ""}}]
+    _hint = state.get("hint") or None
+    if _hint:
+        for p in plan:
+            if p.get("tool") == "find_expert":
+                p.setdefault("args", {})["hint"] = _hint
     return {"plan": plan, "query_en": q_en}
 
 
@@ -800,13 +826,26 @@ def get_agent():
     return _GRAPH
 
 
-def answer(query: str, allow_fallback: bool = True, sid: str = "") -> dict:
-    out = get_agent().invoke({"query": query, "evidence": [], "sid": sid})
+def answer(query: str, allow_fallback: bool = True, sid: str = "",
+           hint: dict | None = None) -> dict:
+    out = get_agent().invoke({"query": query, "evidence": [], "sid": sid,
+                              "hint": hint or None})
     r = {"query": query, "plan": out.get("plan", []),
          "answer": out.get("answer", ""), "citations": out.get("citations", []),
          "refused": bool(out.get("refused")), "reason": out.get("reason", ""),
          # 工具的结构化结果（叙述层要用它讲"这一步拿到了什么"）
          "evidence": out.get("evidence") or []}
+    # 记忆说明：让用户知道"系统记得你"，但要能看出是记忆而非事实
+    if hint and not r["refused"]:
+        try:
+            from app import memory_recall
+            _n = memory_recall.note(hint)
+            if _n and _n not in r["answer"]:
+                r["answer"] = _n + chr(10) + r["answer"]
+                r["memory" ] = {"note": _n, "facts": hint.get("facts") or [],
+                                "fills": (r.get("evidence") or [{}])[0].get("memory") or {}}
+        except Exception:
+            pass
     # 多轮收窄：把"下一步还能怎么筛"带给调用方（/chat 与 SSE 都透传）
     ev0 = (r["evidence"] or [{}])[0]
     r["refinements"] = ev0.get("refinements") or []
