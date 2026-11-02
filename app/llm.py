@@ -142,3 +142,72 @@ def _strip_fence(text: str) -> str:
         if t.rstrip().endswith("```"):
             t = t.rstrip()[:-3]
     return t.strip()
+
+
+def chat_with_tools(messages: list[dict], tools: list[dict], *, timeout: float = 60.0,
+                    retries: int = 1, temperature: float = 0.0) -> dict:
+    """带工具的一轮对话（function calling）。
+
+    返回：{"ok":True,"message":{...},"usage":{...},"cost_usd":..,"ms":..}
+    message 里可能有 tool_calls，交由调用方执行后把结果塞回 messages。
+    """
+    if not configured():
+        return {"ok": False, "error": "DEEPSEEK_API_KEY 未配置", "ms": 0, "usage": {}}
+    payload = {"model": model(), "messages": messages, "temperature": temperature,
+               "tools": tools, "tool_choice": "auto", "max_tokens": 1200}
+    headers = {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json"}
+    last_err = ""
+    t0 = time.perf_counter()
+    for attempt in range(retries + 1):
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                r = client.post(f"{base_url()}/chat/completions",
+                                json=payload, headers=headers)
+            if r.status_code in (401, 403):
+                return {"ok": False, "error": f"鉴权失败 {r.status_code}", "fatal": True,
+                        "ms": round((time.perf_counter() - t0) * 1000, 1), "usage": {}}
+            if r.status_code == 429 or r.status_code >= 500:
+                last_err = f"HTTP {r.status_code}"
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            r.raise_for_status()
+            body = r.json()
+            msg = (body.get("choices") or [{}])[0].get("message") or {}
+            usage = body.get("usage") or {}
+            pt = int(usage.get("prompt_tokens") or 0)
+            ct = int(usage.get("completion_tokens") or 0)
+            return {"ok": True, "message": msg,
+                    "usage": {"prompt_tokens": pt, "completion_tokens": ct},
+                    "cost_usd": cost_usd(pt, ct),
+                    "ms": round((time.perf_counter() - t0) * 1000, 1)}
+        except Exception as exc:
+            last_err = f"{type(exc).__name__}: {exc}"
+            time.sleep(1.0 * (attempt + 1))
+    return {"ok": False, "error": last_err or "未知错误",
+            "ms": round((time.perf_counter() - t0) * 1000, 1), "usage": {}}
+
+
+def chat_text(messages: list[dict], *, timeout: float = 60.0) -> dict:
+    """不带工具的一轮对话：用于"强制收尾作答"。"""
+    if not configured():
+        return {"ok": False, "error": "DEEPSEEK_API_KEY 未配置", "ms": 0, "usage": {}}
+    payload = {"model": model(), "messages": messages, "temperature": 0.0,
+               "max_tokens": 1000}
+    headers = {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json"}
+    t0 = time.perf_counter()
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            r = client.post(f"{base_url()}/chat/completions", json=payload, headers=headers)
+        r.raise_for_status()
+        body = r.json()
+        msg = (body.get("choices") or [{}])[0].get("message") or {}
+        usage = body.get("usage") or {}
+        pt = int(usage.get("prompt_tokens") or 0)
+        ct = int(usage.get("completion_tokens") or 0)
+        return {"ok": True, "text": (msg.get("content") or "").strip(),
+                "usage": {"prompt_tokens": pt, "completion_tokens": ct},
+                "cost_usd": cost_usd(pt, ct),
+                "ms": round((time.perf_counter() - t0) * 1000, 1)}
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}",
+                "ms": round((time.perf_counter() - t0) * 1000, 1), "usage": {}}
