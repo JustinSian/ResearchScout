@@ -179,9 +179,16 @@ BM25 + 向量 + RRF/DBSF 全参数可切，两套 gold set（按被引 / 随机�
 ST_PLANNER=rules|llm|auto   python -m app.ab_planner
 ```
 
-同一套 gold set 跑两组，比通过率、工具匹配、延迟、token 成本。
-设计约束：输出白名单校验、任何失败退回规则、每次调用记账成本。
-见 [docs/m49](docs/m49-llm-planner.md)。
+同一套 gold set 跑两组的实测（DeepSeek V4.1 Flash，20 条）：
+
+| 指标 | 规则 | LLM |
+|---|---|---|
+| 通过率 / 工具匹配 | 100% / 100% | 100% / 100% |
+| 延迟 p50 | **135.7 ms** | 1422.9 ms |
+| 20 条成本 | **$0** | $0.0039 |
+
+稳定性：LLM 三次里一次掉到 95%（"引用最多"被当成引用链，复现了规则早先的坑）。
+**生产默认 `rules`**，LLM 只是可证伪的对照路径。见 [docs/m49](docs/m49-llm-planner.md)。
 
 ### 12. 引用加权与两跳链
 

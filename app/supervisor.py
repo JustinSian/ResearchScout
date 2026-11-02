@@ -59,12 +59,13 @@ def probe(query: str) -> dict:
     }
 
 
-def decide(query: str) -> dict:
+def decide(query: str, sid: str = "") -> dict:
     """路由决策：返回 {route, agents, reason}。纯规则，可单测。"""
     from app.agent import plan_node
 
     p = probe(query)
-    tool = (plan_node({"query": query})["plan"] or [{}])[0].get("tool", "find_expert")
+    # 传 sid 是为了和 agent 的规划共用 LLM 缓存（否则同一句话要付两次 token）
+    tool = (plan_node({"query": query, "sid": sid})["plan"] or [{}])[0].get("tool", "find_expert")
 
     # 1) 审稿：必须走多步（researcher/analyst/verifier）
     if p["article"] or tool == "task":
@@ -136,7 +137,7 @@ def run(query: str, force_route: str | None = None, log=print, sid: str = "") ->
                 "citations": [], "refused": True, "reason": "指代无上下文",
                 "refinements": []}
     else:
-        d = decide(query)
+        d = decide(query, sid)
     route = force_route or d["route"]
     log(f"    [supervisor] route={route}（{d['reason']}）")
 

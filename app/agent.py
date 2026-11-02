@@ -461,6 +461,10 @@ def _llm_call(q: str, sid: str) -> dict | None:
     parsed = plan_llm.plan(q, hint)
     call = plan_llm.to_call(parsed, q) if parsed else None
     if call:
+        # 必须把 sid 透传给需要它的工具：否则上下文会存到空 sid 下，
+        # 下一轮"那这些人呢"就接不上（A/B 里表现为 tools=[] + 要求澄清）。
+        if call["tool"] == "find_expert":
+            call["args"]["sid"] = sid or ""
         call.update({"planner": "llm",
                      "usage": parsed.get("usage") or {},
                      "cost_usd": parsed.get("cost_usd", 0.0)})
@@ -472,10 +476,19 @@ def _llm_call(q: str, sid: str) -> dict | None:
 
 
 def plan_node(state: AgentState) -> dict:
-    # 可选：LLM 规划（ST_PLANNER=llm|auto 且已配置 key）；失败自动退回规则
-    _llm_plan = _llm_call(state["query"], state.get("sid") or "")
-    if _llm_plan:
-        return {"plan": [_llm_plan]}
+    # 可选：LLM 规划（ST_PLANNER=llm|auto 且已配置 key）；失败自动退回规则。
+    # 指代句**不进 LLM**：规则里有确定性的"沿用上一批结果集"逻辑，
+    # 交给模型会偶发跑到别的工具（A/B 里表现为 multi-turn-1 三次里错一次）。
+    _anaphora = False
+    try:
+        from app.context import has_anaphora as _ha
+        _anaphora = _ha(state["query"])
+    except Exception:
+        _anaphora = False
+    if not _anaphora:
+        _llm_plan = _llm_call(state["query"], state.get("sid") or "")
+        if _llm_plan:
+            return {"plan": [_llm_plan]}
 
     q = state["query"]
     q_en = latin_query(q)
