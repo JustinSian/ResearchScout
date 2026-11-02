@@ -1,7 +1,7 @@
 [project]
-name = "scholartrust"
+name = "researchscout"
 version = "0.1.0"
-description = "学术专家知识库与可信尽调 Agent（可信采集 + 混合检索 + 多 Agent 调度）"
+description = "学术专家检索 + 长期记忆 + 分层评测 + 受控自我改进"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
