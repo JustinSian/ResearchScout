@@ -191,6 +191,15 @@ def search(facets: dict, limit: int = 0) -> dict:
 
     topic = (facets.get("topic") or "").strip()
     terms = facets.get("topic_en") or topic_en(topic)
+    # RSI 策略注入：当前策略里的查询扩展词（M53）。没有策略时是空列表。
+    try:
+        from app import rsi as _rsi
+        _extra = _rsi.synonyms_for(topic)
+        if _extra:
+            _base = list(terms or [])
+            terms = _base + [x for x in _extra if x not in _base]
+    except Exception:
+        pass
     # 同义词之间必须是 OR：respiratory 与 pulmonary 同时出现在同一个人身上概率很低，
     # 用 AND 会把「中国的呼吸科专家」查成 0 人（踩过）。
     match_expr = " OR ".join(f"({_fts_query(t)})" for t in terms if _fts_query(t)) if terms else ""

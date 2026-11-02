@@ -461,6 +461,86 @@ def task_run(q: str = Query(..., description="自然语言目标，如：比较�
             "report": vfs_read(out["report_path"]) or ""}
 
 
+@app.get("/memory/facts")
+def memory_facts(uid: str, as_of: str = "", limit: int = 50) -> dict:
+    """用户的当前（或某个时刻的）有效记忆。"""
+    from app import user_memory
+    rows = user_memory.facts(uid, as_of=as_of or None, limit=min(max(limit, 1), 200))
+    return {"uid": uid, "as_of": as_of or None, "items": rows, "count": len(rows)}
+
+
+@app.get("/memory/timeline")
+def memory_timeline(uid: str, limit: int = 100) -> dict:
+    """记忆时间线：事实变更 + 交互记录（前端记忆视图用）。"""
+    from app import user_memory
+    return {"uid": uid, "items": user_memory.timeline(uid, limit=min(max(limit, 1), 300))}
+
+
+@app.post("/memory/fact")
+def memory_add_fact(payload: dict, _: None = Depends(require_key)) -> dict:
+    """手工写入一条记忆（写接口，需 X-API-Key）。"""
+    from app import user_memory
+    uid = str(payload.get("uid") or "").strip()
+    key = str(payload.get("key") or "").strip()
+    value = str(payload.get("value") or "").strip()
+    if not (uid and key and value):
+        raise HTTPException(status_code=400, detail="uid/key/value 必填")
+    try:
+        return {"ok": True, **user_memory.add_fact(uid, key, value, source="api")}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"{type(exc).__name__}: {exc}")
+
+
+@app.post("/memory/feedback")
+def memory_feedback(payload: dict, _: None = Depends(require_key)) -> dict:
+    """采纳/否决反馈 → 情景记忆（用于后续个性化排序）。"""
+    from app import user_memory
+    uid = str(payload.get("uid") or "").strip()
+    if not uid:
+        raise HTTPException(status_code=400, detail="uid 必填")
+    fb = str(payload.get("feedback") or "").strip()
+    if fb not in ("accept", "reject"):
+        raise HTTPException(status_code=400, detail="feedback 只能是 accept / reject")
+    rid = user_memory.add_event(uid, str(payload.get("sid") or ""),
+                                str(payload.get("q") or ""), "feedback", "feedback",
+                                feedback=fb, meta={"ref": payload.get("ref")})
+    return {"ok": True, "id": rid}
+
+
+@app.get("/memory/eval")
+def memory_eval_summary() -> dict:
+    """最近一次记忆评测的汇总（不跑全量，只读已有结果文件/即时小样本）。"""
+    from app import memory_recall  # noqa: F401  （确保模块可用）
+    from app import user_memory
+    return {"stats": user_memory.stats(),
+            "note": "全量 50 条请跑 python -m app.eval_memory"}
+
+
+@app.get("/rsi/status")
+def rsi_status() -> dict:
+    from app import rsi
+    return {"gen": rsi.active_gen(), "policy": rsi.active_policy(),
+            "generations": rsi.generations(), "history": rsi.history(limit=10)}
+
+
+@app.post("/rsi/run")
+def rsi_run(payload: dict | None = None, _: None = Depends(require_key)) -> dict:
+    """跑若干代 RSI（写接口）。默认 dry_run=false。"""
+    from app import rsi
+    p = payload or {}
+    res = rsi.run(generations=int(p.get("generations") or 3),
+                  budget_usd=float(p.get("budget_usd") or 2.0),
+                  dry_run=bool(p.get("dry_run") or False),
+                  log=lambda *_: None)
+    return {"ok": True, **res}
+
+
+@app.post("/rsi/rollback")
+def rsi_rollback(payload: dict | None = None, _: None = Depends(require_key)) -> dict:
+    from app import rsi
+    gen = (payload or {}).get("gen")
+    return rsi.rollback(int(gen) if gen is not None else None)
+
 @app.get("/memory")
 def memory_stats() -> dict:
     """记忆层的规模与语料版本（缓存是否有效看 version）。"""
@@ -649,13 +729,13 @@ def review_decide(pid: int, decision: str,
 
 
 # ---------------- Agent（LangGraph + 工具 + 引用 + 拒答） ----------------
-def _timed_supervise(q: str, sid: str) -> dict:
+def _timed_supervise(q: str, sid: str, uid: str = "") -> dict:
     """统一入口 + 耗时/来源透出（对标 AMiner 的 source_api_chain：
     用户应该能知道这个答案走了哪条路、花了多久）。"""
     import time as _t
 
     t0 = _t.perf_counter()
-    r = supervise(q, sid=sid)
+    r = supervise(q, sid=sid, uid=uid) if uid else supervise(q, sid=sid)
     r["elapsed_ms"] = round((_t.perf_counter() - t0) * 1000, 1)
     src = []
     if r.get("answer") and not r.get("kb_refused"):
@@ -668,15 +748,16 @@ def _timed_supervise(q: str, sid: str) -> dict:
 
 @app.post("/chat")
 def chat(q: str = Query(..., description="自然语言问题"),
-         sid: str = Query("", description="会话 id：多轮指代（那这些人呢）靠它找回上一轮结果")) -> dict:
+         sid: str = Query("", description="会话 id：多轮指代（那这些人呢）靠它找回上一轮结果"),
+         uid: str = Query("", description="用户 id：长期记忆按它隔离；留空则不读写记忆")) -> dict:
     # Supervisor 调度：kb / task / web / hybrid，并仲裁合并
-    return _timed_supervise(q, sid)
+    return _timed_supervise(q, sid, uid)
 
 
 @app.get("/chat")
 def chat_get(q: str = Query(..., description="自然语言问题（GET 别名，便于 curl 调试）"),
-             sid: str = Query("")) -> dict:
-    return _timed_supervise(q, sid)
+             sid: str = Query(""), uid: str = Query("")) -> dict:
+    return _timed_supervise(q, sid, uid)
 
 
 @app.get("/agent/tools")
@@ -697,7 +778,8 @@ def chat_welcome_ep() -> dict:
     return chat_welcome()
 
 @app.get("/chat/stream")
-async def chat_stream(q: str = Query(...), sid: str = Query("")):
+async def chat_stream(q: str = Query(...), sid: str = Query(""),
+                      uid: str = Query("")):
     """SSE：思考叙述 → 逐字回答 → 引用 → 结束。
 
     没有 LLM，但流式的**形状和行为**与模型一致：先讲思路，再逐步吐字。

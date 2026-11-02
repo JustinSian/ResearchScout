@@ -88,6 +88,17 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "",
     # 纯中文的"主题类"提问（"引用最多的呼吸专家"）没有硬条件，但 CE 路径用中文查不到
     # 英文论文标题，会一路走到 0 结果 → 拒答 → 联网。这类问题改用 facet 检索
     # （主题已由词表翻成英文）。含拉丁词的问题仍走 CE 路径，避免影响英文查询质量。
+    # RSI 策略：该主题有学习到的英文扩展词时，直接走 facet 检索
+    # （否则纯中文主题会落到 CE 路径，中文查英文语料必然 0 命中）
+    if not parsed.get("topic_en") and parsed.get("topic"):
+        try:
+            from app import rsi as _rsi
+            _extra = _rsi.synonyms_for(parsed["topic"])
+            if _extra:
+                parsed["topic_en"] = _extra
+        except Exception:
+            pass
+
     _latin = bool(re.search(r"[A-Za-z]{2,}", query or ""))
     if not structured and not _latin and parsed.get("topic_en"):
         structured = True
