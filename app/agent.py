@@ -62,8 +62,9 @@ _FTS_STOP = {"and", "the", "of", "for", "with", "using", "based", "into", "onto"
 def _core_experts(query: str, limit: int = 20) -> list[dict]:
     """按"概念关键词 + 一作"直接取候选（主检索按被引取候选，一作根本进不来）。"""
     import json as _json
+    import os as _os5
     import re as _re
-    toks = [t.lower() for t in _re.findall(r"[A-Za-z][A-Za-z\-]+", _fts_safe(query))]
+    toks = [t.lower() for t in _re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]+", _fts_safe(query))]
     toks = [t for t in toks if len(t) > 3][:4]
     if not toks:
         return []
@@ -82,8 +83,9 @@ def _core_experts(query: str, limit: int = 20) -> list[dict]:
                 WHERE wa.position = 0 AND p.status='published'
                   AND COALESCE(p.source,'') != 'auto_expand' AND ({like})
                 GROUP BY wa.pid
+                HAVING hits >= ?
                 ORDER BY hits DESC, p.cited_by_count DESC
-                LIMIT ?""", (*args, int(limit))).fetchall()
+                LIMIT ?""", (*args, int(_os5.environ.get("ST_CORE_MIN_HITS", "2")), int(limit))).fetchall()
     except Exception:
         rows = []
     finally:

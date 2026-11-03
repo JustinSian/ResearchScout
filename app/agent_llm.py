@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 
 from app import llm, memory_extract, memory_recall, rsi, session_memory, user_memory, episodes
@@ -88,13 +89,23 @@ SYSTEM = (
     "6. 回答简洁，先给结论再给依据。"
 )
 
-_REFUSAL_MARKERS = ("没有找到", "未找到", "没有检索到", "无法确定", "不存在",
+_REFUSAL_MARKERS = ("没有找到", "没找到", "找不到", "未能找到", "未找到",
+                    "没有检索到", "未检索到", "检索不到", "无法确定", "不存在",
                     "不知道", "证据不足", "无法判断", "查不到", "无法推荐",
-                    "无法回答", "没有可信", "未检索到", "未找到", "不推荐")
+                    "无法回答", "没有可信", "不推荐", "没有真正", "未能检索")
+
+# 只靠固定短语不够：模型会把同一句拒答写成"没有找到…"、"库里没有研究…的专家"、
+# "查不到…"等十几种说法（实测同一条件下判否率只有 3/5）。补一条"否定词 + 主题词"。
+_NEG_TOPIC = re.compile(
+    r"(库里|系统|数据库|资料库|专家库)?\s*(没有|没|未|无法|不能)"
+    r"[^。；;]{0,18}(研究|专家|学者|匹配|检索|推荐|找到|相关)")
 
 
 def _looks_refusal(text: str) -> bool:
-    return any(m in (text or "")[:200] for m in _REFUSAL_MARKERS)
+    head = (text or "")[:200]
+    if any(m in head for m in _REFUSAL_MARKERS):
+        return True
+    return bool(_NEG_TOPIC.search(head))
 
 
 def build_system_prompt(uid: str, sid: str, ep_hint: str = "") -> tuple[str, dict]:
