@@ -1,0 +1,8 @@
+{"id": "a-profile", "q": "介绍一下钟南山", "expect": {"must_any": ["钟南山"], "tools_any": ["profile"]}}
+{"id": "a-area", "q": "钟南山的研究方向", "expect": {"must_any": ["呼吸", "Respiratory", "respiratory"], "tools_any": ["research_area", "profile"]}}
+{"id": "a-facet", "q": "中国的呼吸科专家有哪些", "expect": {"must_any": ["呼吸"], "tools_any": ["find_expert"]}}
+{"id": "a-works", "q": "找 BERT 相关的论文", "expect": {"must_any": ["BERT", "预训练"], "tools_any": ["works"]}}
+{"id": "a-refuse", "q": "找研究 quantum gravity phenology 的专家", "expect": {"refused": true}}
+{"id": "a-memory", "q": "推荐几个专家", "setup_queries": ["我研究帕金森"], "expect": {"memory": true}}
+{"id": "a-memory-update", "q": "推荐几个专家", "setup_queries": ["我研究阿尔茨海默病", "我现在不做阿尔茨海默病了，转做帕金森"], "expect": {"memory": true, "must_not": ["阿尔茨海默"]}}
+{"id": "a-remember-tool", "q": "我现在转做单细胞测序了", "expect": {"must_any": ["已记住"], "memory": true}}
