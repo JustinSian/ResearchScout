@@ -32,6 +32,15 @@ BLOCKLIST = {
     "Physical therapy": [1423],             # D A Bloch（生物统计学家）
 }
 
+# 多义词/方法名概念：盲审证明噪声系统性偏高，整类剔除
+POLYSEMOUS = {
+    "Normalization (sociology)",     # qPCR 归一化 vs 社会学规范化
+    "Selection (genetic algorithm)",  # 模型选择 vs 遗传算法选择
+    "Sample (material)",             # 抽样 vs 实物样品
+    "Documentation",                 # 软件文档 vs 研究主题
+    "Regimen",                       # 治疗方案 vs 一般制度
+}
+
 STOP = {"and", "the", "of", "for", "with", "using", "based", "analysis", "system",
         "systems", "model", "models", "data", "study", "research", "method",
         "methods", "approach", "theory", "application", "applications"}
@@ -49,7 +58,7 @@ def titles_of(conn, pid: int, limit: int = 50) -> list[str]:
     return [r["title"] or "" for r in rows]
 
 
-def scan(dry_run: bool = False) -> dict:
+def scan(dry_run: bool = False, drop_polysemous: bool = False) -> dict:
     from app.db import connect
 
     if not BACKUP.exists():
@@ -63,6 +72,9 @@ def scan(dry_run: bool = False) -> dict:
     try:
         for g in rows:
             concept = g.get("concept") or g.get("query") or ""
+            if drop_polysemous and concept in POLYSEMOUS:
+                removed += 1
+                continue
             kws = keywords(concept)
             kept = []
             for pid in g.get("gold_pids") or []:
@@ -99,8 +111,10 @@ def scan(dry_run: bool = False) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--drop-polysemous", action="store_true",
+                    help="整类剔除多义词概念（盲审确认噪声系统性偏高）")
     a = ap.parse_args()
-    r = scan(a.dry_run)
+    r = scan(a.dry_run, a.drop_polysemous)
     print(f"  概念 {r['concepts']} 个 · 移除确认错误 {r['removed']} 条 · "
           f"疑似噪声（代表作零重叠）{r['flagged']} 条")
     print(f"  标记清单 → {r['flags_file']}" + ("（dry-run，未写回）" if r["dry_run"] else "（已写回金标）"))

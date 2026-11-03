@@ -91,14 +91,6 @@ Pembrolizumab,3709,"Safety, Activity, and Immune Correlates of Anti–PD-1 Antib
 Pembrolizumab,3710,"Safety, Activity, and Immune Correlates of Anti–PD-1 Antibody in Cancer || PD-1 Blockade in Tumors with Mismatch-Repair Deficiency || Mismatch repair deficiency predicts response of solid tumors to PD-1 blockade"
 Pembrolizumab,6611,PD-1 Blockade in Tumors with Mismatch-Repair Deficiency || Mismatch repair deficiency predicts response of solid tumors to PD-1 blockade || An Integrated Genomic Analysis of Human Glioblastoma Multiforme
 Pembrolizumab,6605,PD-1 Blockade in Tumors with Mismatch-Repair Deficiency || Mismatch repair deficiency predicts response of solid tumors to PD-1 blockade || Detection of Circulating Tumor DNA in Early- and Late-Stage Human Malignancies
-Regimen,8086,Combined Nivolumab and Ipilimumab or Monotherapy in Untreated Melanoma || Overall Survival with Combined Nivolumab and Ipilimumab in Advanced Melanoma || Nivolumab plus Ipilimumab in Advanced Melanoma
-Regimen,12872,Perioperative Chemotherapy versus Surgery Alone for Resectable Gastroesophageal Cancer || Cetuximab Monotherapy and Cetuximab plus Irinotecan in Irinotecan-Refractory Metastatic Co || Cisplatin plus Gemcitabine versus Gemcitabine for Biliary Tract Cancer
-Regimen,12881,Perioperative Chemotherapy versus Surgery Alone for Resectable Gastroesophageal Cancer || Cisplatin plus Gemcitabine versus Gemcitabine for Biliary Tract Cancer
-Regimen,16794,National Institutes of Health Consensus Development Project on Criteria for Clinical Trial || Reduction of Maternal-Infant Transmission of Human Immunodeficiency Virus Type 1 with Zido
-Regimen,25380,Nivolumab plus Ipilimumab in Advanced Melanoma || PD-1 Blockade with Nivolumab in Relapsed or Refractory Hodgkin's Lymphoma
-Sample (material),1313,How Many Interviews Are Enough?
-Sample (material),1314,How Many Interviews Are Enough?
-Sample (material),11459,Do Investment-Cash Flow Sensitivities Provide Useful Measures of Financing Constraints? || What Do We Know about Capital Structure? Some Evidence from International Data || Does Culture Affect Economic Outcomes?
 Ternary operation,4059,Two‐Dimensional Nanocrystals Produced by Exfoliation of Ti 3 AlC 2 || 25th Anniversary Article: MXenes: A New Family of Two‐Dimensional Materials || Electromagnetic interference shielding with 2D transition metal carbides (MXenes)
 Ternary operation,4052,Two‐Dimensional Nanocrystals Produced by Exfoliation of Ti 3 AlC 2 || 25th Anniversary Article: MXenes: A New Family of Two‐Dimensional Materials || Two-Dimensional Transition Metal Carbides
 Ternary operation,4060,Two‐Dimensional Nanocrystals Produced by Exfoliation of Ti 3 AlC 2 || 25th Anniversary Article: MXenes: A New Family of Two‐Dimensional Materials || Two-Dimensional Transition Metal Carbides
@@ -214,17 +206,6 @@ Antibody,38147,A Highly Automated Mobile Laboratory for On-site Molecular Diagno
 Antibody,38068,Heterologous boosting with third dose of coronavirus disease recombinant subunit vaccine i || Heterologous booster with inhaled adenovirus vector COVID-19 vaccine generated more neutra
 Algorithm,946,PHENIX : a comprehensive Python-based system for macromolecular structure solution || Phaser crystallographic software || Crystallography & NMR System: A New Software Suite for Macromolecular Structure Determinat
 Algorithm,943,PHENIX : a comprehensive Python-based system for macromolecular structure solution || Phaser crystallographic software || Overview of the CCP 4 suite and current developments
-Selection (genetic algorithm),6561,Least angle regression || Ideal Spatial Adaptation by Wavelet Shrinkage || Adapting to Unknown Smoothness via Wavelet Shrinkage
-Selection (genetic algorithm),8917,The spandrels of San Marco and the Panglossian paradigm: a critique of the adaptationist p || Exaptation—a Missing Term in the Science of Form || Ontogeny and Phylogeny
-Documentation,70,Scikit-learn: Machine Learning in Python || The NumPy Array: A Structure for Efficient Numerical Computation
-Documentation,77,Scikit-learn: Machine Learning in Python || The Astropy Project: Building an Open-science Project and Status of the v2.0 Core Package 
-Documentation,71,Scikit-learn: Machine Learning in Python || MEG and EEG data analysis with MNE-Python
-Documentation,72,Scikit-learn: Machine Learning in Python
-Documentation,74,Scikit-learn: Machine Learning in Python
-Documentation,76,Scikit-learn: Machine Learning in Python
-Documentation,195,"UCSF Chimera—A visualization system for exploratory research and analysis || UCSF ChimeraX : Structure visualization for researchers, educators, and developers || UCSF ChimeraX: Meeting modern challenges in visualization and analysis"
-Documentation,1417,MODELTEST: testing the model of DNA substitution. || jModelTest: Phylogenetic Model Averaging || TCS: a computer program to estimate gene genealogies
-Documentation,2115,The variant call format and VCFtools || Twelve years of SAMtools and BCFtools || A map of human genome variation from population-scale sequencing
 Chromosome instability,2986,The Sequence of the Human Genome || Comprehensive molecular characterization of gastric adenocarcinoma || The Genome Sequence of Drosophila melanogaster
 Chromosome instability,12390,Comprehensive molecular characterization of gastric adenocarcinoma || The Immune Landscape of Cancer || Comprehensive molecular profiling of lung adenocarcinoma
 Chromosome instability,12398,Comprehensive molecular characterization of gastric adenocarcinoma || The Immune Landscape of Cancer || Comprehensive molecular profiling of lung adenocarcinoma
