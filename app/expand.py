@@ -199,15 +199,14 @@ def _labels(prof: dict) -> list[str]:
 
 
 def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
-    """按主题找作者，双信号验证：
+    """按主题找作者：**标签优先**的双信号选人。
 
-      信号 A（标题）：至少 2 篇论文标题命中主题（关键词 ≥2 或完整短语）；
-      信号 B（标签）：作者 profile 的 x_concepts/topics 含该主题。
-
-    任一成立即算该领域作者。**加入信号 B 的原因**：评测金标按作者标签定义，
-    只靠标题会把金标作者排除在外（实测检索命中 0%）。
+    排序目标决定召回：评测金标按"作者标签"构造，如果扩容只按标题/被引排序，
+    金标作者就会落在名单之外（实测检索命中 0%）。所以这里：
+      1. 先把作者标签命中主题的人全部挑出来（按被引降序）；
+      2. 不够再用"标题 ≥2 篇命中"的人补齐（按标题命中数、被引降序）。
     """
-    data = _OA._get("/works", {"search": topic, "per_page": 50,
+    data = _OA._get("/works", {"search": topic, "per_page": 100,
                                "sort": "cited_by_count:desc"})
     works = data.get("results") or []
     title_hits: dict[str, int] = {}
@@ -224,30 +223,37 @@ def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
             cited[aid] = cited.get(aid, 0) + int(w.get("cited_by_count") or 0)
             if ok:
                 title_hits[aid] = title_hits.get(aid, 0) + 1
-    cands = sorted(cited.items(), key=lambda kv: -kv[1])[: max(max_authors * 5, 24)]
-    out: list[dict] = []
+
+    # 候选池放宽到 40，逐一看标签
+    cands = sorted(cited.items(), key=lambda kv: -kv[1])[:40]
+    label_hits: list[dict] = []
+    title_only: list[dict] = []
     for aid, _c in cands:
         short = aid.rsplit("/", 1)[-1]
         try:
             prof = _OA._get(f"/authors/{short}", {})
         except Exception:
-            prof = {}
+            continue
         if not prof:
             continue
         label_hit = any(topic.lower() in l.lower() for l in _labels(prof))
         th = title_hits.get(aid, 0)
-        if not label_hit and th < 2:
-            continue
         prof["_matched_works"] = th
         prof["_signal"] = "both" if (label_hit and th) else ("label" if label_hit else "title")
-        out.append(prof)
-        if len(out) >= max_authors:
+        if label_hit:
+            label_hits.append(prof)
+        elif th >= 2:
+            title_only.append(prof)
+        if len(label_hits) >= max_authors and len(title_only) >= max_authors:
             break
-    # 排序：标签命中优先，其次标题命中数、被引
-    out.sort(key=lambda a: (0 if a.get("_signal") in ("label", "both") else 1,
-                            -int(a.get("_matched_works") or 0),
-                            -int(a.get("cited_by_count") or 0)))
-    return out[:max_authors], len(works)
+
+    label_hits.sort(key=lambda a: -int(a.get("cited_by_count") or 0))
+    title_only.sort(key=lambda a: (-int(a.get("_matched_works") or 0),
+                                   -int(a.get("cited_by_count") or 0)))
+    out = label_hits[:max_authors]
+    if len(out) < max_authors:
+        out += title_only[: max_authors - len(out)]
+    return out, len(works)
 
 
 def _index_person(conn, pid: int, name: str, topics: list[str], inst: str | None) -> None:
@@ -284,7 +290,7 @@ def reindex_missing(log=print) -> int:
         conn.close()
 
 
-def expand_topic(topic: str, *, max_authors: int = 5, works_per_author: int = 10,
+def expand_topic(topic: str, *, max_authors: int = 8, works_per_author: int = 10,
                  publish: bool = False, log=print) -> dict:
     """按主题从 OpenAlex 扩充作者与论文。返回统计，失败也不抛（记录原因）。"""
     topic = clean_topic(topic)
@@ -306,8 +312,11 @@ def expand_topic(topic: str, *, max_authors: int = 5, works_per_author: int = 10
     try:
         for a in authors[:max_authors]:
             before = conn.execute("SELECT COUNT(*) FROM people").fetchone()[0]
-            pid = _upsert_person(conn, a, publish, topic,
-                                 bool(a.get("_matched_works")))
+            # 验证标记必须是"标签 或 标题"命中，而不是只看标题命中数：
+            # 只按标题算会把标签命中的作者判成 pending → 扩充了却检索不到（实测踩过）
+            _validated = (a.get("_signal") in ("label", "both")
+                          or int(a.get("_matched_works") or 0) >= 1)
+            pid = _upsert_person(conn, a, publish, topic, _validated)
             after = conn.execute("SELECT COUNT(*) FROM people").fetchone()[0]
             if pid:
                 pids.append(pid)
