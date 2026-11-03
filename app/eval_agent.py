@@ -50,6 +50,10 @@ def score_case(case: dict, results: list[dict]) -> dict:
         checks["refused_ok"] = bool(last.get("refused")) == bool(exp["refused"])
     if exp.get("tools_any"):
         checks["tools_ok"] = any(t in exp["tools_any"] for t in tools)
+    if exp.get("finish_reason"):
+        want = exp["finish_reason"]
+        want = [want] if isinstance(want, str) else list(want)
+        checks["finish_ok"] = (last.get("finish_reason") or "") in want
     if exp.get("items_country_any"):
         want = set(exp["items_country_any"])
         got = set()
@@ -68,7 +72,7 @@ def score_case(case: dict, results: list[dict]) -> dict:
             "cost": round(sum(float(r.get("cost_usd") or 0) for r in results), 6)}
 
 
-def run(cases: list[dict], log=print) -> dict:
+def run(cases: list[dict], log=print, repeat: int = 1) -> dict:
     import os
     from app import agent_llm, session_memory, user_memory
     # 评测 Agent 时必须关掉自动扩充：否则"库里没有"会触发 OpenAlex 采集，
@@ -97,6 +101,17 @@ def run(cases: list[dict], log=print) -> dict:
         row = score_case(c, results)
         row["ms"] = ms
         row["rounds"] = len(results)
+        row["passed_once"] = row["passed"]
+        # 多数投票：LLM 抖动会让单次结果不可靠（实测同一难例 2/3）
+        if repeat > 1:
+            votes = [row["passed_once"]]
+            for _ in range(repeat - 1):
+                session_memory.reset(sid)
+                res2 = [agent_llm.chat(q, uid=uid, sid=sid)
+                        for q in (c.get("turns") or [c["q"]])]
+                votes.append(score_case(c, res2)["passed"])
+            row["passed"] = sum(votes) * 2 > len(votes)
+            row["votes"] = votes
         rows.append(row)
         flag = "✓" if row["passed"] else "✗"
         bad = [k for k, v in row["checks"].items() if not v]
@@ -129,6 +144,7 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--file", default="", help="指定用例文件（默认 eval/agent_cases.jsonl）")
     ap.add_argument("--all", action="store_true", help="合并简单用例 + 难例")
+    ap.add_argument("--repeat", type=int, default=1, help="每个用例重复次数，取多数")
     a = ap.parse_args()
     if a.file:
         cases = load_cases(Path(a.file))
@@ -138,7 +154,7 @@ def main() -> None:
         cases = load_cases()
     if a.limit:
         cases = cases[:a.limit]
-    res = run(cases, log=(lambda *_: None) if a.json else print)
+    res = run(cases, log=(lambda *_: None) if a.json else print, repeat=a.repeat)
     s = res["summary"]
     if a.json:
         print(json.dumps(s, ensure_ascii=False, indent=2))
