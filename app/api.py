@@ -541,6 +541,52 @@ def rsi_rollback(payload: dict | None = None, _: None = Depends(require_key)) ->
     gen = (payload or {}).get("gen")
     return rsi.rollback(int(gen) if gen is not None else None)
 
+@app.get("/episodes/stats")
+def episodes_stats() -> dict:
+    """跨用户检索经验的规模。"""
+    from app import episodes
+    return episodes.stats()
+
+
+@app.get("/episodes/recall")
+def episodes_recall(q: str, limit: int = 3) -> dict:
+    """给一个问题，看看能召回哪些历史成功路线。"""
+    from app import episodes
+    eps = episodes.recall(q, k=min(max(limit, 1), 10))
+    return {"query": q, "items": [
+        {"id": e["id"], "query_norm": e["query_norm"], "topic": e["topic"],
+         "tools": json.loads(e["tools_json"] or "[]"),
+         "pids": json.loads(e["pids_json"] or "[]"),
+         "used": e["used_count"]} for e in eps],
+        "hint": episodes.hint(q)}
+
+
+@app.get("/library/expansions")
+def library_expansions(limit: int = 20) -> dict:
+    """自动扩充的历史（谁在什么时候扩了什么、结果如何）。"""
+    from app import expand
+    return {"items": expand.history(limit=min(max(limit, 1), 100))}
+
+
+@app.post("/library/expand")
+def library_expand(payload: dict, _: None = Depends(require_key)) -> dict:
+    """按主题从 OpenAlex 扩充（写接口）。"""
+    from app import expand
+    topic = str(payload.get("topic") or "").strip()
+    if not topic:
+        raise HTTPException(status_code=400, detail="topic 必填")
+    return expand.expand_topic(topic,
+                               max_authors=int(payload.get("max_authors") or 5),
+                               publish=bool(payload.get("publish") or False))
+
+
+@app.post("/library/publish")
+def library_publish(payload: dict | None = None, _: None = Depends(require_key)) -> dict:
+    """把待复核的自动扩充作者发布。"""
+    from app import expand
+    topic = str((payload or {}).get("topic") or "").strip() or None
+    return {"published": expand.publish_expanded(topic)}
+
 @app.get("/memory")
 def memory_stats() -> dict:
     """记忆层的规模与语料版本（缓存是否有效看 version）。"""

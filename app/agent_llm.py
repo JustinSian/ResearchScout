@@ -18,7 +18,7 @@ import json
 import os
 import time
 
-from app import llm, memory_extract, memory_recall, rsi, session_memory, user_memory
+from app import llm, memory_extract, memory_recall, rsi, session_memory, user_memory, episodes
 
 MAX_STEPS = 3          # 轮数
 MAX_CALLS = 4          # 工具调用总数（并行调用也算）
@@ -89,14 +89,15 @@ SYSTEM = (
 )
 
 _REFUSAL_MARKERS = ("没有找到", "未找到", "没有检索到", "无法确定", "不存在",
-                    "不知道", "证据不足", "无法判断")
+                    "不知道", "证据不足", "无法判断", "查不到", "无法推荐",
+                    "无法回答", "没有可信", "未检索到", "未找到", "不推荐")
 
 
 def _looks_refusal(text: str) -> bool:
     return any(m in (text or "")[:200] for m in _REFUSAL_MARKERS)
 
 
-def build_system_prompt(uid: str, sid: str) -> tuple[str, dict]:
+def build_system_prompt(uid: str, sid: str, ep_hint: str = "") -> tuple[str, dict]:
     """拼 system prompt：人设 + 长期记忆 + 本会话摘要 + RSI 策略片段。"""
     hint = memory_recall.build_hint(uid, "") if (uid or "").strip() else {}
     summary_text = session_memory.summary(sid) if sid else ""
@@ -107,6 +108,8 @@ def build_system_prompt(uid: str, sid: str) -> tuple[str, dict]:
     sess = session_memory.prompt_block(sid, summary_text) if sid else ""
     if sess:
         blocks.append(sess)
+    if ep_hint:
+        blocks.append(ep_hint)
     policy_prompt = (rsi.active_policy() or {}).get("plan_prompt") or ""
     if policy_prompt:
         blocks.append("【策略】" + str(policy_prompt)[:400])
@@ -156,11 +159,12 @@ def _run_tool(name: str, args: dict, uid: str, sid: str) -> dict:
 
 
 def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
-        budget_usd: float = BUDGET_USD) -> dict:
+        budget_usd: float = BUDGET_USD, episode_hint: bool = True) -> dict:
     """执行一次 Agent 会话。未配置 LLM 时返回 {"ok": False, "reason": ...} 由上层降级。"""
     if not llm.configured():
         return {"ok": False, "reason": "未配置 DEEPSEEK_API_KEY"}
-    system, hint = build_system_prompt(uid, sid)
+    ep_hint = episodes.hint(query) if episode_hint else ""
+    system, hint = build_system_prompt(uid, sid, ep_hint)
     messages = [{"role": "system", "content": system},
                 {"role": "user", "content": query}]
     evidence: list[dict] = []
@@ -312,6 +316,42 @@ def chat(query: str, uid: str = "", sid: str = "") -> dict:
     result = run(query, uid=uid, sid=sid)
     if not result.get("ok"):
         return result
+
+    # 库里没有**相关**专家 → 去 OpenAlex 扩充，然后重试一次（只扩一次）
+    _need_expand = bool(result.get("refused"))
+    _topic = ""
+    try:
+        from app import facets, topic_match
+        _topic = (facets.parse(query).get("topic") or "").strip()
+        if _topic and not _need_expand:
+            _pids = [int(it["pid"]) for ev in (result.get("evidence") or [])
+                     for it in (ev.get("items") or []) if it.get("pid")]
+            _need_expand = not topic_match.matches(_topic, _pids)
+    except Exception:
+        pass
+    if _need_expand and (os.environ.get("ST_AUTO_EXPAND", "1") != "0"):
+        try:
+            from app import expand
+            topic = _topic
+            if topic and len(topic) >= 2:
+                exp = expand.expand_topic(topic)
+                result["expansion"] = exp
+                if exp.get("ok") and (exp.get("pids") or []):
+                    retry = run(query, uid=uid, sid=sid)
+                    if retry.get("ok") and not retry.get("refused"):
+                        retry["expansion"] = exp
+                        retry["expanded_retry"] = True
+                        result = retry
+        except Exception as exc:
+            result["expansion"] = {"ok": False, "reason": f"{type(exc).__name__}: {exc}"}
+
+    # 成功的链路写入共享经验（跨用户复用）
+    try:
+        eid = episodes.record(query, result, uid=uid)
+        if eid:
+            result["episode_id"] = eid
+    except Exception:
+        pass
     if result.get("memory") and not result.get("refused"):
         try:
             _n = memory_recall.note(result["memory"])

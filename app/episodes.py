@@ -1,0 +1,191 @@
+"""跨用户的"检索经验"记忆：把成功的科研搜索路线存下来，同类问题直接复用。
+
+和 `user_memory` 的区别：
+  user_memory   某个用户**自己**的偏好（私有，按 uid 隔离）
+  episodes      所有用户**共享**的成功检索路线（公开，按领域相似度召回）
+
+一条经验包含：问题归一化文本、识别到的主题、用过的工具序列、命中的专家、
+成本与耗时、被复用次数。命中后直接注入 Agent 的 system prompt：
+"上次类似问题是这样查的、结果是这几个人"——省掉重新试错。
+
+写入条件（严格）：
+  - 链路成功（不拒答、有引用、有工具条目）
+  - 至少命中 1 个专家
+否则不写，避免把失败经验固化下来。
+"""
+from __future__ import annotations
+
+import json
+import re
+import time
+from pathlib import Path
+
+from app import user_memory
+
+DDL = [
+    """CREATE TABLE IF NOT EXISTS search_episode (
+        id INTEGER PRIMARY KEY,
+        query_norm TEXT NOT NULL,
+        topic TEXT,
+        tools_json TEXT,
+        pids_json TEXT,
+        n_pids INTEGER,
+        cost_usd REAL,
+        ms REAL,
+        uid TEXT,
+        created_at REAL NOT NULL,
+        used_count INTEGER DEFAULT 0,
+        success_count INTEGER DEFAULT 0
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_ep_topic ON search_episode(topic)",
+]
+
+_PUNCT = re.compile(r"[\s，。！？、,.!?；;：:（）()「」\"'“”]+")
+_REFUSAL_MARKERS = ("没有找到", "未找到", "查不到", "无法推荐", "无法回答", "无法提供",
+                    "不存在", "证据不足", "没有可信", "无法确认", "未检索到", "不推荐")
+
+_STOP = ("找", "查", "帮我", "推荐", "有哪些", "谁", "专家", "学者", "研究", "方向",
+         "的", "了", "吗", "呢", "请", "一下", "几位", "几个")
+
+
+def _norm(q: str) -> str:
+    t = _PUNCT.sub("", (q or "").lower())
+    for w in _STOP:
+        t = t.replace(w, "")
+    return t
+
+
+def _tokens(s: str) -> set[str]:
+    t = (s or "").lower()
+    out = set(re.findall(r"[a-z][a-z\-]{2,}", t))
+    cjk = re.sub(r"[^\u4e00-\u9fa5]", " ", t)
+    for seg in cjk.split():
+        for i in range(len(seg) - 1):
+            out.add(seg[i:i + 2])
+    return out
+
+
+def record(query: str, result: dict, uid: str = "",
+           require_match: bool = True) -> int | None:
+    """成功链路写入一条经验；不满足条件返回 None。"""
+    if not result or result.get("refused"):
+        return None
+    # 回答自称"查不到/无法推荐"时不算成功，否则会把失败经验固化进共享记忆
+    text = (result.get("answer") or "")[:200]
+    if any(m in text for m in _REFUSAL_MARKERS):
+        return None
+    items = []
+    for ev in result.get("evidence") or []:
+        items += [it for it in (ev.get("items") or []) if it.get("pid")]
+    if not items:
+        return None
+    pids = []
+    for it in items[:10]:
+        if it["pid"] not in pids:
+            pids.append(int(it["pid"]))
+    tools = [s.get("tool") for s in (result.get("steps") or []) if s.get("tool")]
+    topic = ""
+    try:
+        from app import facets
+        topic = (facets.parse(query).get("topic") or "").strip()
+    except Exception:
+        topic = ""
+    # 主题一致性：结果的专家标签必须真的匹配主题，否则不写（避免污染共享经验）
+    try:
+        from app import topic_match
+        if require_match and topic and not topic_match.matches(topic, pids):
+            return None
+    except Exception:
+        pass
+    conn = user_memory.connect()
+    try:
+        for ddl in DDL:
+            conn.execute(ddl)
+        cur = conn.execute(
+            """INSERT INTO search_episode(query_norm, topic, tools_json, pids_json,
+                                          n_pids, cost_usd, ms, uid, created_at)
+               VALUES(?,?,?,?,?,?,?,?,?)""",
+            (_norm(query), topic, json.dumps(tools, ensure_ascii=False),
+             json.dumps(pids), len(pids), float(result.get("cost_usd") or 0),
+             float(result.get("ms") or 0), uid, time.time()))
+        conn.commit()
+        return int(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def recall(query: str, k: int = 3) -> list[dict]:
+    """按"主题相同 + 查询词重叠"召回历史经验。"""
+    conn = user_memory.connect()
+    try:
+        for ddl in DDL:
+            conn.execute(ddl)
+        rows = conn.execute(
+            "SELECT * FROM search_episode ORDER BY created_at DESC LIMIT 500").fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return []
+    try:
+        from app import facets
+        topic = (facets.parse(query).get("topic") or "").strip().lower()
+    except Exception:
+        topic = ""
+    qt = _tokens(_norm(query))
+    scored = []
+    for r in rows:
+        rt = (r["topic"] or "").lower()
+        overlap = len(qt & _tokens(r["query_norm"] or ""))
+        topic_hit = 3 if (topic and rt and (topic in rt or rt in topic)) else 0
+        score = topic_hit + overlap
+        if score > 0:
+            scored.append((score, dict(r)))
+    scored.sort(key=lambda x: (-x[0], -x[1]["created_at"]))
+    return [r for _s, r in scored[:k]]
+
+
+def hint(query: str, k: int = 3) -> str:
+    """把召回的经验拼成一段可注入 prompt 的文本；没有经验返回空串。"""
+    eps = recall(query, k)
+    if not eps:
+        return ""
+    lines = []
+    for e in eps:
+        try:
+            pids = json.loads(e["pids_json"] or "[]")[:6]
+            tools = json.loads(e["tools_json"] or "[]")
+        except Exception:
+            continue
+        lines.append(f"- 类似问题「{e['query_norm'][:30]}」：工具 {'→'.join(tools) or '无'}，"
+                     f"命中 {len(pids)} 位（pid: {','.join(map(str, pids))}）")
+    if not lines:
+        return ""
+    return "【同类检索经验（其他用户跑通过的路线）】\n" + "\n".join(lines)
+
+
+def mark_used(episode_ids: list[int]) -> None:
+    if not episode_ids:
+        return
+    conn = user_memory.connect()
+    try:
+        conn.executemany("UPDATE search_episode SET used_count=used_count+1 WHERE id=?",
+                         [(int(i),) for i in episode_ids])
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def stats() -> dict:
+    conn = user_memory.connect()
+    try:
+        for ddl in DDL:
+            conn.execute(ddl)
+        n = conn.execute("SELECT COUNT(*) FROM search_episode").fetchone()[0]
+        topics = conn.execute(
+            "SELECT COUNT(DISTINCT topic) FROM search_episode WHERE topic != ''").fetchone()[0]
+        avg = conn.execute("SELECT AVG(n_pids) FROM search_episode").fetchone()[0] or 0
+        used = conn.execute("SELECT COALESCE(SUM(used_count),0) FROM search_episode").fetchone()[0]
+        return {"episodes": int(n), "topics": int(topics),
+                "avg_pids": round(float(avg), 1), "reused": int(used)}
+    finally:
+        conn.close()

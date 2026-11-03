@@ -1,0 +1,420 @@
+"""库的自动扩充：用户需求在库里找不到时，去 OpenAlex 采集并入库。
+
+触发条件（严格，避免被"随便问一句"打爆 OpenAlex）：
+  1. 知识库链路拒答或无命中；
+  2. 能从问题里解析出主题（去掉"找/推荐/专家"等模板词后还剩 ≥2 字）；
+  3. 主题不在泛学科黑名单（Medicine / Biology ...）；
+  4. 同一主题 24 小时内只扩充一次（缓存判断）。
+
+写入策略（可审计、可回滚）：
+  - 新作者 status='pending'，进入复核队列；**不直接发布**；
+  - 但会立刻参与检索吗？不会——`search_people` 默认只看 published。
+    所以用户体验是"已扩充、待复核"，可以用 `--publish` 强制发布（演示用）。
+  - 所有动作写 `expansion_log`，记录来源、新增数量、消耗。
+"""
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+from app import user_memory
+from app.db import connect
+from app.openalex import OpenAlex
+
+GENERIC = {
+    "medicine", "biology", "physics", "chemistry", "computer science", "mathematics",
+    "psychology", "engineering", "economics", "sociology", "science", "research",
+    "科学", "医学", "生物", "物理", "化学", "计算机", "数学", "经济", "工程",
+}
+
+DDL = [
+    """CREATE TABLE IF NOT EXISTS expansion_log (
+        id INTEGER PRIMARY KEY, topic TEXT, source TEXT, added_people INTEGER,
+        added_works INTEGER, pids_json TEXT, status TEXT, note TEXT, ts REAL NOT NULL)""",
+]
+
+_OA = OpenAlex()
+
+_TOPIC_PREFIX = ("帮我找", "帮我", "请", "找", "查", "搜索", "推荐", "想要", "关于", "研究",
+                 "几个", "几位", "几名", "几位", "个", "几", "位", "名")
+_TOPIC_SUFFIX = ("方向的专家", "方向的学者", "领域的专家", "方向", "领域", "的专家", "专家",
+                 "学者", "的研究", "研究")
+
+
+def clean_topic(topic: str) -> str:
+    """把"推荐几个 X 方向的专家"清洗成 "X"。"""
+    t = (topic or "").strip().strip("，。！？,.!? ")
+    changed = True
+    while changed:
+        changed = False
+        for p in _TOPIC_PREFIX:
+            if t.startswith(p) and len(t) > len(p) + 1:
+                t = t[len(p):].strip()
+                changed = True
+        for suf in _TOPIC_SUFFIX:
+            if t.endswith(suf) and len(t) > len(suf) + 1:
+                t = t[:-len(suf)].strip()
+                changed = True
+    return t
+
+
+def _log(topic: str, added_people: int, added_works: int, pids: list[int],
+         status: str, note: str = "") -> None:
+    conn = user_memory.connect()
+    try:
+        for ddl in DDL:
+            conn.execute(ddl)
+        conn.execute(
+            """INSERT INTO expansion_log(topic, source, added_people, added_works,
+                                         pids_json, status, note, ts)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (topic, "openalex", added_people, added_works, json.dumps(pids),
+             status, note, time.time()))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def recently_expanded(topic: str, hours: int = 24) -> bool:
+    conn = user_memory.connect()
+    try:
+        for ddl in DDL:
+            conn.execute(ddl)
+        row = conn.execute(
+            "SELECT ts FROM expansion_log WHERE topic=? ORDER BY ts DESC LIMIT 1",
+            (topic,)).fetchone()
+    finally:
+        conn.close()
+    return bool(row) and (time.time() - float(row["ts"]) < hours * 3600)
+
+
+def _upsert_person(conn, author: dict, publish: bool, topic: str = "",
+                   validated: bool = True) -> int | None:
+    oid = author.get("id")
+    if not oid:
+        return None
+    row = conn.execute("SELECT pid FROM people WHERE openalex_id=?", (oid,)).fetchone()
+    inst = ((author.get("last_known_institutions") or [{}])[0] or {}).get("display_name")
+    cc = None
+    insts = author.get("last_known_institutions") or []
+    if insts:
+        cc = (insts[0].get("country_code") or None)
+        cc = cc.upper() if isinstance(cc, str) else None
+    topics = [t.get("display_name") for t in (author.get("topics") or [])
+              if t.get("display_name")]
+    # 关键：把"我们检索用的主题"补进标签，否则新作者在 people_fts 里搜不到
+    if validated and topic and all(topic.lower() not in (t or "").lower() for t in topics):
+        topics.insert(0, topic)
+    # 强作者直接发布（可立即参与检索），弱作者进复核队列
+    works = int(author.get("works_count") or 0)
+    cited = int(author.get("cited_by_count") or 0)
+    # 主题检索命中的作者默认发布（罕见病作者作品少，卡阈值会导致"扩了却搜不到"）；
+    # 有 source=auto_expand + expansion_log 可审计、可回滚。
+    usable = works >= 1 or cited >= 1
+    status = "published" if (validated and (publish or usable)) else "pending"
+    if row:
+        pid = int(row["pid"])
+        conn.execute(
+            """UPDATE people SET works_count=?, cited_by_count=?, last_inst=?,
+                   country=COALESCE(country, ?), topics=?,
+                   status=CASE WHEN status='pending' AND source='auto_expand' THEN ?
+                               ELSE status END,
+                   updated_at=?
+               WHERE pid=?""",
+            (int(author.get("works_count") or 0), int(author.get("cited_by_count") or 0),
+             inst, cc, json.dumps(topics, ensure_ascii=False), status,
+             time.time(), pid))
+        return pid
+    cur = conn.execute(
+        """INSERT INTO people(openalex_id, name, orcid, works_count, cited_by_count,
+                              last_inst, country, topics, status, confidence, evidence,
+                              source, updated_at)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (oid, author.get("display_name") or "", author.get("orcid"),
+         int(author.get("works_count") or 0), int(author.get("cited_by_count") or 0),
+         inst, cc, json.dumps(topics, ensure_ascii=False), status,
+         0.55, json.dumps({"source": "auto_expand", "openalex": oid}),
+         "auto_expand", time.time()))
+    return int(cur.lastrowid)
+
+
+def _upsert_work(conn, w: dict) -> int | None:
+    oid = w.get("id")
+    if not oid:
+        return None
+    row = conn.execute("SELECT wid FROM works WHERE openalex_id=?", (oid,)).fetchone()
+    if row:
+        return int(row["wid"])
+    from app.openalex import abstract_from_inverted
+    venue = (((w.get("primary_location") or {}).get("source") or {}) or {}).get("display_name")
+    cur = conn.execute(
+        """INSERT INTO works(openalex_id, doi, title, abstract, year, cites, venue, type)
+           VALUES(?,?,?,?,?,?,?,?)""",
+        (oid, w.get("doi"), w.get("title"), abstract_from_inverted(w.get("abstract_inverted_index")),
+         w.get("publication_year"), int(w.get("cited_by_count") or 0), venue, w.get("type")))
+    return int(cur.lastrowid)
+
+
+
+def _work_matches(topic: str, w: dict) -> bool:
+    """论文是否**真的在讲**这个主题：只看标题。
+
+    为什么不用摘要：摘要里常写"需与 Niemann-Pick 病鉴别"，会把肝胆/影像学者
+    误判成该病专家（实测发生过）。标题命中是更严的判据，宁可少收。
+    """
+    t = (topic or "").lower().strip()
+    if not t:
+        return False
+    return t in (w.get("title") or "").lower()
+
+
+def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
+    """按主题找作者，并**验证**他们真的做这个主题。
+
+    坑：OpenAlex /works?search= 会把"数据集提及"也算命中（Gaucher 数据集让
+    Vapnik 的 SVM 论文排到前面）。所以必须用标题/摘要做二次验证，
+    并要求**同一作者至少 2 篇**命中，否则宁可不收。
+    """
+    data = _OA._get("/works", {"search": topic, "per_page": 50,
+                               "sort": "cited_by_count:desc"})
+    works = data.get("results") or []
+    matched = [w for w in works if _work_matches(topic, w)]
+    freq: dict[str, dict] = {}
+    for w in matched:
+        for au in (w.get("authorships") or [])[:10]:
+            a = au.get("author") or {}
+            aid = a.get("id")
+            if not aid:
+                continue
+            rec = freq.setdefault(aid, {"id": aid, "name": a.get("display_name"),
+                                        "orcid": a.get("orcid"), "matched": 0,
+                                        "cited": 0})
+            rec["matched"] += 1
+            rec["cited"] += int(w.get("cited_by_count") or 0)
+    if not freq:
+        return [], len(works)
+    # 至少 2 篇命中才算这个领域的作者；样本太少时放宽到 1 篇
+    need = 2 if sum(r["matched"] >= 2 for r in freq.values()) >= max_authors else 1
+    ranked = sorted([r for r in freq.values() if r["matched"] >= need],
+                    key=lambda r: (-r["matched"], -r["cited"]))[:max_authors]
+    out = []
+    for r in ranked:
+        aid = r["id"].rsplit("/", 1)[-1]
+        try:
+            prof = _OA._get(f"/authors/{aid}", {})
+        except Exception:
+            prof = {}
+        if not prof:
+            prof = {"id": r["id"], "display_name": r["name"], "orcid": r["orcid"],
+                    "works_count": r["matched"], "cited_by_count": r["cited"],
+                    "last_known_institutions": [], "topics": []}
+        prof["_matched_works"] = r["matched"]
+        out.append(prof)
+    return out, len(works)
+
+
+
+def _index_person(conn, pid: int, name: str, topics: list[str], inst: str | None) -> None:
+    """把作者写进 people_fts（外部内容表必须显式维护，否则新人查不到）。"""
+    try:
+        conn.execute("DELETE FROM people_fts WHERE rowid=?", (int(pid),))
+        conn.execute(
+            "INSERT INTO people_fts(rowid, name, topics, inst) VALUES(?,?,?,?)",
+            (int(pid), name or "", " ".join(topics or []), inst or ""))
+    except Exception:
+        pass
+
+
+def reindex_missing(log=print) -> int:
+    """给不在 people_fts 里的人补索引。"""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """SELECT p.pid, p.name, p.topics, i.name AS inst
+               FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id
+               WHERE p.pid NOT IN (SELECT rowid FROM people_fts) LIMIT 5000""").fetchall()
+        n = 0
+        for r in rows:
+            try:
+                topics = json.loads(r["topics"] or "[]")
+            except Exception:
+                topics = []
+            _index_person(conn, int(r["pid"]), r["name"], topics, r["inst"])
+            n += 1
+        conn.commit()
+        log(f"  补索引 {n} 位")
+        return n
+    finally:
+        conn.close()
+
+
+def expand_topic(topic: str, *, max_authors: int = 5, works_per_author: int = 10,
+                 publish: bool = False, log=print) -> dict:
+    """按主题从 OpenAlex 扩充作者与论文。返回统计，失败也不抛（记录原因）。"""
+    topic = clean_topic(topic)
+    if len(topic) < 2 or topic.lower() in GENERIC:
+        return {"ok": False, "reason": "主题太泛或为空", "topic": topic}
+    if recently_expanded(topic):
+        return {"ok": False, "reason": "24 小时内已扩充过", "topic": topic}
+
+    try:
+        authors, n_candidates = _find_authors(topic, max_authors)
+    except Exception as exc:
+        _log(topic, 0, 0, [], "error", f"{type(exc).__name__}: {exc}")
+        return {"ok": False, "reason": f"OpenAlex 失败: {exc}", "topic": topic}
+
+    conn = connect()
+    added_people = added_works = 0
+    before_works = conn.execute("SELECT COUNT(*) FROM works").fetchone()[0]
+    pids: list[int] = []
+    try:
+        for a in authors[:max_authors]:
+            before = conn.execute("SELECT COUNT(*) FROM people").fetchone()[0]
+            pid = _upsert_person(conn, a, publish, topic,
+                                 bool(a.get("_matched_works")))
+            after = conn.execute("SELECT COUNT(*) FROM people").fetchone()[0]
+            if pid:
+                pids.append(pid)
+                _topics = [t.get("display_name") for t in (a.get("topics") or [])
+                           if t.get("display_name")]
+                if topic and all(topic.lower() not in (t or "").lower() for t in _topics):
+                    _topics.insert(0, topic)
+                _index_person(conn, pid, (a.get("display_name") or ""), _topics,
+                              (a.get("last_known_institutions") or [{}])[0].get("display_name"))
+                added_people += max(0, int(after) - int(before))
+            oid = a.get("id")
+            if not pid or not oid:
+                continue
+            try:
+                works = _OA.works_of_author(oid, per_page=works_per_author)
+            except Exception:
+                works = []
+            coauthors: dict[int, int] = {}
+            for w in works:
+                wid = _upsert_work(conn, w)
+                if wid:
+                    added_works += 1
+                    conn.execute(
+                        "INSERT OR IGNORE INTO work_authors(wid, pid, position) VALUES(?,?,?)",
+                        (wid, pid, 0))
+                    # 用 authorships 建合作边（只连本库里已有的人）
+                    for au in (w.get("authorships") or [])[:10]:
+                        aid = (au.get("author") or {}).get("id")
+                        if not aid or aid == oid:
+                            continue
+                        other = conn.execute(
+                            "SELECT pid FROM people WHERE openalex_id=?", (aid,)).fetchone()
+                        if other:
+                            coauthors[int(other["pid"])] = coauthors.get(int(other["pid"]), 0) + 1
+            for opid, weight in coauthors.items():
+                a_, b_ = sorted((pid, opid))
+                conn.execute(
+                    """INSERT INTO edges(a,b,kind,weight) VALUES(?,?,'coauthor',?)
+                       ON CONFLICT(a,b,kind) DO UPDATE SET weight=weight+excluded.weight""",
+                    (a_, b_, int(weight)))
+        conn.commit()
+        after_works = conn.execute("SELECT COUNT(*) FROM works").fetchone()[0]
+        added_works = max(0, int(after_works) - int(before_works))
+    finally:
+        conn.close()
+
+    status = "published" if publish else "mixed"
+    _log(topic, added_people, added_works, pids, status)
+    log(f"  扩充「{topic}」：新增 {added_people} 人 / {added_works} 篇（{status}）")
+    return {"ok": True, "topic": topic, "added_people": added_people,
+            "added_works": added_works, "pids": pids, "status": status}
+
+
+def publish_expanded(topic: str | None = None, log=print) -> int:
+    """把待复核的扩充作者发布（演示/人工确认用）。"""
+    conn = connect()
+    try:
+        sql = "UPDATE people SET status='published' WHERE source='auto_expand' AND status='pending'"
+        args: tuple = ()
+        if topic:
+            sql += " AND topics LIKE ?"
+            args = (f"%{topic}%",)
+        cur = conn.execute(sql, args)
+        conn.commit()
+        log(f"  发布 {cur.rowcount} 位 auto_expand 作者")
+        return int(cur.rowcount)
+    finally:
+        conn.close()
+
+
+def _main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--topic", default="")
+    ap.add_argument("--reindex", action="store_true")
+    ap.add_argument("--publish", action="store_true")
+    ap.add_argument("--audit", action="store_true")
+    a = ap.parse_args()
+    if a.reindex:
+        reindex_missing()
+    if a.audit:
+        print(audit_expansions())
+    if a.topic:
+        print(expand_topic(a.topic, publish=a.publish))
+
+
+def history(limit: int = 20) -> list[dict]:
+    conn = user_memory.connect()
+    try:
+        for ddl in DDL:
+            conn.execute(ddl)
+        rows = conn.execute(
+            "SELECT * FROM expansion_log ORDER BY id DESC LIMIT ?", (int(limit),)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    _main()
+
+
+def audit_expansions(topic: str | None = None, log=print) -> dict:
+    """审计并清理自动扩充：标签里写了某主题，但论文里根本没讲 → 摘标签、退回待复核。"""
+    conn = connect()
+    try:
+        sql = ("SELECT pid, name, topics FROM people WHERE source='auto_expand'")
+        args: tuple = ()
+        if topic:
+            sql += " AND topics LIKE ?"
+            args = (f"%{topic}%",)
+        rows = conn.execute(sql, args).fetchall()
+        demoted = kept = 0
+        for r in rows:
+            try:
+                tags = json.loads(r["topics"] or "[]")
+            except Exception:
+                tags = []
+            titles = [x["title"] or "" for x in conn.execute(
+                """SELECT w.title FROM work_authors wa JOIN works w ON w.wid=wa.wid
+                   WHERE wa.pid=?""", (int(r["pid"]),))]
+            bad = [t for t in tags
+                   if t and not any(t.lower() in (ti or "").lower() for ti in titles)]
+            good = [t for t in tags if t not in bad]
+            if bad and not good:
+                conn.execute("UPDATE people SET status='pending', topics=?, evidence=? WHERE pid=?",
+                             (json.dumps([], ensure_ascii=False),
+                              json.dumps({"source": "auto_expand", "demoted": bad},
+                                         ensure_ascii=False), int(r["pid"])))
+                conn.execute("DELETE FROM people_fts WHERE rowid=?", (int(r["pid"]),))
+                demoted += 1
+            elif bad:
+                conn.execute("UPDATE people SET topics=? WHERE pid=?",
+                             (json.dumps(good, ensure_ascii=False), int(r["pid"])))
+                conn.execute("DELETE FROM people_fts WHERE rowid=?", (int(r["pid"]),))
+                conn.execute("INSERT INTO people_fts(rowid, name, topics, inst) VALUES(?,?,?,?)",
+                             (int(r["pid"]), r["name"] or "", " ".join(good), ""))
+                kept += 1
+            else:
+                kept += 1
+        conn.commit()
+        log(f"  审计：保留 {kept} 人，降级 {demoted} 人")
+        return {"kept": kept, "demoted": demoted}
+    finally:
+        conn.close()
