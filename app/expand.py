@@ -94,6 +94,7 @@ def _upsert_person(conn, author: dict, publish: bool, topic: str = "",
     oid = author.get("id")
     if not oid:
         return None
+    oid = oid.rsplit("/", 1)[-1]      # 统一存短 ID（A...），与主库一致
     row = conn.execute("SELECT pid FROM people WHERE openalex_id=?", (oid,)).fetchone()
     inst = ((author.get("last_known_institutions") or [{}])[0] or {}).get("display_name")
     cc = None
