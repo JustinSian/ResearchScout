@@ -87,6 +87,20 @@ def build_pool(topic: str, works: list[dict], max_profiles: int = 14) -> list[di
     return pool
 
 
+def capability_gap(topic: str) -> bool:
+    """能力缺口：用产品路径查一遍，前 10 里**没有一个**专家的标签匹配该主题。"""
+    try:
+        from app import topic_match
+        from app.agent import tool_find_expert
+        r = tool_find_expert(topic, limit=10)
+        pids = [int(it["pid"]) for it in (r.get("items") or []) if it.get("pid")]
+        if not pids:
+            return True
+        return not topic_match.matches(topic, pids)
+    except Exception:
+        return False
+
+
 def build(limit: int = 20, min_pool: int = 5, seed: int = 7) -> list[dict]:
     topics = collect_topics()
     cands = [(t, ws) for t, ws in topics.items()
@@ -100,6 +114,8 @@ def build(limit: int = 20, min_pool: int = 5, seed: int = 7) -> list[dict]:
         if len(out) >= limit:
             break
         try:
+            if not capability_gap(topic):
+                continue
             pool = build_pool(topic, works)
         except Exception:
             continue

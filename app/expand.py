@@ -191,50 +191,63 @@ def _work_matches(topic: str, w: dict) -> bool:
     return sum(1 for k in kws if k in title) >= 2
 
 
-def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
-    """按主题找作者，并**验证**他们真的做这个主题。
+def _labels(prof: dict) -> list[str]:
+    """作者 profile 的标签：旧版 x_concepts + 新版 topics。"""
+    out = [c.get("display_name") or "" for c in (prof.get("x_concepts") or [])]
+    out += [t.get("display_name") or "" for t in (prof.get("topics") or [])]
+    return [x for x in out if x]
 
-    坑：OpenAlex /works?search= 会把"数据集提及"也算命中（Gaucher 数据集让
-    Vapnik 的 SVM 论文排到前面）。所以必须用标题/摘要做二次验证，
-    并要求**同一作者至少 2 篇**命中，否则宁可不收。
+
+def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
+    """按主题找作者，双信号验证：
+
+      信号 A（标题）：至少 2 篇论文标题命中主题（关键词 ≥2 或完整短语）；
+      信号 B（标签）：作者 profile 的 x_concepts/topics 含该主题。
+
+    任一成立即算该领域作者。**加入信号 B 的原因**：评测金标按作者标签定义，
+    只靠标题会把金标作者排除在外（实测检索命中 0%）。
     """
     data = _OA._get("/works", {"search": topic, "per_page": 50,
                                "sort": "cited_by_count:desc"})
     works = data.get("results") or []
-    matched = [w for w in works if _work_matches(topic, w)]
-    freq: dict[str, dict] = {}
-    for w in matched:
+    title_hits: dict[str, int] = {}
+    cited: dict[str, int] = {}
+    names: dict[str, str] = {}
+    for w in works:
+        ok = _work_matches(topic, w)
         for au in (w.get("authorships") or [])[:10]:
             a = au.get("author") or {}
             aid = a.get("id")
             if not aid:
                 continue
-            rec = freq.setdefault(aid, {"id": aid, "name": a.get("display_name"),
-                                        "orcid": a.get("orcid"), "matched": 0,
-                                        "cited": 0})
-            rec["matched"] += 1
-            rec["cited"] += int(w.get("cited_by_count") or 0)
-    if not freq:
-        return [], len(works)
-    # 至少 2 篇命中才算这个领域的作者；样本太少时放宽到 1 篇
-    need = 2 if sum(r["matched"] >= 2 for r in freq.values()) >= max_authors else 1
-    ranked = sorted([r for r in freq.values() if r["matched"] >= need],
-                    key=lambda r: (-r["matched"], -r["cited"]))[:max_authors]
-    out = []
-    for r in ranked:
-        aid = r["id"].rsplit("/", 1)[-1]
+            names.setdefault(aid, a.get("display_name"))
+            cited[aid] = cited.get(aid, 0) + int(w.get("cited_by_count") or 0)
+            if ok:
+                title_hits[aid] = title_hits.get(aid, 0) + 1
+    cands = sorted(cited.items(), key=lambda kv: -kv[1])[: max(max_authors * 5, 24)]
+    out: list[dict] = []
+    for aid, _c in cands:
+        short = aid.rsplit("/", 1)[-1]
         try:
-            prof = _OA._get(f"/authors/{aid}", {})
+            prof = _OA._get(f"/authors/{short}", {})
         except Exception:
             prof = {}
         if not prof:
-            prof = {"id": r["id"], "display_name": r["name"], "orcid": r["orcid"],
-                    "works_count": r["matched"], "cited_by_count": r["cited"],
-                    "last_known_institutions": [], "topics": []}
-        prof["_matched_works"] = r["matched"]
+            continue
+        label_hit = any(topic.lower() in l.lower() for l in _labels(prof))
+        th = title_hits.get(aid, 0)
+        if not label_hit and th < 2:
+            continue
+        prof["_matched_works"] = th
+        prof["_signal"] = "both" if (label_hit and th) else ("label" if label_hit else "title")
         out.append(prof)
-    return out, len(works)
-
+        if len(out) >= max_authors:
+            break
+    # 排序：标签命中优先，其次标题命中数、被引
+    out.sort(key=lambda a: (0 if a.get("_signal") in ("label", "both") else 1,
+                            -int(a.get("_matched_works") or 0),
+                            -int(a.get("cited_by_count") or 0)))
+    return out[:max_authors], len(works)
 
 
 def _index_person(conn, pid: int, name: str, topics: list[str], inst: str | None) -> None:
@@ -342,7 +355,8 @@ def expand_topic(topic: str, *, max_authors: int = 5, works_per_author: int = 10
         conn.close()
 
     status = "published" if publish else "mixed"
-    _log(topic, added_people, added_works, pids, status)
+    _log(topic, added_people, added_works, pids, status,
+         note="signals=" + ",".join(sorted({a.get("_signal") or "?" for a in authors})))
     log(f"  扩充「{topic}」：新增 {added_people} 人 / {added_works} 篇（{status}）")
     return {"ok": True, "topic": topic, "added_people": added_people,
             "added_works": added_works, "pids": pids, "status": status}

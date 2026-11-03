@@ -61,7 +61,12 @@ def score_case(case: dict, results: list[dict]) -> dict:
 
 
 def run(cases: list[dict], log=print) -> dict:
+    import os
     from app import agent_llm, session_memory, user_memory
+    # 评测 Agent 时必须关掉自动扩充：否则"库里没有"会触发 OpenAlex 采集，
+    # 测到的就不是 Agent 本身（实测延迟从 9s 涨到 26s）。
+    _prev = os.environ.get("ST_AUTO_EXPAND")
+    os.environ["ST_AUTO_EXPAND"] = "0"
 
     rows = []
     for c in cases:
@@ -103,6 +108,10 @@ def run(cases: list[dict], log=print) -> dict:
         "latency_p95": round(sorted(ms)[max(0, int(n * 0.95) - 1)], 1) if ms else 0,
         "failed": [r["id"] for r in rows if not r["passed"]],
     }
+    if _prev is None:
+        os.environ.pop("ST_AUTO_EXPAND", None)
+    else:
+        os.environ["ST_AUTO_EXPAND"] = _prev
     return {"summary": summary, "rows": rows}
 
 

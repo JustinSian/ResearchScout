@@ -47,6 +47,21 @@ def _person_brief(row) -> dict:
 
 
 
+_FTS_STOP = {"and", "the", "of", "for", "with", "using", "based", "analysis",
+             "methods", "method", "techniques", "study", "research", "data",
+             "system", "systems", "model", "models", "review", "approach",
+             "applications", "application", "detection", "management"}
+
+
+def _fts_safe(q: str) -> str:
+    """长主题串直接进 FTS 会被 "and/of/analysis" 这类词污染（会把心理学、ML 大牛
+    都召回来）。这里剥掉通用词，只留实词。"""
+    import re as _re
+    toks = [t for t in _re.findall(r"[A-Za-z][A-Za-z\-]+", q or "")
+            if t.lower() not in _FTS_STOP]
+    return " ".join(toks) or (q or "")
+
+
 def _topic_experts(query: str, limit: int = 5) -> list[dict]:
     """按人物主题索引找专家（people_fts 的 topics 列）。
 
@@ -57,7 +72,7 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
         from app.search import search_people
         # 多取一批（100~200）再按被引重排：FTS 的 bm25 只反映词面匹配，
         # 取太少会把高被引专家挤出候选池（实测 50 → 100 后 recall@10 从 61% 到 85%）。
-        hits = search_people(query, limit=min(max(limit * 20, 100), 200))
+        hits = search_people(_fts_safe(query), limit=min(max(limit * 20, 100), 200))
     except Exception:
         return []
     if not hits:
@@ -79,6 +94,29 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
                         "cites": row["cited_by_count"], "topic_score": round(float(score), 4)})
     finally:
         conn.close()
+    # 关键词过滤：FTS 会"放宽匹配"（"networks" 能把 Hinton 召回），
+    # 这里要求人物标签里至少命中 2 个实词（单词主题则 1 个）。
+    import re as _re
+    kws = [t.lower() for t in _re.findall(r"[A-Za-z][A-Za-z\-]+", _fts_safe(query))
+           if len(t) > 3]
+    if kws:
+        need = 2 if len(kws) >= 2 else 1
+        kept = []
+        for it in out:
+            tags = []
+            try:
+                conn2 = connect()
+                row = conn2.execute("SELECT topics FROM people WHERE pid=?",
+                                    (int(it["pid"]),)).fetchone()
+                conn2.close()
+                import json as _json
+                tags = [str(t).lower() for t in (_json.loads(row["topics"] or "[]") if row else [])]
+            except Exception:
+                tags = []
+            blob = " ".join(tags)
+            if sum(1 for k in kws if k in blob) >= need:
+                kept.append(it)
+        out = kept
     out.sort(key=lambda it: (-(it.get("cites") or 0), -it.get("topic_score", 0)))
     return out[:limit]
 
