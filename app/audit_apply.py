@@ -68,9 +68,14 @@ def stats(rows: list[dict]) -> dict:
 
 
 def main() -> None:
-    answers = parse_answers(AUD / "review_answers.txt")
-    order = parse_order(AUD / "review.txt")
-    mapping = json.loads((AUD / "mapping.json").read_text(encoding="utf-8"))
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dir", default="eval/audit")
+    a = ap.parse_args()
+    aud = ROOT / a.dir
+    answers = parse_answers(aud / "review_answers.txt")
+    order = parse_order(aud / "review.txt")
+    mapping = json.loads((aud / "mapping.json").read_text(encoding="utf-8"))
 
     rows = []
     for num, row_id in sorted(order.items()):
@@ -80,7 +85,7 @@ def main() -> None:
         rows.append({"row_id": row_id, "num": num, "orig": orig, "kind": kind,
                      "label": label, "note": note})
 
-    out = AUD / "audit_labeled.csv"
+    out = aud / "audit_labeled.csv"
     with out.open("w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["row_id", "num", "orig", "kind",
                                           "label", "note"])

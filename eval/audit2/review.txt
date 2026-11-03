@@ -1,0 +1,152 @@
+专家盲审（共 30 条）
+判定：是 / 否 / 边界；回复格式：编号+判定，如 1是 2否 3边界
+
+ 1. [Ra1725102] 问题：Normalization (sociology)
+    Frank Speleman · Ghent University Hospital · 被引 24037
+    标签：Biology / Computational biology / Housekeeping gene / Normalization (sociology) / Database normalization / Human genetics
+    代表作：Accurate normalization of real-time quantitative RT-PCR data by geomet | qBase relative quantification framework and software for management an
+
+ 2. [Rcc92d33d] 问题：Sample (material)
+    Laura Johnson · Family Health International 360 · 被引 20729
+    标签：Operationalization / Data collection / Nonprobability sampling / Sample (material) / Saturation (graph theory)
+    代表作：How Many Interviews Are Enough?
+
+ 3. [R79eaa723] 问题：Quasar
+    M. Fukugita · Institute for Advanced Study · 被引 27316
+    标签：Physics / Galaxy / Astrophysics / Sky / Astronomy / Quasar
+    代表作：The Sloan Digital Sky Survey: Technical Summary | THE SEVENTH DATA RELEASE OF THE SLOAN DIGITAL SKY SURVEY | Cosmological parameters from SDSS and WMAP
+
+ 4. [Rd9e2ec8d] 问题：Ophthalmology
+    Peter K. Kaiser · Cleveland Clinic · 被引 9406
+    标签：Macular degeneration / Ranibizumab / Medicine / Ophthalmology / Monoclonal / Verteporfin
+    代表作：Ranibizumab for Neovascular Age-Related Macular Degeneration | Ranibizumab versus Verteporfin for Neovascular Age-Related Macular Deg
+
+ 5. [R40b2d002] 问题：Selection (genetic algorithm)
+    Robert Lanfear · Australian National University · 被引 27840
+    标签：Phylogenetic tree / Biology / Inference / Tree (set theory) / Tree rearrangement / Akaike information criterion
+    代表作：IQ-TREE 2: New Models and Efficient Methods for Phylogenetic Inference | PartitionFinder: Combined Selection of Partitioning Schemes and Substi | PartitionFinder 2: New Methods for Selecting Partitioned Models of Evo
+
+ 6. [R80289e32] 问题：Algorithm
+    Airlie J. McCoy · University of Cambridge · 被引 67994
+    标签：Computer science / Software / Python (programming language) / Automation / Graphics / Phaser
+    代表作：PHENIX : a comprehensive Python-based system for macromolecular struct | Phaser crystallographic software | Overview of the CCP 4 suite and current developments
+
+ 7. [R47aa2dba] 问题：Macular degeneration
+    David M. Brown · Houston Methodist · 被引 9406
+    标签：Macular degeneration / Ranibizumab / Medicine / Ophthalmology / Monoclonal / Verteporfin
+    代表作：Ranibizumab for Neovascular Age-Related Macular Degeneration | Ranibizumab versus Verteporfin for Neovascular Age-Related Macular Deg
+
+ 8. [Rffec3fee] 问题：McDonald criteria
+    Chris H. Polman · Vrije Universiteit Amsterdam · 被引 20153
+    标签：Multiple sclerosis / Medicine / McDonald criteria / Space (punctuation) / Diagnostic test / Magnetic resonance imaging
+    代表作：Diagnostic criteria for multiple sclerosis: 2010 Revisions to the McDo | Recommended diagnostic criteria for multiple sclerosis: Guidelines fro | A Randomized, Placebo-Controlled Trial of Natalizumab for Relapsing Mu
+
+ 9. [Rd5de6e91] 问题：Consistency (knowledge bases)
+    Robert Alan Edwards · Argonne National Laboratory · 被引 24957
+    标签：Computer science / Annotation / Genome / Metagenomics / Consistency (knowledge bases) / Service (business)
+    代表作：The RAST Server: Rapid Annotations using Subsystems Technology | Quality control and preprocessing of metagenomic datasets | The SEED and the Rapid Annotation of microbial genomes using Subsystem
+
+10. [R9c8052e3] 问题：National Cholesterol Education Program
+    Scott M. Grundy · 机构未知 · 被引 63023
+    标签：Medicine / National Cholesterol Education Program / Cholesterol / Internal medicine / Blood cholesterol / Coronary heart disease
+    代表作：Summary of the second report of the National Cholesterol Education Pro | Harmonizing the Metabolic Syndrome | Implications of Recent Clinical Trials for the National Cholesterol Ed
+
+11. [Rf5097b4f] 问题：Optoelectronics
+    Xiaohe Li · Inner Mongolia Medical University · 被引 547
+    标签：Materials science / Computer science / Optoelectronics / Physics / Engineering
+    代表作：Clinical characteristics of COVID-19 infection in chronic obstructive 
+
+12. [R4ad5cfbc] 问题：Compact Muon Solenoid
+    T. Bergauer · Austrian Academy of Sciences · 被引 15371
+    标签：Physics / Compact Muon Solenoid / Large Hadron Collider / Particle physics / Higgs boson / Nuclear physics
+    代表作：Observation of a new boson at a mass of 125 GeV with the CMS experimen | The CMS experiment at the CERN LHC
+
+13. [Rf3faa8e8] 问题：Gastroenterology
+    Jifang Sheng · First Affiliated Hospital Zhejiang University · 被引 17462
+    标签：Medicine / Internal medicine / Biology / Gastroenterology / Immunology
+    代表作：Clinical findings in a group of patients infected with the 2019 novel  | Epidemiological, clinical and virological characteristics of 74 cases  | Human infections with the emerging avian influenza A H7N9 virus from w
+
+14. [R7f453a0e] 问题：Aerosol
+    James E. Hansen · Goddard Institute for Space Studies · 被引 10786
+    标签：Humanity / Planetary boundaries / Space (punctuation) / Physics / Environmental ethics / Radiative forcing
+    代表作：Planetary Boundaries: Exploring the Safe Operating Space for Humanity | Climate Forcing by Anthropogenic Aerosols
+
+15. [R32833106] 问题：Supercapacitor
+    Matthias Thommes · 机构未知 · 被引 27288
+    标签：Physisorption / Chemical nomenclature / Chemistry / Adsorption / Surface (topology) / Graphene
+    代表作：Physisorption of gases, with special reference to the evaluation of su | Carbon-Based Supercapacitors Produced by Activation of Graphene
+
+16. [R3ce1268c] 问题：Pembrolizumab
+    Antoni Ribas · University of California, Los Angeles · 被引 28624
+    标签：Medicine / Internal medicine / Ipilimumab / Pembrolizumab / Melanoma / Rash
+    代表作：Improved Survival with Vemurafenib in Melanoma with BRAF V600E Mutatio | Pembrolizumab versus Ipilimumab in Advanced Melanoma | Genetic Basis for Clinical Response to CTLA-4 Blockade in Melanoma
+
+17. [R009f0016] 问题：Documentation
+    David Posada · Brigham Young University · 被引 44151
+    标签：Akaike information criterion / Bayesian information criterion / Biology / Model selection / Documentation / Substitution (logic)
+    代表作：MODELTEST: testing the model of DNA substitution. | jModelTest: Phylogenetic Model Averaging | TCS: a computer program to estimate gene genealogies
+
+18. [R8e4edc90] 问题：Data collection
+    Leslie Ann Curry · Yale University · 被引 9104
+    标签：Computer science / Data science / Data collection / Data integration / Leverage (statistics) / Qualitative research
+    代表作：Achieving Integration in Mixed Methods Designs—Principles and Practice | Qualitative Data Analysis for Health Services Research: Developing Tax
+
+19. [R253d9e30] 问题：Data collection
+    Jenny V. Kitzinger · University of Glasgow · 被引 10795
+    标签：Focus group / Focus (optics) / Nothing / Qualitative research / Advice (programming) / Group (periodic table)
+    代表作：Qualitative Research: Introducing focus groups | The methodology of Focus Groups: the importance of interaction between
+
+20. [R2c34bf1c] 问题：Regimen
+    Timothy J. Iveson · Southampton General Hospital · 被引 10756
+    标签：Medicine / Cisplatin / Epirubicin / Regimen / Perioperative / Gemcitabine
+    代表作：Perioperative Chemotherapy versus Surgery Alone for Resectable Gastroe | Cisplatin plus Gemcitabine versus Gemcitabine for Biliary Tract Cancer
+
+21. [R1d74bd1c] 问题：Osimertinib
+    Busayamas Chewaskulyong · Maharaj Nakorn Chiang Mai Hospital · 被引 13769
+    标签：Medicine / Gefitinib / Carboplatin / Hazard ratio / Internal medicine / Osimertinib
+    代表作：Gefitinib or Carboplatin–Paclitaxel in Pulmonary Adenocarcinoma | Osimertinib in Untreated EGFR -Mutated Advanced Non–Small-Cell Lung Ca
+
+22. [R536e95df] 问题：Proteomics
+    Per Oksvold · Science for Life Laboratory · 被引 22290
+    标签：Biology / Computational biology / Human Protein Atlas / Transcriptome / Proteome / Human proteome project
+    代表作：Tissue-based map of the human proteome | Analysis of the Human Tissue-specific Expression by Genome-wide Integr | A pathology atlas of the human cancer transcriptome
+
+23. [R3d90fbac] 问题：Ischemic stroke
+    Erich Bluhmki · Boehringer Ingelheim (Germany) · 被引 18864
+    标签：Medicine / Empagliflozin / Hazard ratio / Myocardial infarction / Internal medicine / Thrombolysis
+    代表作：Empagliflozin, Cardiovascular Outcomes, and Mortality in Type 2 Diabet | Thrombolysis with Alteplase 3 to 4.5 Hours after Acute Ischemic Stroke
+
+24. [R074206e2] 问题：Nursing
+    Shishi Wu · University of Toronto · 被引 2414
+    标签：Medicine / Political science / Nursing / Pathology / Law
+    代表作：Effects of a comprehensive antibiotic stewardship program on antibioti | Effects of a Comprehensive Antibiotic Stewardship Program on Antibioti
+
+25. [Rf08db22f] 问题：Intelligence quotient
+    John Nicholas Constantino · Washington University in St. Louis · 被引 9844
+    标签：Medicine / Autism spectrum disorder / Autism / Developmental disorder / Psychiatry / Intelligence quotient
+    代表作：Prevalence of Autism Spectrum Disorder Among Children Aged 8 Years — A | Prevalence of Autism Spectrum Disorder Among Children Aged 8 Years — A
+
+26. [R3170fab2] 问题：Autophagosome
+    Mehrdad Alirezaei · Scripps Research Institute · 被引 9894
+    标签：Autophagy / Autophagosome / Biology / Cell biology / Vacuole / Multicellular organism
+    代表作：Guidelines for the use and interpretation of assays for monitoring aut | Guidelines for the use and interpretation of assays for monitoring aut
+
+27. [Ra93f32a9] 问题：Documentation
+    Alexandre Gramfort · Commissariat à l'Énergie Atomique et aux Énergies Alternatives · 被引 73477
+    标签：Python (programming language) / Computer science / Artificial intelligence / Documentation / MIT License / Scripting language
+    代表作：Scikit-learn: Machine Learning in Python | MEG and EEG data analysis with MNE-Python
+
+28. [Rd293056a] 问题：Osimertinib
+    Frances A. Shepherd · University Health Network · 被引 8799
+    标签：Medicine / Lung cancer / Erlotinib / Hazard ratio / Internal medicine / Osimertinib
+    代表作：Erlotinib in Previously Treated Non–Small-Cell Lung Cancer | Osimertinib or Platinum–Pemetrexed in EGFR T790M–Positive Lung Cancer
+
+29. [Rcadd40e9] 问题：Ticagrelor
+    Robert A. Harrington · Duke Clinical Research Institute · 被引 10741
+    标签：Medicine / Ticagrelor / Clopidogrel / P2Y12 / Myocardial infarction / Alirocumab
+    代表作：Ticagrelor versus Clopidogrel in Patients with Acute Coronary Syndrome | Alirocumab and Cardiovascular Outcomes after Acute Coronary Syndrome
+
+30. [R8ed2305d] 问题：Optoelectronics
+    Jianzhou Huang · Shanghai University · 被引 340
+    标签：Materials science / Terahertz radiation / Optics / Optoelectronics / Physics
+    代表作：Preclinical evaluation of the SARS-CoV-2 Mpro inhibitor RAY1216 shows 
