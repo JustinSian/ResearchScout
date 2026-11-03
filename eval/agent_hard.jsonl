@@ -1,0 +1,12 @@
+{"id": "h-nonexistent-person", "q": "介绍一下王小明，他是做量子计算方向的", "expect": {"refused": true}, "level": "hard", "why": "库里不存在这个人，必须拒答而不是编造履历"}
+{"id": "h-nonexistent-person-2", "q": "张伟明最近发过哪些论文", "expect": {"refused": true}, "level": "hard", "why": "虚构人名，应明确说查不到"}
+{"id": "h-impossible-topic", "q": "找研究 quantum gravity phenology 的专家", "expect": {"refused": true}, "level": "hard", "why": "两个不相干领域拼接，库里不可能有人"}
+{"id": "h-offdomain", "q": "介绍一位研究 NFT 艺术市场定价的学者", "expect": {"refused": true}, "level": "hard", "why": "完全跨出学术画像库的能力边界"}
+{"id": "h-compare-cites", "q": "钟南山和李兰娟，谁被引更高？", "expect": {"must_any": ["钟南山", "李兰娟"], "tools_any": ["compare", "profile", "citations"]}, "level": "hard", "why": "跨人对比：必须同时给出两个人，不能只答一个"}
+{"id": "h-collab-cross", "q": "钟南山和李兰娟合作过吗？", "expect": {"must_any": ["钟南山", "李兰娟"], "tools_any": ["collaborators", "compare", "profile"]}, "level": "hard", "why": "跨人关系查询，容易只查一个人就下结论"}
+{"id": "h-ambiguous", "q": "推荐几个专家", "expect": {"must_any": ["领域", "方向", "哪", "您"]}, "level": "hard", "why": "无任何上下文，正确行为是追问而不是硬推"}
+{"id": "h-memory-conflict", "q": "我现在研究什么方向？", "setup_queries": ["我研究帕金森", "我现在改做阿尔茨海默了"], "expect": {"must_any": ["阿尔茨海默"]}, "level": "hard", "why": "记忆冲突：新事实必须覆盖旧事实"}
+{"id": "h-memory-constraint", "q": "推荐几个呼吸科专家", "setup_queries": ["我只找中国的专家"], "expect": {"items_country_any": ["CN"], "tools_any": ["find_expert"]}, "level": "hard", "why": "记忆里的约束（只找中国）要在没有复述时生效：返回专家应全部/部分为中国"}
+{"id": "h-anaphora-compare", "turns": ["钟南山的合作者里谁被引最高？", "那李兰娟呢？"], "expect": {"must_any": ["李兰娟"]}, "level": "hard", "why": "第二轮只给新人名，靠上下文继承主题"}
+{"id": "h-count-unknown", "q": "库里有几位诺贝尔奖得主？", "expect": {"refused": true}, "level": "hard", "why": "库里没有奖项字段，不能编数字"}
+{"id": "h-multi-constraint", "q": "找近五年被引最高的中国呼吸科专家", "expect": {"must_any": ["呼吸"], "tools_any": ["find_expert"]}, "level": "hard", "why": "三个条件叠加：时间+被引+国家"}

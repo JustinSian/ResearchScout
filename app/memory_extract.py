@@ -13,7 +13,7 @@ import json
 import re
 
 # key 的取值是有限的，方便前端分组与召回打分
-KEYS = ("topic", "field", "constraint", "preference", "role", "org")
+KEYS = ("topic", "field", "constraint", "preference", "role", "org", "country")
 
 _TOPIC_STOP = "了。，,；;！!？?、 \n\t"
 
@@ -31,6 +31,14 @@ _TOPIC = re.compile(
     r"(?P<v>[^，。；,;\s]{2,20})")
 
 _FIELD = re.compile(r"(?:我)?(?:的)?(?:研究)?(?:方向|领域|专业)(?:是|为)\s*(?P<v>[^，。；,;\s]{2,20})")
+
+# 国家约束："我只找中国的专家" → country=中国
+_COUNTRY_NAMES = ("中国", "美国", "英国", "日本", "德国", "法国", "加拿大", "澳大利亚",
+                  "荷兰", "瑞士", "新加坡", "韩国", "印度", "意大利", "西班牙", "瑞典",
+                  "丹麦", "比利时", "奥地利", "以色列", "巴西")
+_COUNTRY_ONLY = re.compile(
+    r"(?:我)?(?:现在|目前)?(?:只|仅|只要|只找|仅找|只推荐|只考虑)"
+    r"(?:找|要|推荐|考虑|看)?\s*(?P<v>" + "|".join(_COUNTRY_NAMES) + r")")
 
 _CONSTRAINT = re.compile(
     r"(?:我)?(?:只要|只想要|不要太|不要|别给|不要推荐|不想看)\s*(?P<v>[^，。；,;]{2,20})")
@@ -76,6 +84,10 @@ def extract(query: str) -> list[dict]:
             if v:
                 out.append({"op": "set", "key": key, "value": v})
             break
+
+    m = _COUNTRY_ONLY.search(q)
+    if m:
+        out.append({"op": "set", "key": "country", "value": m.group("v")})
 
     m = _CONSTRAINT.search(q)
     if m:

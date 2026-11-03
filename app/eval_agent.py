@@ -50,6 +50,14 @@ def score_case(case: dict, results: list[dict]) -> dict:
         checks["refused_ok"] = bool(last.get("refused")) == bool(exp["refused"])
     if exp.get("tools_any"):
         checks["tools_ok"] = any(t in exp["tools_any"] for t in tools)
+    if exp.get("items_country_any"):
+        want = set(exp["items_country_any"])
+        got = set()
+        for ev in (last.get("evidence") or []):
+            for it in (ev.get("items") or []):
+                if it.get("country"):
+                    got.add(str(it["country"]))
+        checks["country_ok"] = bool(got & want)
     if exp.get("memory"):
         remember_called = "remember" in tools
         noted = (NOTE_MARK in text) or bool(last.get("memory"))
@@ -119,8 +127,15 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--file", default="", help="指定用例文件（默认 eval/agent_cases.jsonl）")
+    ap.add_argument("--all", action="store_true", help="合并简单用例 + 难例")
     a = ap.parse_args()
-    cases = load_cases()
+    if a.file:
+        cases = load_cases(Path(a.file))
+    elif a.all:
+        cases = load_cases() + load_cases(CASES_PATH.parent / "agent_hard.jsonl")
+    else:
+        cases = load_cases()
     if a.limit:
         cases = cases[:a.limit]
     res = run(cases, log=(lambda *_: None) if a.json else print)

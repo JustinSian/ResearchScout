@@ -98,7 +98,7 @@ _REFUSAL_MARKERS = ("没有找到", "没找到", "找不到", "未能找到", "�
 # "查不到…"等十几种说法（实测同一条件下判否率只有 3/5）。补一条"否定词 + 主题词"。
 _NEG_TOPIC = re.compile(
     r"(库里|系统|数据库|资料库|专家库)?\s*(没有|没|未|无法|不能)"
-    r"[^。；;]{0,18}(研究|专家|学者|匹配|检索|推荐|找到|相关)")
+    r"[^。；;]{0,40}(研究|专家|学者|匹配|命中|核心|结果|检索|推荐|找到|相关)")
 
 
 def _looks_refusal(text: str) -> bool:
@@ -314,6 +314,51 @@ def _ack_disclosure(query: str, uid: str, sid: str, facts: list[dict]) -> dict:
             "finish_reason": "disclosure"}
 
 
+
+# ---- 纯记忆问答 / 澄清：不走检索（工具返回空时会被"无证据守卫"误判为拒答）----
+_SELF_Q = re.compile(r"(我|我的).{0,8}(研究|方向|领域|记得|之前|说过|做的是|是什么)")
+_GENERIC_REQ = re.compile(
+    r"^(?:请|帮我|给我)?\s*(?:推荐|找|要|来)\s*(?:几个|一些|几位|批)?\s*"
+    r"(?:专家|学者|人|老师)\s*[。？?]?$")
+_KEY_LABEL = {"topic": "研究方向", "field": "研究领域", "constraint": "限制条件",
+              "preference": "偏好", "role": "身份", "org": "单位", "country": "国家"}
+
+
+def _memory_answer(query: str, uid: str, sid: str) -> dict | None:
+    """"我现在研究什么方向？"这类问题应该由记忆回答，而不是去检索。"""
+    if not uid or not _SELF_Q.search(query or ""):
+        return None
+    try:
+        facts = user_memory.facts(uid)
+    except Exception:
+        return None
+    if not facts:
+        return None
+    parts = [f"{_KEY_LABEL.get(f['key'], f['key'])}={f['value']}" for f in facts]
+    text = "根据你的长期记忆：" + "；".join(parts) + "。"
+    return {"ok": True, "answer": text, "refused": False, "citations": [],
+            "evidence": [], "steps": [], "usage": {"prompt_tokens": 0, "completion_tokens": 0},
+            "cost_usd": 0.0, "ms": 0.0, "engine": "llm", "memory": None,
+            "finish_reason": "memory_answer"}
+
+
+def _clarify(query: str, uid: str) -> dict | None:
+    """没有任何领域信息的"推荐几个专家"应该追问，而不是硬推一批人。"""
+    if not _GENERIC_REQ.match((query or "").strip()):
+        return None
+    try:
+        if uid and user_memory.facts(uid):
+            return None          # 有记忆主题时，交给记忆补全
+    except Exception:
+        pass
+    return {"ok": True,
+            "answer": "你想找哪个领域的专家？告诉我方向（例如「帕金森」「图神经网络」），"
+                      "或者补充国家/机构类型等条件，我再帮你找。",
+            "refused": False, "citations": [], "evidence": [], "steps": [],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0}, "cost_usd": 0.0,
+            "ms": 0.0, "engine": "llm", "memory": None, "finish_reason": "clarify"}
+
+
 def chat(query: str, uid: str = "", sid: str = "") -> dict:
     """对外入口：跑一次 Agent，并写回短期/长期记忆。"""
     # 自述句（"我研究帕金森"）不当作检索问题：直接记忆 + 确认
@@ -324,6 +369,14 @@ def chat(query: str, uid: str = "", sid: str = "") -> dict:
             facts = []
         if facts:
             return _ack_disclosure(query, uid, sid, facts)
+    # 纯记忆问题（"我现在研究什么方向？"）直接由记忆回答，避免被无证据守卫判成拒答
+    mem_ans = _memory_answer(query, uid, sid)
+    if mem_ans:
+        return mem_ans
+    # 无任何领域信息的泛请求 → 追问
+    clar = _clarify(query, uid)
+    if clar:
+        return clar
     result = run(query, uid=uid, sid=sid)
     if not result.get("ok"):
         return result

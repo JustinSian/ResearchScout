@@ -110,6 +110,7 @@ def build_hint(uid: str, query: str) -> dict:
         "constraint": first("constraint"),
         "preference": first("preference"),
         "org": first("org"),
+        "country": first("country"),
         "facts": [{k: f.get(k) for k in ("key", "value", "valid_from", "source")}
                   for f in facts],
     }
