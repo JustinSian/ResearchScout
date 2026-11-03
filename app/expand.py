@@ -157,16 +157,38 @@ def _upsert_work(conn, w: dict) -> int | None:
 
 
 
-def _work_matches(topic: str, w: dict) -> bool:
-    """论文是否**真的在讲**这个主题：只看标题。
+_TOPIC_STOP = {"and", "the", "of", "for", "with", "using", "based", "analysis",
+               "methods", "method", "techniques", "technique", "study", "research",
+               "data", "system", "systems", "model", "models", "review", "approach",
+               "applications", "application", "detection", "management"}
 
-    为什么不用摘要：摘要里常写"需与 Niemann-Pick 病鉴别"，会把肝胆/影像学者
-    误判成该病专家（实测发生过）。标题命中是更严的判据，宁可少收。
+
+def _keywords(topic: str) -> list[str]:
+    import re as _re
+    return [w for w in _re.findall(r"[a-z][a-z\-]{3,}", (topic or "").lower())
+            if w not in _TOPIC_STOP]
+
+
+def _work_matches(topic: str, w: dict) -> bool:
+    """论文是否**真的在讲**这个主题：标题匹配。
+
+    两种命中方式：
+      1. 完整短语出现在标题里（"Niemann-Pick disease"）；
+      2. 主题关键词至少命中 2 个（"Colorectal Cancer Screening and Detection"
+         → colorectal + cancer + screening，标题不可能逐字出现整个短语）。
+
+    只查标题、不查摘要：摘要里"需与 X 鉴别"会把别的领域的人误判成该领域专家。
     """
     t = (topic or "").lower().strip()
     if not t:
         return False
-    return t in (w.get("title") or "").lower()
+    title = (w.get("title") or "").lower()
+    if t in title:
+        return True
+    kws = _keywords(topic)
+    if len(kws) < 2:
+        return False
+    return sum(1 for k in kws if k in title) >= 2
 
 
 def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:

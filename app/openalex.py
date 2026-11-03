@@ -63,7 +63,9 @@ class OpenAlex:
 
     def _get(self, path: str, params: dict[str, Any], retries: int = 4) -> dict:
         params = {**params, "mailto": MAILTO}
-        url = f"{BASE}{path}?{urllib.parse.urlencode(params)}"
+        base_url = f"{BASE}{path}?{urllib.parse.urlencode(params)}"
+        # 必须带 key：不带就走"全网络共享的 $0.10 免费额度"，很容易 401（实测踩过）
+        url = with_key(base_url)
         last_err: Exception | None = None
         for attempt in range(retries):
             self.limiter.wait()
@@ -73,6 +75,12 @@ class OpenAlex:
                     return json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as exc:
                 last_err = exc
+                if exc.code in (401, 403):
+                    # key 失效/被拒：降级为无 key 模式后重试（不能整条流水线挂掉）
+                    disable_key(f"{exc.code}")
+                    url = base_url
+                    time.sleep(0.5)
+                    continue
                 if exc.code in (429, 500, 502, 503, 504):
                     time.sleep(1.5 * (attempt + 1))
                     continue
