@@ -72,7 +72,9 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
         from app.search import search_people
         # 多取一批（100~200）再按被引重排：FTS 的 bm25 只反映词面匹配，
         # 取太少会把高被引专家挤出候选池（实测 50 → 100 后 recall@10 从 61% 到 85%）。
-        hits = search_people(_fts_safe(query), limit=min(max(limit * 20, 100), 200))
+        import os as _os
+        _pool = int(_os.environ.get("ST_TOPIC_POOL", "100"))
+        hits = search_people(_fts_safe(query), limit=max(min(_pool, 400), limit))
     except Exception:
         return []
     if not hits:
@@ -122,7 +124,8 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
         out = kept
     # 单词概念查询：自动扩充进来的人不参与（它们是为"多词缺口主题"准备的，
     # 混进概念查询会挤掉原有金标作者：实测 R@10 88.7% → 80.2%）
-    if len(kws) < 2:
+    import os as _os2
+    if len(kws) < 2 or _os2.environ.get("ST_EXCLUDE_AUTO_EXPAND") == "1":
         out = [it for it in out if (it.get("source") or "") != "auto_expand"]
     out.sort(key=lambda it: (-(it.get("cites") or 0), -it.get("topic_score", 0)))
     return out[:limit]

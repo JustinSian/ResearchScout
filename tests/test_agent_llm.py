@@ -89,3 +89,10 @@ def test_remember_tool_writes_memory(env):
     out = _run_tool("remember", {"key": "topic", "value": "单细胞测序"}, "u1", "s1")
     assert out["ok"] is True
     assert [f["value"] for f in um.facts("u1")] == ["单细胞测序"]
+
+
+def test_auto_expand_defaults_off(monkeypatch):
+    """自动扩充默认关闭：评测显示它会拉低原有概念查询的 R@10。"""
+    import os
+    monkeypatch.delenv("ST_AUTO_EXPAND", raising=False)
+    assert os.environ.get("ST_AUTO_EXPAND", "0") != "1"

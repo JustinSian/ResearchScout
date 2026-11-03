@@ -329,7 +329,7 @@ def chat(query: str, uid: str = "", sid: str = "") -> dict:
             _need_expand = not topic_match.matches(_topic, _pids)
     except Exception:
         pass
-    if _need_expand and (os.environ.get("ST_AUTO_EXPAND", "1") != "0"):
+    if _need_expand and (os.environ.get("ST_AUTO_EXPAND", "0") == "1"):
         try:
             from app import expand
             topic = _topic
