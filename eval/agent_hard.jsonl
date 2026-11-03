@@ -10,3 +10,11 @@
 {"id": "h-anaphora-compare", "turns": ["钟南山的合作者里谁被引最高？", "那李兰娟呢？"], "expect": {"must_any": ["李兰娟"]}, "level": "hard", "why": "第二轮只给新人名，靠上下文继承主题"}
 {"id": "h-count-unknown", "q": "库里有几位诺贝尔奖得主？", "expect": {"refused": true}, "level": "hard", "why": "库里没有奖项字段，不能编数字"}
 {"id": "h-multi-constraint", "q": "找近五年被引最高的中国呼吸科专家", "expect": {"must_any": ["呼吸"], "tools_any": ["find_expert"]}, "level": "hard", "why": "三个条件叠加：时间+被引+国家"}
+{"id": "h-nonexistent-person-3", "q": "介绍一下赵大勇，做脑机接口方向的", "expect": {"refused": true}, "level": "hard", "why": "库里不存在这个人"}
+{"id": "h-nonexistent-person-4", "q": "李建国最近发表了哪些论文", "expect": {"refused": true}, "level": "hard", "why": "虚构人名"}
+{"id": "h-nonexistent-person-5", "q": "陈晓东的研究方向是什么", "expect": {"refused": true}, "level": "hard", "why": "虚构人名"}
+{"id": "h-impossible-topic-2", "q": "找研究 blockchain neuroscience 的专家", "expect": {"refused": true}, "level": "hard", "why": "两个不相干领域拼接"}
+{"id": "h-impossible-topic-3", "q": "找研究 CRISPR gastronomy 的专家", "expect": {"refused": true}, "level": "hard", "why": "CRISPR 与美食学拼接"}
+{"id": "h-clarify-2", "q": "给我推荐几个专家", "expect": {"finish_reason": "clarify"}, "level": "hard", "why": "空上下文应追问"}
+{"id": "h-clarify-3", "q": "来几位学者", "expect": {"finish_reason": "clarify"}, "level": "hard", "why": "空上下文应追问"}
+{"id": "h-memory-answer-2", "q": "我的研究领域是什么", "setup_queries": ["我的研究领域是肿瘤免疫"], "expect": {"finish_reason": "memory_answer", "must_any": ["肿瘤免疫"]}, "level": "hard", "why": "领域类问题直接由记忆回答"}

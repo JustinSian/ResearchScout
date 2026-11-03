@@ -272,7 +272,8 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
 
 
 _QUESTION = ("谁", "哪些", "哪个", "找", "推荐", "怎么", "如何", "吗", "?", "？",
-             "who", "which", "find", "recommend", "how", "what")
+             "什么", "多少", "哪", "呢", "几位", "who", "which", "find",
+             "recommend", "how", "what")
 
 
 def _is_disclosure(query: str) -> bool:

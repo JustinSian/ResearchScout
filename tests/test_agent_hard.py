@@ -21,3 +21,10 @@ def test_country_constraint_extraction():
     from app.memory_extract import extract
     got = extract("我只找中国的专家")
     assert {"op": "set", "key": "country", "value": "中国"} in got
+
+
+def test_question_words_block_disclosure():
+    from app.agent_llm import _is_disclosure
+    # "我的研究领域是什么" 是提问，不是自述（曾因缺"什么"被误判为自述）
+    assert _is_disclosure("我的研究领域是什么") is False
+    assert _is_disclosure("我研究帕金森") is True
