@@ -1,0 +1,186 @@
+专家盲审（共 41 条）
+判定：是 / 否 / 边界；回复格式：编号+判定，如 1是 2否 3边界
+
+ 1. [R8b33e968] 问题：Bioinformatics and Genomic Networks
+    Selçuk Onur Sümer · Memorial Sloan Kettering Cancer Center · 被引 39089
+    代表作：The cBio Cancer Genomics Portal: An Open Platform for Exploring Multid | Integrative Analysis of Complex Cancer Genomics and Clinical Profiles  | Comprehensive molecular characterization of gastric adenocarcinoma
+
+ 2. [R3fd42359] 问题：SARS-CoV-2 and COVID-19 Research
+    Sue Ann Costa Clemens · University of Siena · 被引 4617
+    代表作：Safety and efficacy of the ChAdOx1 nCoV-19 vaccine (AZD1222) against S
+
+ 3. [R478c281d] 问题：Advanced Physical and Chemical Molecular Interactions
+    Pieter J. in ’t Veld · BASF (Germany) · 被引 14504
+    代表作：LAMMPS - a flexible simulation tool for particle-based materials model | Application of Ewald summations to long-range dispersion forces | Temperature-Dependent Elasticity of a Semicrystalline Interphase Compo
+
+ 4. [R9f767c45] 问题：Algorithm
+    Nan M. Laird · Educational Testing Service · 被引 67773
+    标签：Medicine / Adverse effect / Incidence (geometry) / Emergency medicine / Maximum likelihood / Expectation–maximization algorithm
+    代表作：Maximum Likelihood from Incomplete Data Via the EM Algorithm | Random-Effects Models for Longitudinal Data | Incidence of Adverse Events and Negligence in Hospitalized Patients
+
+ 5. [R92edcf45] 问题：Bioinformatics and Genomic Networks
+    Benjamin E Gross · Memorial Sloan Kettering Cancer Center · 被引 32596
+    代表作：The cBio Cancer Genomics Portal: An Open Platform for Exploring Multid | Integrative Analysis of Complex Cancer Genomics and Clinical Profiles 
+
+ 6. [R617959ce] 问题：Bioinformatics and Genomic Networks
+    Erik Larsson · Memorial Sloan Kettering Cancer Center · 被引 32596
+    代表作：The cBio Cancer Genomics Portal: An Open Platform for Exploring Multid | Integrative Analysis of Complex Cancer Genomics and Clinical Profiles 
+
+ 7. [R5bc8fbbc] 问题：Human Protein Atlas
+    Linn Fagerberg · Science for Life Laboratory · 被引 22290
+    标签：Biology / Computational biology / Human Protein Atlas / Transcriptome / Proteome / Human proteome project
+    代表作：Tissue-based map of the human proteome | Analysis of the Human Tissue-specific Expression by Genome-wide Integr | A pathology atlas of the human cancer transcriptome
+
+ 8. [Re6a16a3b] 问题：3D Shape Modeling and Analysis
+    Luc Van Gool · Bulgarian Academy of Sciences · 被引 201115
+    代表作：The Pascal Visual Object Classes (VOC) Challenge | SURF: Speeded Up Robust Features | Speeded-Up Robust Features (SURF)
+
+ 9. [R377b9aa2] 问题：SARS-CoV-2 and COVID-19 Research
+    Lily Yin Weckx · Universidade Federal de São Paulo · 被引 4617
+    代表作：Safety and efficacy of the ChAdOx1 nCoV-19 vaccine (AZD1222) against S
+
+10. [R4164d839] 问题：Association (psychology)
+    David S. Knopman · Mayo Clinic · 被引 29011
+    标签：Dementia / Disease / Alzheimer's disease / Association (psychology) / Medicine / Frontotemporal dementia
+    代表作：The diagnosis of dementia due to Alzheimer's disease: Recommendations  | Sensitivity of revised diagnostic criteria for the behavioural variant | Classification of primary progressive aphasia and its variants
+
+11. [Rbb2edb20] 问题：SARS-CoV-2 and COVID-19 Research
+    Emma C. Thomson · 机构未知 · 被引 9423
+    代表作：Tight blood pressure control and risk of macrovascular and microvascul | Safety and efficacy of the ChAdOx1 nCoV-19 vaccine (AZD1222) against S
+
+12. [Ra6eb8c9e] 问题：Ischemic stroke
+    Brian Lim Hoh · 机构未知 · 被引 20040
+    标签：Medicine / Guideline / Stroke (engine) / Ischemic stroke / Intensive care medicine / Health professionals
+    代表作：Guidelines for the Early Management of Patients With Acute Ischemic St | 2018 Guidelines for the Early Management of Patients With Acute Ischem | An Updated Definition of Stroke for the 21st Century
+
+13. [R3f1f65a8] 问题：Bioinformatics and Genomic Networks
+    Ethan G Cerami · Memorial Sloan Kettering Cancer Center · 被引 32596
+    代表作：The cBio Cancer Genomics Portal: An Open Platform for Exploring Multid | Integrative Analysis of Complex Cancer Genomics and Clinical Profiles 
+
+14. [Rec1d7da0] 问题：BMPR2
+    Anton Vonk Noordegraaf · 机构未知 · 被引 19711
+    标签：Medicine / Internal medicine / Intensive care medicine / Cardiology / Pulmonary hypertension / Bosentan
+    代表作：2015 ESC/ERS Guidelines for the diagnosis and treatment of pulmonary h | 2019 ESC Guidelines for the diagnosis and management of acute pulmonar | 2022 ESC/ERS Guidelines for the diagnosis and treatment of pulmonary h
+
+15. [Rd76d4330] 问题：Aerosol
+    Guohua Zhang · Chinese Academy of Sciences · 被引 3757
+    标签：Chemistry / Aerosol / Environmental chemistry / Environmental science / Organic chemistry
+    代表作：Influence of atmospheric environment on SARS-CoV-2transmission: A revi
+
+16. [Rcb91ce37] 问题：Estimation
+    Hanadi Khamis Al Hamad · Auckland University of Technology · 被引 18318
+    标签：Burden of disease / Medicine / Disease / Disease burden / Stroke (engine) / Dementia
+    代表作：Global, regional, and national burden of stroke and its risk factors,  | Estimation of the global prevalence of dementia in 2019 and forecasted | Global, regional, and national burden of diabetes from 1990 to 2021, w
+
+17. [R1a1afe87] 问题：Bioinformatics and Genomic Networks
+    Jianjiong Gao · Memorial Sloan Kettering Cancer Center · 被引 44814
+    代表作：The cBio Cancer Genomics Portal: An Open Platform for Exploring Multid | Integrative Analysis of Complex Cancer Genomics and Clinical Profiles  | Comprehensive molecular characterization of gastric adenocarcinoma
+
+18. [Rea959c21] 问题：Advanced Physical and Chemical Molecular Interactions
+    Aidan P. Thompson · Sandia National Laboratories California · 被引 20283
+    代表作：LAMMPS - a flexible simulation tool for particle-based materials model | Spectral neighbor analysis method for automated generation of quantum- | General formulation of pressure and stress tensor for arbitrary many-b
+
+19. [R2e9c82b1] 问题：Advanced Physical and Chemical Molecular Interactions
+    Trung Dac Nguyen · University of Chicago · 被引 16165
+    代表作：LAMMPS - a flexible simulation tool for particle-based materials model | Strong scaling of general-purpose molecular dynamics simulations on GP | Self-assembly of self-limiting monodisperse supraparticles from polydi
+
+20. [R5f2dd97f] 问题：Enzyme Structure and Function
+    Bernard Henrissat · Centre National de la Recherche Scientifique · 被引 20450
+    代表作：The carbohydrate-active enzymes database (CAZy) in 2013 | The Carbohydrate-Active EnZymes database (CAZy): an expert resource fo | The Genome of Black Cottonwood, Populus trichocarpa (Torr. & Gray)
+
+21. [Ra6233255] 问题：Intelligence quotient
+    Maureen S. Durkin · University of Wisconsin–Madison · 被引 9844
+    标签：Medicine / Autism spectrum disorder / Autism / Developmental disorder / Psychiatry / Intelligence quotient
+    代表作：Prevalence of Autism Spectrum Disorder Among Children Aged 8 Years — A | Prevalence of Autism Spectrum Disorder Among Children Aged 8 Years — A
+
+22. [Rc4069545] 问题：Advanced Physical and Chemical Molecular Interactions
+    Roberto Car · Princeton University · 被引 108598
+    代表作：QUANTUM ESPRESSO: a modular and open-source software project for quant | Unified Approach for Molecular Dynamics and Density-Functional Theory | Advanced capabilities for materials modelling with Q uantum ESPRESSO
+
+23. [Rd7210dff] 问题：McDonald criteria
+    Ludwig Kappos · University of Basel · 被引 13191
+    标签：Multiple sclerosis / Medicine / McDonald criteria / Space (punctuation) / Diagnostic test / Natalizumab
+    代表作：Diagnostic criteria for multiple sclerosis: 2010 Revisions to the McDo | A Randomized, Placebo-Controlled Trial of Natalizumab for Relapsing Mu
+
+24. [Rf1446bea] 问题：Proteomics
+    Per Oksvold · Science for Life Laboratory · 被引 22290
+    标签：Biology / Computational biology / Human Protein Atlas / Transcriptome / Proteome / Human proteome project
+    代表作：Tissue-based map of the human proteome | Analysis of the Human Tissue-specific Expression by Genome-wide Integr | A pathology atlas of the human cancer transcriptome
+
+25. [R687c966c] 问题：SARS-CoV-2 and COVID-19 Research
+    Guohui Fan · Chinese Academy of Medical Sciences & Peking Union Medical College · 被引 91804
+    代表作：Clinical features of patients infected with 2019 novel coronavirus in  | Clinical course and risk factors for mortality of adult inpatients wit | A Trial of Lopinavir–Ritonavir in Adults Hospitalized with Severe Covi
+
+26. [R0d464138] 问题：Macular degeneration
+    David M. Brown · Houston Methodist · 被引 9406
+    标签：Macular degeneration / Ranibizumab / Medicine / Ophthalmology / Monoclonal / Verteporfin
+    代表作：Ranibizumab for Neovascular Age-Related Macular Degeneration | Ranibizumab versus Verteporfin for Neovascular Age-Related Macular Deg
+
+27. [Rbde5c099] 问题：Severe acute respiratory syndrome coronavirus 2 (SARS-CoV-2)
+    Xiang Zhao · Capital Medical University · 被引 28244
+    标签：Pneumonia / Coronavirus disease 2019 (COVID-19) / Coronavirus / Severe acute respiratory syndrome coronavirus 2 (SARS-CoV-2) / 2019-20 coronavirus outbreak
+    代表作：A Novel Coronavirus from Patients with Pneumonia in China, 2019
+
+28. [R3fc1ea36] 问题：Physical therapy
+    D A Bloch · Stanford Medicine · 被引 31097
+    标签：Medicine / Rheumatoid arthritis / Wrist / Rheumatism / Rheumatoid factor / Osteoarthritis
+    代表作：The american rheumatism association 1987 revised criteria for the clas | Development of criteria for the classification and reporting of osteoa | Derivation of the sledai. A disease activity index for lupus patients
+
+29. [R1cfb10f6] 问题：Enzyme Structure and Function
+    Élodie Drula · Centre National de la Recherche Scientifique · 被引 6351
+    代表作：The carbohydrate-active enzymes database (CAZy) in 2013
+
+30. [R2827688d] 问题：Enzyme Structure and Function
+    Pedro M. Coutinho · Centre National de la Recherche Scientifique · 被引 16664
+    代表作：The carbohydrate-active enzymes database (CAZy) in 2013 | The Carbohydrate-Active EnZymes database (CAZy): an expert resource fo | The Genome of Black Cottonwood, Populus trichocarpa (Torr. & Gray)
+
+31. [R035b7399] 问题：SARS-CoV-2 and COVID-19 Research
+    Shabir Ahmed Madhi · 机构未知 · 被引 4617
+    代表作：Safety and efficacy of the ChAdOx1 nCoV-19 vaccine (AZD1222) against S
+
+32. [Rde11cc9d] 问题：Advanced Physical and Chemical Molecular Interactions
+    Axel Kohlmeyer · Temple University · 被引 15164
+    代表作：LAMMPS - a flexible simulation tool for particle-based materials model | Implementing molecular dynamics on hybrid high performance computers – | Fast analysis of molecular dynamics trajectories with graphics process
+
+33. [Rf17fd374] 问题：Ophthalmology
+    Jeffrey S. Heier · Ophthalmic Consultants of Boston · 被引 9406
+    标签：Macular degeneration / Ranibizumab / Medicine / Ophthalmology / Monoclonal / Verteporfin
+    代表作：Ranibizumab for Neovascular Age-Related Macular Degeneration | Ranibizumab versus Verteporfin for Neovascular Age-Related Macular Deg
+
+34. [Rb0c11fde] 问题：Multilevel model
+    Gretchen A Stevens · World Health Organization · 被引 8834
+    标签：Demography / Physical activity / Population / Confidence interval / Medicine / Multilevel model
+    代表作：Worldwide trends in insufficient physical activity from 2001 to 2016:  | Global trends in insufficient physical activity among adolescents: a p
+
+35. [Rbd69fe29] 问题：Data collection
+    Laura Johnson · Family Health International 360 · 被引 20729
+    标签：Operationalization / Data collection / Nonprobability sampling / Sample (material) / Saturation (graph theory)
+    代表作：How Many Interviews Are Enough?
+
+36. [Rc6a53877] 问题：Ternary operation
+    Volker Presser · Drexel University · 被引 16722
+    标签：Materials science / Carbide / Exfoliation joint / Ternary operation / Nitride / MXenes
+    代表作：Two‐Dimensional Nanocrystals Produced by Exfoliation of Ti 3 AlC 2 | Two-Dimensional Transition Metal Carbides
+
+37. [R77330bdb] 问题：Follicular lymphoma
+    Sattva Swarup Neelapu · The University of Texas MD Anderson Cancer Center · 被引 9686
+    标签：Medicine / Internal medicine / Follicular lymphoma / Neutropenia / Cytokine release syndrome / Effector
+    代表作：Axicabtagene Ciloleucel CAR T-Cell Therapy in Refractory Large B-Cell  | ASTCT Consensus Grading for Cytokine Release Syndrome and Neurologic T
+
+38. [R87b0b125] 问题：Chemical physics
+    Donald W. Brenner · United States Naval Research Laboratory · 被引 7761
+    标签：Hydrocarbon / Diamond / Chemical physics / Intramolecular force / Chemisorption / Covalent bond
+    代表作：Empirical potential for hydrocarbons for use in simulating the chemica | A second-generation reactive empirical bond order (REBO) potential ene
+
+39. [R076ce2ef] 问题：Consistency (knowledge bases)
+    Robert Alan Edwards · Argonne National Laboratory · 被引 24957
+    标签：Computer science / Annotation / Genome / Metagenomics / Consistency (knowledge bases) / Service (business)
+    代表作：The RAST Server: Rapid Annotations using Subsystems Technology | Quality control and preprocessing of metagenomic datasets | The SEED and the Rapid Annotation of microbial genomes using Subsystem
+
+40. [R7814e8a2] 问题：Enzyme Structure and Function
+    Vincent Lombard · Centre National de la Recherche Scientifique · 被引 16117
+    代表作：The carbohydrate-active enzymes database (CAZy) in 2013 | The Carbohydrate-Active EnZymes database (CAZy): an expert resource fo | Gut Microbiota from Twins Discordant for Obesity Modulate Metabolism i
+
+41. [Rde527100] 问题：Enzyme Structure and Function
+    Hemalatha Golaconda Ramulu · Centre National de la Recherche Scientifique · 被引 6351
+    代表作：The carbohydrate-active enzymes database (CAZy) in 2013

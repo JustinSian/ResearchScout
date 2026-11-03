@@ -125,12 +125,18 @@ kbd{border:1px solid #ccc;border-bottom-width:2px;border-radius:4px;padding:0 5p
   <button onclick="resetAll()">清空重来</button>
   <span>进度存在浏览器本地，刷新不丢</span>
 </div>
+<script id="audit-data" type="application/json">__DATA__</script>
 <script>
-const ROWS = __DATA__;
+const ROWS = JSON.parse(document.getElementById("audit-data").textContent);
 const KEY = "rs_audit_v1";
-let state = JSON.parse(localStorage.getItem(KEY) || "{}");
-let idx = parseInt(localStorage.getItem(KEY+"_i") || "0", 10);
-function save(){ localStorage.setItem(KEY, JSON.stringify(state)); localStorage.setItem(KEY+"_i", idx); }
+const mem = {};                       // file:// 下 localStorage 可能不可用，兜底
+function lsGet(k){ try { return localStorage.getItem(k); } catch(e) { return mem[k] || null; } }
+function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e) { mem[k]=v; } }
+let state = {};
+try { state = JSON.parse(lsGet(KEY) || "{}"); } catch(e) { state = {}; }
+let idx = 0;
+try { idx = parseInt(lsGet(KEY+"_i") || "0", 10) || 0; } catch(e) { idx = 0; }
+function save(){ lsSet(KEY, JSON.stringify(state)); lsSet(KEY+"_i", idx); }
 function render(){
   const r = ROWS[idx];
   document.getElementById("card").innerHTML = `
@@ -147,6 +153,10 @@ function render(){
   const done = Object.keys(state).length;
   document.getElementById("prog").textContent = `${idx+1} / ${ROWS.length} · 已标 ${done}`;
   document.getElementById("bar").style.width = (100*done/ROWS.length) + "%";
+}
+function fail(e){
+  document.getElementById("card").innerHTML =
+    '<div style="color:#b00">页面脚本出错：' + esc(String(e && e.message || e)) + '</div>';
 }
 function mark(v){ state[ROWS[idx].row_id] = v; save(); if(idx < ROWS.length-1){ idx++; save(); render(); } else { render(); alert("已到最后一条，点导出 CSV"); } }
 function esc(s){ return (s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
@@ -166,7 +176,8 @@ document.addEventListener("keydown", e=>{
   if(e.key==="1") mark("是"); else if(e.key==="2") mark("否"); else if(e.key==="3") mark("边界");
   else if(e.key==="ArrowLeft" && idx>0){ idx--; save(); render(); }
 });
-render();
+try { render(); } catch(e) { fail(e); }
+window.addEventListener("error", ev => fail(ev.error || ev.message));
 </script>
 """
 
@@ -190,6 +201,21 @@ def write_page(rows: list[dict], out_dir: Path) -> Path:
     page = out_dir / "review.html"
     page.write_text(HTML.replace("__DATA__", payload), encoding="utf-8")
     return page
+
+
+def write_text(rows: list[dict], path: Path) -> None:
+    """纯文本后备：浏览器打不开时，直接照这个列表回复标注即可。"""
+    lines = ["专家盲审（共 %d 条）" % len(rows),
+             "判定：是 / 否 / 边界；回复格式：编号+判定，如 1是 2否 3边界", ""]
+    for i, r in enumerate(rows, 1):
+        titles = " | ".join(t[:70] for t in (r.get("top3_titles") or "").split(" || ")[:3])
+        lines.append(f"{i:>2}. [{r['row_id']}] 问题：{r['query']}")
+        lines.append(f"    {r['name']} · {r.get('institution') or '机构未知'} · 被引 {r.get('cited_by')}")
+        if r.get("topics"):
+            lines.append(f"    标签：{r['topics']}")
+        lines.append(f"    代表作：{titles or '（库内无论文）'}")
+        lines.append("")
+    path.write_text(chr(10).join(lines), encoding="utf-8")
 
 
 def write_csv(rows: list[dict], path: Path) -> None:
@@ -218,6 +244,7 @@ def main() -> None:
     rows, mapping = anonymize(rows)
     random.Random(99).shuffle(rows)
     page = write_page(rows, out)
+    write_text(rows, out / "review.txt")
     import json as _json
     (out / "mapping.json").write_text(
         _json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8")
