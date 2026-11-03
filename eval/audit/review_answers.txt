@@ -1,0 +1,46 @@
+专家盲审标注结果（共41条，判定：1=是 2=否 3=边界；每条附一句话依据，均经联网核实）
+判定口径：在该领域有自主/主导/创始级或一作代表性贡献→是；相关但非主导、相邻交叉或仅数据/工程/合著→边界；身份与领域明显不匹配→否。
+
+1  Selçuk Onur Sümer        | Bioinformatics and Genomic Networks              | 边界 | cBioPortal 软件工程师，平台工程实现，无方法学原创，genomic networks 基本空白。
+2  Sue Ann Costa Clemens    | SARS-CoV-2 and COVID-19 Research                 | 是   | ChAdOx1 疫苗临床开发 PI 之一，Lancet 论文第二作者，多篇 COVID 疫苗核心论文。
+3  Pieter J. in 't Veld     | Advanced Physical and Chemical Molecular Interactions | 是 | 长程色散 Ewald 方法一作(JCP)，EMC 自研建模软件，LAMMPS 核心开发，相互作用物理对口。
+4  Nan M. Laird             | Algorithm                                        | 边界 | 生物统计学家，EM 算法合著(非首位)，主体为统计模型而非 CS 算法研究。
+5  Benjamin E Gross         | Bioinformatics and Genomic Networks              | 边界 | cBioPortal 数据工程负责人(MSc)，数据/通路资源工程，无独立方法学论文。
+6  Erik Larsson             | Bioinformatics and Genomic Networks              | 边界 | cBioPortal 合著靠后；后任生信教授但独立方向为突变进化，与 network 不沾边。
+7  Linn Fagerberg           | Human Protein Atlas                              | 是   | HPA 转录组/数据整合分析组 Head，组织特异性整合方法一作，Science 旗舰第二作者。
+8  Luc Van Gool             | 3D Shape Modeling and Analysis                   | 边界 | 计算机视觉(2D 特征/检测)权威，3D 仅重建/识别支线，代表作零命中形状建模。
+9  Lily Yin Weckx           | SARS-CoV-2 and COVID-19 Research                 | 边界 | 巴西站点儿科临床研究者，RCT 合著中后位，无自主主导 COVID 贡献。
+10 David S. Knopman         | Association (psychology)                         | 否   | 痴呆神经病学专家，诊断标准/分类为其主线；心理学联想标签系噪声，无心理学身份。
+11 Emma C. Thomson          | SARS-CoV-2 and COVID-19 Research                 | 是   | Glasgow 病毒学教授/中心主任，团队完成苏格兰首例病毒测序，持续基因组监测。
+12 Brian Lim Hoh            | Ischemic stroke                                  | 是   | 脑血管病专家，官方称缺血/出血性卒中专家，症状性颅内狭窄 RCT 的 PI，指南合著。
+13 Ethan G Cerami           | Bioinformatics and Genomic Networks              | 是   | cBioPortal 共同创始人、2012 论文一作，PhD、Principal Scientist/主任。
+14 Anton Vonk Noordegraaf   | BMPR2                                            | 是   | 肺动脉高压权威，直接研究 BMPR2 表达/变异携带者表型及靶向治疗，PI/教授。
+15 Guohua Zhang             | Aerosol                                          | 是   | 中科院研究员，气溶胶单颗粒/云雾化学为其长期主线，主持优青等项目。
+16 Hanadi Khamis Al Hamad   | Estimation                                       | 边界 | 老年医学医生，GBD 负担估计合著者，不做估计方法学。
+17 Jianjiong Gao            | Bioinformatics and Genomic Networks              | 是   | cBioPortal 2013 一作、共同创始人，Associate Attending，OncoKB/驱动融合计算。
+18 Aidan P. Thompson        | Advanced Physical and Chemical Molecular Interactions | 是 | SNAP 机器学习原子间势创始人、LAMMPS 2022 一作，PhD，势函数/相互作用核心。
+19 Trung Dac Nguyen         | Advanced Physical and Chemical Molecular Interactions | 是 | GPU MD 方法学一作(CPC)，LAMMPS 核心(GPU/DIELECTRIC)，介电/软物质自组装对口。
+20 Bernard Henrissat        | Enzyme Structure and Function                    | 是   | CAZy 创始人，糖苷水解酶分类体系建立者，CNRS 荣誉研究主任、DTU 教授。
+21 Maureen S. Durkin        | Intelligence quotient                            | 边界 | 神经发育障碍流行病学教授，以 IQ 为分类工具但不研究 IQ 本身/心理测量。
+22 Roberto Car              | Advanced Physical and Chemical Molecular Interactions | 是 | Car-Parrinello 从头算 MD 共同发明人，Quantum ESPRESSO 作者，量子相互作用权威。
+23 Ludwig Kappos            | McDonald criteria                                | 是   | MS 临床研究权威，McDonald 各版修订核心，绝大多数 MS DMT 关键试验 PI。
+24 Per Oksvold              | Proteomics                                       | 边界 | HPA 蛋白科学长期核心(第5作者)，角色为 data curation/resources/software，无一作。
+25 Guohui Fan               | SARS-CoV-2 and COVID-19 Research                 | 边界 | COVID 临床研究团队成员(MS)，多篇核心论文合著，无独立主导/PI 身份。
+26 David M. Brown           | Macular degeneration                            | 是   | 视网膜专家，NEJM 雷珠单抗 vs Verteporfin 一作，湿性 AMD 关键 RCT 核心。
+27 Xiang Zhao               | SARS-CoV-2 (SARS-CoV-2)                          | 是   | 中国疾控病毒病所测序团队负责人，Lancet 基因组/受体结合论文第二作者。
+28 D A Bloch                | Physical therapy                                 | 否   | 生物统计学家，风湿疾病分类标准统计方法，与物理治疗学科无直接对口。
+29 Élodie Drula             | Enzyme Structure and Function                    | 是   | CAZy 2022 NAR 一作，长期核心科学家，酶功能注释/分类直接对口。
+30 Pedro M. Coutinho        | Enzyme Structure and Function                    | 边界 | 1998 协助建 CAZy 的资深成员，多为合著，无一作/独立 PI 证据。
+31 Shabir Ahmed Madhi       | SARS-CoV-2 and COVID-19 Research                 | 是   | Wits 疫苗学教授，南非 ChAdOx1 国家 PI/Protocol Co-Chair，主导多项 COVID 疫苗 RCT。
+32 Axel Kohlmeyer           | Advanced Physical and Chemical Molecular Interactions | 边界 | LAMMPS 核心开发/HPC 专家，贡献偏软件/并行架构，非相互作用物理方法本体。
+33 Jeffrey S. Heier         | Ophthalmology                                    | 是   | OCB 视网膜研究主任，AMD/DME/RVO 大量临床试验负责人，眼科研究权威。
+34 Gretchen A Stevens        | Multilevel model                                 | 边界 | WHO 描述流行病学家，应用多层/分层分析，不发展模型方法学。
+35 Laura Johnson            | Data collection                                  | 是   | “How Many Interviews Are Enough”作者，定性数据收集/饱和方法经典论文，主题全命中。
+36 Volker Presser           | Ternary operation                                | 是   | 碳纳米材料/CDC/MXene 教授，三元 MAX 相(Ti3AlC2)为其核心研究对象。
+37 Sattva Swarup Neelapu     | Follicular lymphoma                              | 是   | 淋巴瘤教授，ZUMA-1 关键试验负责人，ZUMA-5(FL) 及 FL 结局通讯作者。
+38 Donald W. Brenner        | Chemical physics                                 | 是   | REBO 反应键序势创始人(1990/2002 一作)，共价键/烃/金刚石化学物理。
+39 Robert Alan Edwards      | Consistency (knowledge bases)                    | 边界 | RAST/SEED 注释(KB)系统构建者，KB 主题沾边但“一致性”角度不命中。
+40 Vincent Lombard          | Enzyme Structure and Function                    | 是   | CAZy 2013 NAR 一作，长期核心，酶数据库/功能策展直接对口。
+41 Hemalatha Golaconda Ramulu | Enzyme Structure and Function                   | 边界 | 仅 4 篇论文、短期参与 CAZy(第2作者)，后做蛋白结构建模，非核心持续。
+
+汇总：是 24 条，边界 15 条，否 2 条。

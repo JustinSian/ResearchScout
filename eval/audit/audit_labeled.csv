@@ -1,0 +1,42 @@
+row_id,num,orig,kind,label,note
+R8b33e968,1,XBioinformatics and G-1929,expansion,边界,cBioPortal 软件工程师，平台工程实现，无方法学原创，genomic networks 基本空白。
+R3fd42359,2,XSARS-CoV-2 and COVID-22086,expansion,是,ChAdOx1 疫苗临床开发 PI 之一，Lancet 论文第二作者，多篇 COVID 疫苗核心论文。
+R478c281d,3,XAdvanced Physical an-47644,expansion,是,长程色散 Ewald 方法一作(JCP)，EMC 自研建模软件，LAMMPS 核心开发，相互作用物理对口。
+R9f767c45,4,Gex-49-167,gold,边界,生物统计学家，EM 算法合著(非首位)，主体为统计模型而非 CS 算法研究。
+R92edcf45,5,XBioinformatics and G-1928,expansion,边界,cBioPortal 数据工程负责人(MSc)，数据/通路资源工程，无独立方法学论文。
+R617959ce,6,XBioinformatics and G-1933,expansion,边界,cBioPortal 合著靠后；后任生信教授但独立方向为突变进化，与 network 不沾边。
+R5bc8fbbc,7,Gex-40-2401,gold,是,HPA 转录组/数据整合分析组 Head，组织特异性整合方法一作，Science 旗舰第二作者。
+Re6a16a3b,8,X3D Shape Modeling an-47608,expansion,边界,计算机视觉(2D 特征/检测)权威，3D 仅重建/识别支线，代表作零命中形状建模。
+R377b9aa2,9,XSARS-CoV-2 and COVID-22088,expansion,边界,巴西站点儿科临床研究者，RCT 合著中后位，无自主主导 COVID 贡献。
+R4164d839,10,Gex-37-1612,gold,否,痴呆神经病学专家，诊断标准/分类为其主线；心理学联想标签系噪声，无心理学身份。
+Rbb2edb20,11,XSARS-CoV-2 and COVID-20845,expansion,是,Glasgow 病毒学教授/中心主任，团队完成苏格兰首例病毒测序，持续基因组监测。
+Ra6eb8c9e,12,Gex-25-9535,gold,是,脑血管病专家，官方称缺血/出血性卒中专家，症状性颅内狭窄 RCT 的 PI，指南合著。
+R3f1f65a8,13,XBioinformatics and G-1925,expansion,是,cBioPortal 共同创始人、2012 论文一作，PhD、Principal Scientist/主任。
+Rec1d7da0,14,Gex-32-11134,gold,是,肺动脉高压权威，直接研究 BMPR2 表达/变异携带者表型及靶向治疗，PI/教授。
+Rd76d4330,15,Gex-03-39896,gold,是,中科院研究员，气溶胶单颗粒/云雾化学为其长期主线，主持优青等项目。
+Rcb91ce37,16,Gex-07-8305,gold,边界,老年医学医生，GBD 负担估计合著者，不做估计方法学。
+R1a1afe87,17,XBioinformatics and G-1926,expansion,是,cBioPortal 2013 一作、共同创始人，Associate Attending，OncoKB/驱动融合计算。
+Rea959c21,18,XAdvanced Physical an-47641,expansion,是,SNAP 机器学习原子间势创始人、LAMMPS 2022 一作，PhD，势函数/相互作用核心。
+R2e9c82b1,19,XAdvanced Physical an-47642,expansion,是,GPU MD 方法学一作(CPC)，LAMMPS 核心(GPU/DIELECTRIC)，介电/软物质自组装对口。
+R5f2dd97f,20,XEnzyme Structure and-12849,expansion,是,CAZy 创始人，糖苷水解酶分类体系建立者，CNRS 荣誉研究主任、DTU 教授。
+Ra6233255,21,Gex-21-13730,gold,边界,神经发育障碍流行病学教授，以 IQ 为分类工具但不研究 IQ 本身/心理测量。
+Rc4069545,22,XAdvanced Physical an-47619,expansion,是,Car-Parrinello 从头算 MD 共同发明人，Quantum ESPRESSO 作者，量子相互作用权威。
+Rd7210dff,23,Gex-51-5927,gold,是,MS 临床研究权威，McDonald 各版修订核心，绝大多数 MS DMT 关键试验 PI。
+Rf1446bea,24,Gex-33-2404,gold,边界,HPA 蛋白科学长期核心(第5作者)，角色为 data curation/resources/software，无一作。
+R687c966c,25,XSARS-CoV-2 and COVID-47638,expansion,边界,COVID 临床研究团队成员(MS)，多篇核心论文合著，无独立主导/PI 身份。
+R0d464138,26,Gex-39-14555,gold,是,视网膜专家，NEJM 雷珠单抗 vs Verteporfin 一作，湿性 AMD 关键 RCT 核心。
+Rbde5c099,27,Gex-31-630,gold,是,中国疾控病毒病所测序团队负责人，Lancet 基因组/受体结合论文第二作者。
+R3fc1ea36,28,Gex-11-1423,gold,否,生物统计学家，风湿疾病分类标准统计方法，与物理治疗学科无直接对口。
+R1cfb10f6,29,XEnzyme Structure and-12847,expansion,是,CAZy 2022 NAR 一作，长期核心科学家，酶功能注释/分类直接对口。
+R2827688d,30,XEnzyme Structure and-12848,expansion,边界,1998 协助建 CAZy 的资深成员，多为合著，无一作/独立 PI 证据。
+R035b7399,31,XSARS-CoV-2 and COVID-22087,expansion,是,Wits 疫苗学教授，南非 ChAdOx1 国家 PI/Protocol Co-Chair，主导多项 COVID 疫苗 RCT。
+Rde11cc9d,32,XAdvanced Physical an-47643,expansion,边界,LAMMPS 核心开发/HPC 专家，贡献偏软件/并行架构，非相互作用物理方法本体。
+Rf17fd374,33,Gex-04-14556,gold,是,OCB 视网膜研究主任，AMD/DME/RVO 大量临床试验负责人，眼科研究权威。
+Rb0c11fde,34,Gex-34-20741,gold,边界,WHO 描述流行病学家，应用多层/分层分析，不发展模型方法学。
+Rbd69fe29,35,Gex-27-1314,gold,是,“How Many Interviews Are Enough”作者，定性数据收集/饱和方法经典论文，主题全命中。
+Rc6a53877,36,Gex-20-4054,gold,是,碳纳米材料/CDC/MXene 教授，三元 MAX 相(Ti3AlC2)为其核心研究对象。
+R77330bdb,37,Gex-22-13886,gold,是,淋巴瘤教授，ZUMA-1 关键试验负责人，ZUMA-5(FL) 及 FL 结局通讯作者。
+R87b0b125,38,Gex-23-27568,gold,是,REBO 反应键序势创始人(1990/2002 一作)，共价键/烃/金刚石化学物理。
+R076ce2ef,39,Gex-13-4131,gold,边界,RAST/SEED 注释(KB)系统构建者，KB 主题沾边但“一致性”角度不命中。
+R7814e8a2,40,XEnzyme Structure and-12845,expansion,是,CAZy 2013 NAR 一作，长期核心，酶数据库/功能策展直接对口。
+Rde527100,41,XEnzyme Structure and-12846,expansion,边界,仅 4 篇论文、短期参与 CAZy(第2作者)，后做蛋白结构建模，非核心持续。
