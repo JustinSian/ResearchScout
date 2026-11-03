@@ -1,0 +1,31 @@
+row_id,num,orig,kind,label,note
+Ra1725102,1,GNormalization (sociology)|1399,gold,否,根特癌症遗传学/神经母细胞瘤教授，geNorm 做的是 qPCR 数据归一化；社会学“规范化”系一词多义噪声，无社会学身份。
+Rcc92d33d,2,GSample (material)|1314,gold,边界,FHI 360 定性抽样/饱和方法学者，做的是研究对象抽样而非实物材料样品，方法相邻、对象不匹配。
+R79eaa723,3,GQuasar|5279,gold,边界,SDSS 领导成员、ugriz 滤光系统创建者，本职为宇宙学/巡天架构，参与高红移类星体发现但非类星体物理本体专家。
+Rd9e2ec8d,4,GOphthalmology|14558,gold,是,Cleveland Clinic 视网膜专家，R01 PI、60+ 临床试验主席，眼科研究权威。
+R40b2d002,5,GSelection (genetic algorithm)|2031,gold,边界,系统发育模型选择（PartitionFinder，greedy 算法）专家，做模型选择而非遗传算法，相邻不核心。
+R80289e32,6,GAlgorithm|943,gold,是,Cambridge 晶体学方法学家，Phaser 一作，最大似然分子置换/相位算法设计是其职业本体。
+R47aa2dba,7,GMacular degeneration|14555,gold,是,视网膜专家，NEJM 雷珠单抗 vs Verteporfin 一作，湿性 AMD 关键 RCT 核心（与 audit 批次一致）。
+Rffec3fee,8,GMcDonald criteria|5918,gold,是,2010 McDonald 诊断标准修订一作/通讯，MS 神经科教授。
+Rd5de6e91,9,GConsistency (knowledge bases)|4131,gold,边界,RAST/SEED 基因组注释 KB 系统构建者，KB 沾边但“一致性”角度不命中（与 audit 一致）。
+R9c8052e3,10,GNational Cholesterol Education Program|672,gold,是,NCEP ATP III 主席，UT Southwestern 人类营养中心创始主任，血脂/代谢综合征权威。
+Rf5097b4f,11,GOptoelectronics|37112,gold,否,内蒙古医科大学，仅 COVID 合并 COPD 临床论文，无任何光电子材料/器件背景。
+R4ad5cfbc,12,GCompact Muon Solenoid|5761,gold,是,HEPHY/MBI 探测器开发组负责人，CMS 长期成员，Higgs 发现论文作者。
+Rf3faa8e8,13,GGastroenterology|36222,gold,边界,浙大一院感染病/肝病终身教授，肝病学与消化病交叉但身份为感染病科，非胃肠本体。
+R7f453a0e,14,GAerosol|10657,gold,是,GISS 前主任，“Climate Forcing by Anthropogenic Aerosols”经典作者，气溶胶辐射强迫奠基。
+R32833106,15,GSupercapacitor|1286,gold,边界,物理吸附/多孔材料表征权威（IUPAC 2015 一作），石墨烯超电容仅合著应用，非器件/电化学本体。
+R3ce1268c,16,GPembrolizumab|9120,gold,是,UCLA 黑色素瘤免疫权威，KEYNOTE-006 等 pembrolizumab 关键试验领导/资深作者。
+R009f0016,17,GDocumentation|1417,gold,边界,ModelTest/jModelTest 一作、系统发育模型选择学者，软件文档相邻但非研究本体。
+R8e4edc90,18,GData collection|15562,gold,是,Yale 混合/定性方法教授，两本方法学教材作者，定性数据收集/分析是其本体。
+R253d9e30,19,GData collection|11153,gold,是,焦点小组方法学权威（BMJ 1994 一作），focus group 是数据收集核心方法，标准论述作者。
+R2c34bf1c,20,GRegimen|12881,gold,是,肿瘤内科，SCOT 辅助化疗方案 RCT 负责人，围手术期/胆道化疗方案研究一作。
+R1d74bd1c,21,GOsimertinib|7934,gold,边界,清迈肿瘤内科，FLAURA/IPASS 等国际试验泰国站点合著，无一作/主导。
+R536e95df,22,GProteomics|2404,gold,边界,HPA 蛋白科学核心，角色为 data curation/resources，无一作（与 audit 一致）。
+R3d90fbac,23,GIschemic stroke|3913,gold,边界,BI 生物统计学家，ECASS III 及卒中溶栓汇总的统计作者，深度交叉但非临床本体。
+R074206e2,24,GNursing|36088,gold,边界,Toronto 实施科学/抗生素管理博士后，卫生系统研究与护理相邻，无护理学位/护理研究。
+Rf08db22f,25,GIntelligence quotient|13739,gold,边界,WashU 儿童精神科，SRS 社交反应量表作者，发育/心理测量与 IQ 相邻但非 IQ 本体。
+R3170fab2,26,GAutophagosome|14437,gold,是,Scripps 自噬研究者，autophagy guidelines 合著，自噬体 TEM 鉴定/神经自噬一作。
+Ra93f32a9,27,GDocumentation|71,gold,边界,scikit-learn/MNE 核心、前 Inria 研究主任，ML/信号为本职，文档相邻非本体。
+Rd293056a,28,GOsimertinib|17061,gold,是,肺癌临床研究国际领袖，AURA3（osimertinib）等 III 期试验 PI/资深作者。
+Rcadd40e9,29,GTicagrelor|10766,gold,是,PLATO 执行委员会联合主席，抗血栓/心血管权威，ticagrelor 关键试验共同领导者。
+R8ed2305d,30,GOptoelectronics|37062,gold,否,RAY1216 论文中其单位标注为广东众生睿创（药企），从事抗病毒药物研发，光电子标签系噪声。
