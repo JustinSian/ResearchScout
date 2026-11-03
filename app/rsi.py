@@ -6,7 +6,7 @@
 可以改的（白名单）：
   synonyms       查询扩展词表 {中文主题: [英文检索词]}   ← 当前唯一接通检索的
   rerank_weights 重排权重（预留，未接通）
-  plan_prompt    规划提示词片段（预留，未接通）
+  plan_prompt    规划提示词片段（已接通：agent_llm 会把它拼进 system prompt）
   tool_order     工具调用顺序（预留，未接通）
 
 闸门（四条，全部可单测）：
@@ -37,7 +37,7 @@ HELDOUT = EVAL_DIR / "rsi_heldout.jsonl"
 PERTURBED = EVAL_DIR / "rsi_perturbed.jsonl"
 
 MUTABLE = {"synonyms", "rerank_weights", "plan_prompt", "tool_order"}
-WIRED = {"synonyms"}                     # 真正接进检索的只有 synonyms
+WIRED = {"synonyms", "plan_prompt"}      # 真正生效的：检索扩展 + Agent 提示词
 
 DDL = [
     """CREATE TABLE IF NOT EXISTS mem_policy (

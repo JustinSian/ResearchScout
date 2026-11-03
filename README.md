@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/JustinSian/ResearchScout/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinSian/ResearchScout/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-230%20passed-brightgreen.svg)](#测试与评测)
+[![Tests](https://img.shields.io/badge/tests-236%20passed-brightgreen.svg)](#测试与评测)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 [快速开始](#快速开始) · [核心能力](#核心能力) · [架构](#架构) · [评测](#测试与评测) · [API](#api)
@@ -46,7 +46,7 @@
 
 | 层 | 选型 | 为什么 |
 |---|---|---|
-| API | **FastAPI** + uvicorn | 50+ 端点、SSE 流式、写接口 `X-API-Key` |
+| API | **FastAPI** + uvicorn | 58 个端点、SSE 流式、写接口 `X-API-Key` |
 | Agent | **DeepSeek V4.1 Flash**（function calling）+ 自研循环 | 工具调用、强制收尾、成本/步数预算 |
 | 短期记忆 | SQLite `session_turn` / `session_summary` | 滚动窗口 + LLM 摘要，控制 token |
 | 长期记忆 | SQLite `mem_fact`（时间区间）/ `mem_event` / `mem_policy` | 可回答"以前/现在"，可回滚策略 |
@@ -54,7 +54,7 @@
 | 重排 | ONNX bge-reranker + 交叉编码器拒答 | 判定"库里到底有没有" |
 | 图分析 | 纯 Python PageRank / Louvain / Tarjan / Brandes | 无重型依赖，可单测 |
 | 自我改进 | 自研 RSI（变异 + 双闸门 + 快照） | 可控、可审计、可回滚 |
-| 前端 | 单文件 `web/index.html`（8 视图，零构建） | clone 即跑 |
+| 前端 | 单文件 `web/index.html`（9 视图，零构建） | clone 即跑 |
 
 ## 架构
 
@@ -121,7 +121,7 @@ curl "http://127.0.0.1:8020/chat?q=那这些人里谁被引最高&uid=demo&sid=s
 ## 测试与评测
 
 ```bash
-python -m pytest tests -q          # 230 项测试
+python -m pytest tests -q          # 236 项测试
 python -m app.eval_agent           # Agent 级：多轮 + 记忆 + 拒答（14 条）
 python -m app.eval_memory          # 记忆五能力（50 条）
 python -m app.rsi --generations 3 --dry-run   # 自我改进（不落库）
@@ -189,11 +189,11 @@ app/
   supervisor.py       路由与仲裁（classic 回退路径）
   agent.py            知识库工具集
   facets.py / search.py / citations.py / cluster.py
-  api.py            FastAPI（50+ 端点）
-web/index.html      单文件前端（8 视图）
+  api.py            FastAPI（58 个端点）
+web/index.html      单文件前端（9 视图）
 eval/               agent_cases · memory · rsi_dev/heldout/perturbed · answers
 docs/               里程碑设计文档
-tests/              230 项测试
+tests/              236 项测试
 ```
 
 ## 设计取舍与局限
