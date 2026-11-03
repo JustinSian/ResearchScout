@@ -54,6 +54,43 @@ _FTS_STOP = {"and", "the", "of", "for", "with", "using", "based", "analysis",
 
 
 
+
+def _core_experts(query: str, limit: int = 20) -> list[dict]:
+    """按"概念关键词 + 一作"直接取候选（主检索按被引取候选，一作根本进不来）。"""
+    import json as _json
+    import re as _re
+    toks = [t.lower() for t in _re.findall(r"[A-Za-z][A-Za-z\-]+", _fts_safe(query))]
+    toks = [t for t in toks if len(t) > 3][:4]
+    if not toks:
+        return []
+    like = " OR ".join(["lower(w.title) LIKE ?"] * len(toks))
+    args = [f"%{t}%" for t in toks]
+    conn = connect()
+    try:
+        rows = conn.execute(
+            f"""SELECT wa.pid, COUNT(*) AS hits, p.name, p.name_zh, p.country,
+                       p.works_count, p.cited_by_count, p.source, p.first_author_works,
+                       i.name AS inst
+                FROM work_authors wa
+                JOIN works w ON w.wid = wa.wid
+                JOIN people p ON p.pid = wa.pid
+                LEFT JOIN institutions i ON i.iid = p.inst_id
+                WHERE wa.position = 0 AND p.status='published'
+                  AND COALESCE(p.source,'') != 'auto_expand' AND ({like})
+                GROUP BY wa.pid
+                ORDER BY hits DESC, p.cited_by_count DESC
+                LIMIT ?""", (*args, int(limit))).fetchall()
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    return [{"pid": int(r["pid"]), "name": r["name"], "name_zh": r["name_zh"],
+             "country": r["country"], "inst": r["inst"], "works": r["works_count"],
+             "cites": r["cited_by_count"], "source": r["source"],
+             "first_author_works": r["first_author_works"],
+             "topic_score": round(1.0 / (1 + int(r["hits"])), 6)} for r in rows]
+
+
 def _exp_experts(query: str, limit: int = 20) -> list[dict]:
     """查自动扩充的独立索引（people_fts_exp），返回与主检索一致的结构。"""
     import json as _json
@@ -132,7 +169,8 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
         for pid, score in hits:      # 先全部取回，排序后再截断（否则等于按 bm25 截断）
             row = conn.execute(
                 """SELECT p.pid, p.name, p.name_zh, p.country, p.works_count,
-                          p.cited_by_count, p.source, i.name AS inst
+                          p.cited_by_count, p.source, p.first_author_works,
+                          i.name AS inst
                    FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id
                    WHERE p.pid=?""", (int(pid),)).fetchone()
             if not row:
@@ -141,6 +179,7 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
                         "name_zh": row["name_zh"], "country": row["country"],
                         "inst": row["inst"], "works": row["works_count"],
                         "cites": row["cited_by_count"], "source": row["source"],
+                        "first_author_works": row["first_author_works"],
                         "topic_score": round(float(score), 4)})
     finally:
         conn.close()
@@ -174,7 +213,53 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
     import os as _os2
     if len(kws) < 2 or _os2.environ.get("ST_EXCLUDE_AUTO_EXPAND") == "1":
         out = [it for it in out if (it.get("source") or "") != "auto_expand"]
-    out.sort(key=lambda it: (-(it.get("cites") or 0), -it.get("topic_score", 0)))
+    # 保底名额：top-k 里固定留 N 个给"有一作论文"的人，其余仍按被引。
+    # 比全局加权更划算：不牺牲主排序，只替换尾部名额。
+    import os as _os4
+    _slots = int(_os4.environ.get("ST_CORE_SLOTS", "0"))
+    if _slots > 0 and len(out) > _slots:
+        by_cite = sorted(out, key=lambda it: -(it.get("cites") or 0))
+        core_pool = sorted([it for it in out if (it.get("first_author_works") or 0) >= 1],
+                           key=lambda it: -(it.get("first_author_works") or 0))
+        keep = by_cite[: max(limit - _slots, 1)]
+        chosen = {id(x) for x in keep}
+        for cand in core_pool:
+            if len(keep) >= limit:
+                break
+            if id(cand) not in chosen:
+                keep.append(cand)
+                chosen.add(id(cand))
+        out = keep
+
+    # 位次加权：log(cites) + w·log(1+一作数)。纯被引排序会把一作（年轻研究者）埋掉，
+    # 实测 R_core@10 仅 11.7%；w 用环境变量可调，便于对照实验。
+    import math as _math
+    import os as _os3
+    w = float(_os3.environ.get("ST_POS_WEIGHT", "0"))
+    for it in out:
+        it["rank_score"] = round(
+            _math.log1p(max(it.get("cites") or 0, 0)) +
+            w * _math.log1p(max(it.get("first_author_works") or 0, 0)), 4)
+    out.sort(key=lambda it: (-(it.get("rank_score") or 0), -it.get("topic_score", 0)))
+
+    # 一作通道：只在**尾部**替换名额，主排序不动。
+    # 全量 RRF 合并会把低被引的一作推上前列（实测 R@10 82.4%→52.1%），不可取。
+    _mix = _os4.environ.get("ST_CORE_MIX", "tail1")
+    if _mix != "off":
+        core = _core_experts(query, limit=max(limit, 10))
+        if core:
+            if _mix.startswith("tail"):
+                try:
+                    n = int(_mix[4:] or "2")
+                except ValueError:
+                    n = 2
+                head = out[: max(limit - n, 1)]
+                taken = {int(it["pid"]) for it in head}
+                tail = [c for c in core if int(c["pid"]) not in taken][:n]
+                out = head + tail
+            elif _mix == "rrf":
+                out = _rrf_merge([out, core], limit=limit * 2)[:limit]
+
     return out[:limit]
 
 

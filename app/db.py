@@ -31,6 +31,7 @@ MIGRATIONS = [
     ("people", "source", "TEXT DEFAULT 'openalex'"),
     ("people", "source_ref", "TEXT"),
     ("people", "headline", "TEXT"),
+    ("people", "first_author_works", "INTEGER DEFAULT 0"),
     ("people", "name_zh", "TEXT"),
     # 背书来源：NULL = 独立核验；'network' = 仅凭合作网络进入发布集
     ("people", "endorse", "TEXT"),
