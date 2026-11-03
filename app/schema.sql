@@ -97,6 +97,11 @@ CREATE INDEX IF NOT EXISTS idx_candidates_verdict ON candidates(verdict);
 CREATE VIRTUAL TABLE IF NOT EXISTS people_fts USING fts5(
     name, topics, inst, tokenize='unicode61'
 );
+-- 自动扩充作者的独立索引：与主索引物理隔离，避免增量写入改变主索引的 bm25/IDF 统计
+-- （FTS5 的 bm25 用整张虚拟表的统计量，加 source 过滤改不掉漂移）
+CREATE VIRTUAL TABLE IF NOT EXISTS people_fts_exp USING fts5(
+    name, topics, inst, tokenize='unicode61'
+);
 CREATE VIRTUAL TABLE IF NOT EXISTS works_fts USING fts5(
     title, abstract, tokenize='unicode61'
 );

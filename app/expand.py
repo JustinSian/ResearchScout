@@ -259,10 +259,12 @@ def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
 def _index_person(conn, pid: int, name: str, topics: list[str], inst: str | None) -> None:
     """把作者写进 people_fts（外部内容表必须显式维护，否则新人查不到）。"""
     try:
-        conn.execute("DELETE FROM people_fts WHERE rowid=?", (int(pid),))
+        # 写独立索引：不碰主索引，保证主索引的统计量可复现
+        conn.execute("DELETE FROM people_fts_exp WHERE rowid=?", (int(pid),))
         conn.execute(
-            "INSERT INTO people_fts(rowid, name, topics, inst) VALUES(?,?,?,?)",
+            "INSERT INTO people_fts_exp(rowid, name, topics, inst) VALUES(?,?,?,?)",
             (int(pid), name or "", " ".join(topics or []), inst or ""))
+        conn.execute("DELETE FROM people_fts WHERE rowid=?", (int(pid),))
     except Exception:
         pass
 
@@ -274,7 +276,8 @@ def reindex_missing(log=print) -> int:
         rows = conn.execute(
             """SELECT p.pid, p.name, p.topics, i.name AS inst
                FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id
-               WHERE p.pid NOT IN (SELECT rowid FROM people_fts) LIMIT 5000""").fetchall()
+               WHERE p.pid NOT IN (SELECT rowid FROM people_fts)
+                 AND COALESCE(p.source,'') != 'auto_expand' LIMIT 5000""").fetchall()
         n = 0
         for r in rows:
             try:

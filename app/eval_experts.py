@@ -89,9 +89,14 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--file", default="")
+    ap.add_argument("--save-rows", default="", help="把逐 query 结果写成 JSONL（供配对检验）")
     a = ap.parse_args()
     cases = load_gold(Path(a.file) if a.file else None)
     res = run(cases, limit=a.limit, log=(lambda *_: None) if a.json else print)
+    if a.save_rows:
+        _lines = [json.dumps(r, ensure_ascii=False) for r in res["rows"]]
+        Path(a.save_rows).write_text(chr(10).join(_lines) + chr(10),
+                                      encoding="utf-8")
     s = res["summary"]
     if a.json:
         print(json.dumps(s, ensure_ascii=False, indent=2))

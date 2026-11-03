@@ -53,6 +53,53 @@ _FTS_STOP = {"and", "the", "of", "for", "with", "using", "based", "analysis",
              "applications", "application", "detection", "management"}
 
 
+
+def _exp_experts(query: str, limit: int = 20) -> list[dict]:
+    """查自动扩充的独立索引（people_fts_exp），返回与主检索一致的结构。"""
+    import json as _json
+    q = _fts_safe(query)
+    if not q:
+        return []
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """SELECT f.rowid AS pid, p.name, p.name_zh, p.country, p.works_count,
+                      p.cited_by_count, p.source, i.name AS inst
+               FROM people_fts_exp f
+               JOIN people p ON p.pid = f.rowid
+               LEFT JOIN institutions i ON i.iid = p.inst_id
+               WHERE people_fts_exp MATCH ? AND p.status='published'
+               ORDER BY bm25(people_fts_exp) LIMIT ?""",
+            (q, int(limit))).fetchall()
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    out = []
+    for idx, row in enumerate(rows):
+        out.append({"pid": int(row["pid"]), "name": row["name"],
+                    "name_zh": row["name_zh"], "country": row["country"],
+                    "inst": row["inst"], "works": row["works_count"],
+                    "cites": row["cited_by_count"], "source": row["source"],
+                    "topic_score": round(1.0 / (60 + idx), 6)})
+    return out
+
+
+def _rrf_merge(lists: list[list[dict]], limit: int = 10, k: int = 60) -> list[dict]:
+    """按排名做 RRF 合并：天然免疫两套索引分数不可比的问题。"""
+    merged: dict[int, dict] = {}
+    score: dict[int, float] = {}
+    for lst in lists:
+        for rank, it in enumerate(lst):
+            pid = int(it["pid"])
+            merged.setdefault(pid, it)
+            score[pid] = score.get(pid, 0.0) + 1.0 / (k + rank + 1)
+    out = sorted(merged.values(), key=lambda it: -score[int(it["pid"])])
+    for it in out:
+        it["rrf"] = round(score[int(it["pid"])], 4)
+    return out[:limit]
+
+
 def _fts_safe(q: str) -> str:
     """长主题串直接进 FTS 会被 "and/of/analysis" 这类词污染（会把心理学、ML 大牛
     都召回来）。这里剥掉通用词，只留实词。"""
@@ -102,9 +149,9 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
     import re as _re
     kws = [t.lower() for t in _re.findall(r"[A-Za-z][A-Za-z\-]+", _fts_safe(query))
            if len(t) > 3]
-    # 只对**多词主题**过滤：单词概念（"Gastroenterology"）不需要，
-    # 过滤反而会误杀真实作者（实测 R@10 88.7% → 82.7%）。
-    if len(kws) >= 2:
+    # 只对**长主题串**（≥3 个实词）过滤：两词概念（"BMPR2"、"quorum sensing"）
+    # 过滤会误杀真实作者（实测 ex-14/ex-32 归零）。
+    if len(kws) >= 3:
         need = 1   # 放宽到 1 个实词：2 个会把部分真实作者误杀（实测 R@10 -5pt）
         kept = []
         for it in out:
