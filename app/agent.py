@@ -47,10 +47,14 @@ def _person_brief(row) -> dict:
 
 
 
-_FTS_STOP = {"and", "the", "of", "for", "with", "using", "based", "analysis",
-             "methods", "method", "techniques", "study", "research", "data",
-             "system", "systems", "model", "models", "review", "approach",
-             "applications", "application", "detection", "management"}
+# 只放真正的功能词。实词（data/model/method/system/study/research/analysis/
+# application/theory/management/detection）绝不能当停用词——
+# "Data collection"→"collection"、"Multilevel model"→"Multilevel" 会毁掉概念查询。
+_FTS_STOP = {"and", "the", "of", "for", "with", "using", "based", "into", "onto",
+             "their", "these", "those", "from", "via", "between", "among", "within",
+             "across", "through", "during", "a", "an", "to", "in", "on", "at", "by",
+             "or", "as", "is", "are", "was", "were", "be", "been", "have", "has",
+             "vs", "versus", "et", "al", "techniques"}
 
 
 
@@ -141,7 +145,7 @@ def _fts_safe(q: str) -> str:
     """长主题串直接进 FTS 会被 "and/of/analysis" 这类词污染（会把心理学、ML 大牛
     都召回来）。这里剥掉通用词，只留实词。"""
     import re as _re
-    toks = [t for t in _re.findall(r"[A-Za-z][A-Za-z\-]+", q or "")
+    toks = [t for t in _re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]+", q or "")
             if t.lower() not in _FTS_STOP]
     return " ".join(toks) or (q or "")
 
@@ -186,7 +190,7 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
     # 关键词过滤：FTS 会"放宽匹配"（"networks" 能把 Hinton 召回），
     # 这里要求人物标签里至少命中 2 个实词（单词主题则 1 个）。
     import re as _re
-    kws = [t.lower() for t in _re.findall(r"[A-Za-z][A-Za-z\-]+", _fts_safe(query))
+    kws = [t.lower() for t in _re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]+", _fts_safe(query))
            if len(t) > 3]
     # 只对**长主题串**（≥3 个实词）过滤：两词概念（"BMPR2"、"quorum sensing"）
     # 过滤会误杀真实作者（实测 ex-14/ex-32 归零）。

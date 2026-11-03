@@ -54,7 +54,17 @@ def test_rrf_merge_orders_by_rank_agreement():
     assert pids[-1] == 4
 
 
-def test_fts_safe_strips_generic_words():
+def test_fts_safe_strips_only_true_stopwords():
     from app.agent import _fts_safe
-    assert _fts_safe("3D Shape Modeling and Analysis") == "Shape Modeling"
+    # 只剥功能词；实词（analysis/data/model）和数字（3D/BMPR2）必须保留
+    assert _fts_safe("3D Shape Modeling and Analysis") == "3D Shape Modeling Analysis"
     assert _fts_safe("Gaucher disease") == "Gaucher disease"
+
+
+def test_fts_safe_keeps_digits_and_content_words():
+    from app.agent import _fts_safe
+    assert _fts_safe("BMPR2") == "BMPR2"
+    assert _fts_safe("FOXP3") == "FOXP3"
+    assert _fts_safe("PD-L1") == "PD-L1"
+    assert _fts_safe("Data collection") == "Data collection"
+    assert _fts_safe("Multilevel model") == "Multilevel model"
