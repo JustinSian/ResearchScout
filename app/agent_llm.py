@@ -127,6 +127,16 @@ def build_system_prompt(uid: str, sid: str, ep_hint: str = "") -> tuple[str, dic
     return "\n\n".join(blocks), hint
 
 
+# 工具结果回传给模型时保留的字段。之前只留 pid/wid/name/title/year/cites/inst，
+# 导致 research_area 的 recent/early/top_venues、profile 的 topics/country 全被丢掉，
+# 模型只能看到"姓名+被引"，于是回答"没有研究方向字段"（实测踩过）。
+_RESULT_FIELDS = ("pid", "wid", "name", "name_zh", "title", "year", "cites", "inst",
+                  "country", "country_src", "topics", "topics_zh", "h_index", "works",
+                  "works_count", "recent", "early", "top_venues", "first_year",
+                  "last_year", "n_matched_works", "match", "source", "orcid",
+                  "last_inst")
+
+
 def _truncate(obj, limit: int = 1600) -> str:
     s = obj if isinstance(obj, str) else json.dumps(obj, ensure_ascii=False)
     return s if len(s) <= limit else s[:limit] + "…(截断)"
@@ -254,8 +264,7 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                                  "count": out.get("count"),
                                  "error": out.get("error"),
                                  "items": [{k: v for k, v in it.items()
-                                            if k in ("pid", "wid", "name", "name_zh",
-                                                     "title", "year", "cites", "inst")}
+                                            if k in _RESULT_FIELDS}
                                            for it in (out.get("items") or [])[:5]]})})
 
     # 步数/预算用尽：强制收尾（不再给工具）

@@ -96,3 +96,11 @@ def test_auto_expand_defaults_off(monkeypatch):
     import os
     monkeypatch.delenv("ST_AUTO_EXPAND", raising=False)
     assert os.environ.get("ST_AUTO_EXPAND", "0") != "1"
+
+
+def test_result_fields_keep_direction_and_topics():
+    from app.agent_llm import _RESULT_FIELDS
+    # 回归守卫：之前只留 pid/name/cites，把 recent/early/topics 丢光，
+    # 导致 research_area/profile 到模型手里只剩"姓名+被引"
+    for k in ("recent", "early", "top_venues", "topics", "country", "h_index"):
+        assert k in _RESULT_FIELDS, f"{k} 必须在回传字段里"

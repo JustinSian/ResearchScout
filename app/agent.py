@@ -605,6 +605,74 @@ def tool_relation(name_a: str, name_b: str) -> dict:
         "path": sp.get("path") or [], "hops": sp.get("hops")}]}
 
 
+_TITLE_STOP_LOCAL = set("""
+a an the of in on for and or with without by to from at as is are was were be been
+study studies analysis analyses trial trials randomized controlled review systematic
+meta effect effects association associations impact impacts role roles results
+patients patient clinical outcomes outcome risk factors factor among during after before
+using based new novel approach approaches method methods model models data
+""".split())
+_VENUE_NOISE = {"", "pubmed", "crossref", "europe pmc", "n/a", "na", "unpaywall"}
+
+
+def _local_term_profile(pid: int, since: int, until: int, top: int = 8) -> list:
+    """本地标题词频：没深档案时，用 work_authors→works 现算（覆盖全部 47k 人）。"""
+    from collections import Counter
+    import re as _re
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """SELECT w.title FROM work_authors wa JOIN works w ON w.wid = wa.wid
+               WHERE wa.pid = ? AND w.year BETWEEN ? AND ?""",
+            (pid, since, until)).fetchall()
+    finally:
+        conn.close()
+    c: Counter = Counter()
+    for r in rows:
+        for w in _re.findall(r"[A-Za-z][A-Za-z\-]{2,}", (r["title"] or "").lower()):
+            if w in _TITLE_STOP_LOCAL or len(w) < 4:
+                continue
+            c[w] += 1
+    return c.most_common(top)
+
+
+def _local_area(pid: int, name: str) -> dict:
+    """本地兜底研究方向：用库内 works 算指标，不依赖深档案（不联网）。"""
+    conn = connect()
+    try:
+        stat = conn.execute(
+            """SELECT COUNT(*) AS n, COALESCE(SUM(w.cites),0) AS cs,
+                      MIN(w.year) AS fy, MAX(w.year) AS ly
+               FROM work_authors wa JOIN works w ON w.wid = wa.wid
+               WHERE wa.pid = ?""", (pid,)).fetchone()
+        cites = [r["cites"] for r in conn.execute(
+            """SELECT w.cites FROM work_authors wa JOIN works w ON w.wid = wa.wid
+               WHERE wa.pid = ?""", (pid,))]
+        venues = conn.execute(
+            """SELECT w.venue AS v, SUM(w.cites) AS c
+               FROM work_authors wa JOIN works w ON w.wid = wa.wid
+               WHERE wa.pid = ? AND w.venue IS NOT NULL
+               GROUP BY w.venue ORDER BY c DESC""", (pid,)).fetchall()
+    finally:
+        conn.close()
+    n = int(stat["n"] or 0)
+    if not n:
+        return {"pid": pid, "name": name, "works": 0, "h_index": 0, "cites": 0,
+                "first_year": None, "last_year": None, "recent": [], "early": [],
+                "top_venues": [], "source": "local", "note": "库内无该专家论文"}
+    cs = sorted(cites, reverse=True)
+    h = sum(1 for i, v in enumerate(cs, 1) if v >= i)
+    last = int(stat["ly"] or 2026)
+    first = int(stat["fy"] or last)
+    top_venues = [v for v, _ in venues if (v or "").strip().lower() not in _VENUE_NOISE][:3]
+    return {"pid": pid, "name": name, "works": n, "h_index": h,
+            "cites": int(stat["cs"] or 0), "first_year": first, "last_year": last,
+            "recent": _local_term_profile(pid, last - 4, last + 1),
+            "early": _local_term_profile(pid, first, last - 5),
+            "top_venues": top_venues, "source": "local",
+            "note": "本地近似（未建深档案，用库内论文标题词频）"}
+
+
 def tool_research_area(pid: int | None = None, name: str | None = None) -> dict:
     """研究方向：读深档案（全量成果），给出近五年/早期高频主题与指标。
 
@@ -618,8 +686,12 @@ def tool_research_area(pid: int | None = None, name: str | None = None) -> dict:
         return {"tool": "research_area", "items": [], "count": 0}
     d = dossier(int(p["pid"]))
     if not d:
-        return {"tool": "research_area", "items": [], "count": 0,
-                "note": "该专家还没有深档案"}
+        # 本地兜底：深档案只覆盖 102 人，其余 47k 人用库内论文现算，
+        # 至少给出"研究方向/代表作/期刊/h-index"，而不是"无详情"。
+        item = _local_area(int(p["pid"]), (p.get("name_zh") or p.get("name") or ""))
+        return {"tool": "research_area", "count": 1 if item.get("works") else 0,
+                "items": [item] if item.get("works") else [],
+                "note": item.get("note") if not item.get("works") else item.get("note")}
     m = d["metrics"]
     last = m.get("last_year") or 2026
     pid_ = int(p["pid"])
