@@ -11,7 +11,7 @@
 [![Tests](https://img.shields.io/badge/tests-300%20passed-brightgreen.svg)](#测试与评测)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-[快速开始](#快速开始) · [核心能力](#核心能力) · [架构](#架构) · [评测](#测试与评测) · [API](#api)
+[快速开始](#快速开始) · [核心能力](#核心能力) · [架构](#架构) · [评测](#测试与评测) · [API](#api) · [部署](DEPLOY.md)
 
 </div>
 

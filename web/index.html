@@ -383,6 +383,30 @@ const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+// 读鉴权：服务端 ST_READ_AUTH=1 时，所有 fetch 自动带 X-API-Key；401 时提示一次。
+// 与写操作共用 st_key（都是服务端 ST_API_KEY）。
+(function(){
+  const orig = window.fetch;
+  window.fetch = async function(input, init){
+    init = init || {};
+    const key = localStorage.getItem('st_key');
+    const headers = new Headers(init.headers || {});
+    if (key) headers.set('X-API-Key', key);
+    init.headers = headers;
+    const r = await orig(input, init);
+    if (r.status === 401) {
+      const k = prompt('该站点开启了读鉴权，请输入 X-API-Key（服务端 ST_API_KEY）：','');
+      if (k) {
+        localStorage.setItem('st_key', k);
+        headers.set('X-API-Key', k);
+        init.headers = headers;
+        return orig(input, init);
+      }
+    }
+    return r;
+  };
+})();
+
 // 国家 + 来源。三种来源的可信度不同，展示时必须区分：
 // author=现任机构（与 last_inst 同源）、affiliation=历史任职（需带年份）、institution=机构多数推断
 function countryChip(o){

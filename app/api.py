@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.agent import answer as agent_answer
@@ -74,6 +74,25 @@ def index():
     # no-store：前端改版后用户硬刷新前不会用到旧缓存（曾经因此看到白屏）
     return FileResponse(str(f), headers={"Cache-Control": "no-store"})
 
+
+# 可选读鉴权：ST_READ_AUTH=1 且配置了 ST_API_KEY 时，读接口也要求 X-API-Key。
+# 默认关闭（演示站读接口公开）；公网部署建议开启，防数据被爬、写 key 被试探。
+_READ_OPEN = {"/", "/health", "/status", "/model/status", "/docs", "/openapi.json", "/redoc"}
+
+
+@app.middleware("http")
+async def read_auth_middleware(request: Request, call_next):
+    key = (os.environ.get("ST_API_KEY") or "").strip()
+    require = os.environ.get("ST_READ_AUTH") == "1" and bool(key)
+    path = request.url.path
+    is_open = (path in _READ_OPEN or path.startswith("/ui")
+               or path.startswith("/static"))
+    if require and not is_open:
+        if (request.headers.get("x-api-key") or "") != key:
+            return JSONResponse(status_code=401,
+                                content={"detail": "需要 X-API-Key（服务端已开启读鉴权）"})
+    return await call_next(request)
+
 # 每-IP 令牌桶：保护 /chat 的 LLM 账单不被刷爆（单进程，适合单机/小规模部署）。
 _RATE: dict[str, tuple[float, float]] = {}
 
@@ -121,6 +140,8 @@ def status() -> dict:
         "llm": {"configured": llm.configured(), "model": llm.model(),
                 "base_url": llm.base_url()},
         "rerank": {"available": rerank_available()},
+        "read_auth": (os.environ.get("ST_READ_AUTH") == "1"
+                      and bool((os.environ.get("ST_API_KEY") or "").strip())),
         "data": {"demo_db": (WEB_DIR.parent / "data" / "snapshot" / "demo.db").exists()},
     }
     try:
