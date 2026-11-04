@@ -161,6 +161,8 @@ window.addEventListener('error', function (e) {
 <main>
   <div id="healthbar" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:10px;
        background:#2a1d0b;border:1px solid #5c421a;color:#ffd7a3;font-size:12.5px"></div>
+  <div id="sysbar" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:10px;
+       background:#101a2b;border:1px solid #2b3f5c;color:#a9c7e8;font-size:12.5px"></div>
   <!-- 专家墙 -->
   <section class="view on" id="v-wall">
     <div class="hero" id="hero"></div>
@@ -433,6 +435,22 @@ fetch('/stats').then(r=>r.json()).then(d=>{
      <span>发布专家 <b>${fmt(d.published)}</b></span>
      <span>合作边 <b>${fmt(d.edges)}</b></span>
      <span>待审 <b>${fmt(d.review_pending)}</b></span>`;
+}).catch(()=>{});
+
+// 系统状态横幅：LLM 未配置 / 重排降级，让新用户第一眼就知道还差什么
+fetch('/status').then(r=>r.json()).then(d=>{
+  const msgs = [];
+  if (d.llm && !d.llm.configured) {
+    msgs.push('<b>LLM 未配置</b>：Agent 会退回规则链路。去右上角「模型设置」填 API Key（支持任意 OpenAI 兼容端点）即可启用完整 Agent。');
+  }
+  if (d.rerank && !d.rerank.available) {
+    msgs.push('<b>交叉编码器未启用</b>：检索正常，但"库里到底有没有"的拒答判定会降级为词法匹配（可设置 ST_RERANK_DIR 启用）。');
+  }
+  const bar = $('#sysbar');
+  if (msgs.length) {
+    bar.style.display = 'block';
+    bar.innerHTML = msgs.join('<div style="margin-top:6px"></div>');
+  }
 }).catch(()=>{});
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showView(b.dataset.v, b));
