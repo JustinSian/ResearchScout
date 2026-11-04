@@ -51,6 +51,14 @@ app = FastAPI(
 )
 
 
+# 运行时模型配置：文件 > 环境变量 > 默认。启动时应用一次，之后 /model/config 可热改。
+try:
+    from app import model_config as _model_cfg
+    _model_cfg.apply(_model_cfg.load())
+except Exception:
+    pass
+
+
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 if WEB_DIR.exists():
     # 单文件前端，无构建步骤：直接由 FastAPI 托管
@@ -76,6 +84,35 @@ def require_key(x_api_key: str | None = Header(default=None)) -> None:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "stage": "M1"}
+
+
+@app.get("/model/status")
+def model_status() -> dict:
+    """当前生效的模型配置（永不返回明文 key）。"""
+    from app import model_config
+    try:
+        return model_config.status()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
+
+
+@app.post("/model/config")
+def model_set(payload: dict, _: None = Depends(require_key)) -> dict:
+    """保存模型配置（写接口）。保存后当前进程立即生效，无需重启。"""
+    from app import model_config
+    try:
+        cfg = model_config.save(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    model_config.apply(cfg)
+    return {"ok": True, "status": model_config.status()}
+
+
+@app.post("/model/test")
+def model_test(payload: dict | None = None, _: None = Depends(require_key)) -> dict:
+    """用当前/给定配置做一次最小真实调用，并探测工具调用能力。"""
+    from app import model_config
+    return model_config.test_connection(payload or {})
 
 
 @app.get("/stats")

@@ -155,6 +155,7 @@ window.addEventListener('error', function (e) {
   <button data-v="task">尽调 Agent</button>
   <button data-v="review">复核队列</button>
   <button data-v="memory">记忆</button>
+  <button data-v="settings">模型设置</button>
 </nav>
 
 <main>
@@ -349,6 +350,30 @@ window.addEventListener('error', function (e) {
     <p class="hint">队列按"是否够格(作品≥2)"优先排序。</p>
     <div id="rlist"></div>
   </section>
+  <section class="view" id="v-settings">
+    <h2>模型设置</h2>
+    <p class="hint">支持任意 OpenAI 兼容端点（OpenAI / DeepSeek / Moonshot / 智谱 GLM / 通义 Qwen / OpenRouter / 本地 vLLM、LM Studio）。
+      保存后当前进程立即生效，无需重启；Key 只写入本机 <code>data/model_config.json</code>，页面不回显。</p>
+    <div class="row">
+      <input id="mbase" placeholder="Base URL（如 https://api.openai.com/v1）">
+      <input id="mmodel" placeholder="模型（如 gpt-4o-mini）">
+    </div>
+    <div class="row">
+      <input id="mkey" type="password" placeholder="API Key（留空=保持现有）">
+      <select id="mjson">
+        <option value="json_object">json_object（默认）</option>
+        <option value="text">text（提供商不支持 response_format 时）</option>
+      </select>
+    </div>
+    <div class="row">
+      <button id="mtest">测试连接</button>
+      <button id="msave" class="ghost">保存配置</button>
+      <span class="hint" id="mstat">加载中…</span>
+    </div>
+    <p class="hint">写操作需要 X-API-Key（服务端 <code>ST_API_KEY</code>）：
+      <input id="mkeyauth" type="password" placeholder="X-API-Key" style="max-width:260px"></p>
+    <pre id="mout" class="hint" style="white-space:pre-wrap;margin-top:10px"></pre>
+  </section>
 </main>
 
 <script>
@@ -480,6 +505,7 @@ function showView(v, navBtn){
   if (el) el.classList.add('on');
   if (v === 'chat') ensureWelcome();
   if (v === 'memory') loadMemory();
+  if (v === 'settings') loadModelSettings();
 }
 
 // ---------- 论文详情（引用 / 被引，只统计库内边） ----------
@@ -1450,6 +1476,54 @@ async function decide(pid, decision){
   if (r.ok) loadReview();
   else { const d = await r.json().catch(()=>({detail:r.status})); alert('失败：'+(d.detail||r.status)); }
 }
+// ---------- 模型设置 ----------
+async function loadModelSettings(){
+  try{
+    const d = await (await fetch('/model/status')).json();
+    $('#mbase').value = d.base_url || '';
+    $('#mmodel').value = d.model || '';
+    $('#mjson').value = d.json_mode || 'json_object';
+    $('#mkey').placeholder = d.has_key ? ('API Key（已配置 '+d.key_hint+'，留空=保持）') : 'API Key（必填）';
+    $('#mkeyauth').value = localStorage.getItem('st_key') || '';
+    $('#mstat').textContent = `当前：${d.model} @ ${d.base_url} · ${d.has_key?'已配 key':'未配 key'} · 来源 ${d.source}`;
+  }catch(e){ $('#mstat').textContent = '读取失败：'+e.message; }
+}
+function modelPayload(){
+  const p = {base_url: $('#mbase').value.trim(), model: $('#mmodel').value.trim(),
+             json_mode: $('#mjson').value};
+  const k = $('#mkey').value.trim();
+  if (k) p.api_key = k;
+  return p;
+}
+$('#mtest').onclick = async () => {
+  const out = $('#mout'); out.textContent = '测试中…';
+  const key = $('#mkeyauth').value.trim();
+  if (!key) { out.textContent = '请先填 X-API-Key'; return; }
+  localStorage.setItem('st_key', key);
+  try{
+    const r = await fetch('/model/test', {method:'POST',
+      headers:{'Content-Type':'application/json','X-API-Key':key},
+      body: JSON.stringify(modelPayload())});
+    const d = await r.json();
+    out.textContent = JSON.stringify(d, null, 2);
+  }catch(e){ out.textContent = '测试失败：'+e.message; }
+};
+$('#msave').onclick = async () => {
+  const out = $('#mout'); out.textContent = '保存中…';
+  const key = $('#mkeyauth').value.trim();
+  if (!key) { out.textContent = '请先填 X-API-Key'; return; }
+  localStorage.setItem('st_key', key);
+  try{
+    const r = await fetch('/model/config', {method:'POST',
+      headers:{'Content-Type':'application/json','X-API-Key':key},
+      body: JSON.stringify(modelPayload())});
+    const d = await r.json();
+    if (!r.ok) { out.textContent = '保存失败：'+(d.detail||r.status); return; }
+    out.textContent = '已保存并生效：' + JSON.stringify(d.status, null, 2);
+    $('#mkey').value = '';
+    loadModelSettings();
+  }catch(e){ out.textContent = '保存失败：'+e.message; }
+};
 </script>
 </body>
 </html>

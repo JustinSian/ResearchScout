@@ -42,6 +42,7 @@
 | **检索与图分析** | FTS5 + 向量 + RRF 混合检索；引用链、PageRank、Louvain 聚类、割点/边介数桥接 | 专家、论文、合作网络、研究流派 |
 | **库自动扩充** | 无相关专家 → OpenAlex 主题检索 → 标题验证（≥2 篇）→ 入库 + 补 FTS → 自动重试 | "这次没有 → 已为你扩充该领域专家 → 重试后给出结果" |
 | **受控 RSI** | 白名单策略变异 → dev 评估 → held-out 闸门 → 晋级/回滚，全程预算与审计 | 检索策略变好，但可以被"拒绝"和"回滚" |
+| **模型可切换** | 任意 OpenAI 兼容端点（OpenAI/DeepSeek/Moonshot/GLM/Qwen/OpenRouter/vLLM），界面填地址/模型/Key 即时生效，带连通性与工具调用探测 | "换个模型，刷新页面就生效" |
 | **评测数据集** | Agent 14 条（多轮/记忆/拒答）+ 记忆 50 条（五能力）+ RSI dev/heldout/perturbed | 每个数字都能用仓库内命令复现 |
 
 ## 技术栈
@@ -49,7 +50,7 @@
 | 层 | 选型 | 为什么 |
 |---|---|---|
 | API | **FastAPI** + uvicorn | 58 个端点、SSE 流式、写接口 `X-API-Key` |
-| Agent | **任意 OpenAI 兼容模型**（默认 DeepSeek；function calling）+ 自研循环 | 工具调用、强制收尾、成本/步数预算；换模型只改 `LLM_*` 环境变量 |
+| Agent | **任意 OpenAI 兼容模型**（默认 DeepSeek；function calling）+ 自研循环 | 工具调用、强制收尾、成本/步数预算；**界面「模型设置」可热切换**，也可改 `LLM_*` 环境变量 |
 | 短期记忆 | SQLite `session_turn` / `session_summary` | 滚动窗口 + LLM 摘要，控制 token |
 | 长期记忆 | SQLite `mem_fact`（时间区间）/ `mem_event` / `mem_policy` | 可回答"以前/现在"，可回滚策略 |
 | 检索 | SQLite **FTS5** + 本地向量 + **RRF** | 单机可跑，无需外部向量库 |
