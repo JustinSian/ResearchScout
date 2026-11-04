@@ -49,7 +49,7 @@
 | 层 | 选型 | 为什么 |
 |---|---|---|
 | API | **FastAPI** + uvicorn | 58 个端点、SSE 流式、写接口 `X-API-Key` |
-| Agent | **DeepSeek V4.1 Flash**（function calling）+ 自研循环 | 工具调用、强制收尾、成本/步数预算 |
+| Agent | **任意 OpenAI 兼容模型**（默认 DeepSeek；function calling）+ 自研循环 | 工具调用、强制收尾、成本/步数预算；换模型只改 `LLM_*` 环境变量 |
 | 短期记忆 | SQLite `session_turn` / `session_summary` | 滚动窗口 + LLM 摘要，控制 token |
 | 长期记忆 | SQLite `mem_fact`（时间区间）/ `mem_event` / `mem_policy` | 可回答"以前/现在"，可回滚策略 |
 | 检索 | SQLite **FTS5** + 本地向量 + **RRF** | 单机可跑，无需外部向量库 |
@@ -97,7 +97,7 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 
 # 必需：Agent 走 LLM（DeepSeek）
-echo "DEEPSEEK_API_KEY=sk-你的key" >> .env
+echo "LLM_API_KEY=sk-你的key" >> .env   # 支持任意 OpenAI 兼容端点，见 .env.example
 
 # 用演示快照直接起（6.6 MB，无需采集）
 ST_DB=data/snapshot/demo.db uvicorn app.api:app --host 0.0.0.0 --port 8020

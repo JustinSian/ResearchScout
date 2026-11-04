@@ -1,13 +1,22 @@
-"""极简 DeepSeek 客户端：只做一件事——把 prompt 换成 JSON。
+"""极简 OpenAI 兼容客户端：只做一件事——把 prompt 换成 JSON / 跑工具调用。
 
 为什么不用官方 SDK：
 - 只要一个 `/chat/completions`，用 httpx 就够，少一个依赖；
 - 需要把 token 用量和耗时一起返回（成本分析要用），SDK 反而绕。
 
-配置（全部走环境变量，也支持项目根目录的 .env）：
-  DEEPSEEK_API_KEY    必填；没有就 `configured()` 返回 False，调用方退回规则路径
-  DEEPSEEK_BASE_URL   默认 https://api.deepseek.com
-  DEEPSEEK_MODEL      默认 deepseek-flash
+配置（全部走环境变量，也支持项目根目录的 .env）。
+**支持任何 OpenAI 兼容端点**（OpenAI / DeepSeek / Moonshot / 智谱 GLM / 通义 Qwen /
+OpenRouter / vLLM / LM Studio / Ollama 等），用中性别名即可：
+
+  LLM_API_KEY       必填；没有就 configured() 返回 False，调用方退回规则路径
+  LLM_BASE_URL      默认 https://api.deepseek.com
+  LLM_MODEL         默认 deepseek-flash
+  LLM_PRICE_INPUT   美元/1M input tokens（默认 DeepSeek 峰值价 0.30）
+  LLM_PRICE_OUTPUT  美元/1M output tokens（默认 1.20）
+  LLM_JSON_MODE     json_object（默认）| text（供不支持 response_format 的提供商）
+
+兼容旧名：DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL / DEEPSEEK_MODEL /
+          DEEPSEEK_PRICE_INPUT / DEEPSEEK_PRICE_OUTPUT 仍然有效，作为回退。
 
 **不要把 key 写进代码或提交**：.env 已在 .gitignore 里。
 """
@@ -22,10 +31,6 @@ import httpx
 
 DEFAULT_BASE = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-flash"
-
-# 单价（美元 / 1M tokens）。DeepSeek 分峰谷，这里取偏贵的峰值价，宁可高估成本。
-PRICE_INPUT = float(os.environ.get("DEEPSEEK_PRICE_INPUT", "0.30"))
-PRICE_OUTPUT = float(os.environ.get("DEEPSEEK_PRICE_OUTPUT", "1.20"))
 
 _ENV_LOADED = False
 
@@ -54,9 +59,13 @@ def _ensure_env() -> None:
         load_env()
 
 
-def api_key() -> str:
+def _pick(name: str, legacy: str | None, default: str) -> str:
     _ensure_env()
-    return (os.environ.get("DEEPSEEK_API_KEY") or "").strip()
+    return (os.environ.get(name) or (os.environ.get(legacy) if legacy else "") or default).strip()
+
+
+def api_key() -> str:
+    return _pick("LLM_API_KEY", "DEEPSEEK_API_KEY", "")
 
 
 def configured() -> bool:
@@ -64,37 +73,51 @@ def configured() -> bool:
 
 
 def model() -> str:
-    _ensure_env()
-    return (os.environ.get("DEEPSEEK_MODEL") or DEFAULT_MODEL).strip()
+    return _pick("LLM_MODEL", "DEEPSEEK_MODEL", DEFAULT_MODEL)
 
 
 def base_url() -> str:
+    return _pick("LLM_BASE_URL", "DEEPSEEK_BASE_URL", DEFAULT_BASE).rstrip("/")
+
+
+def json_mode() -> str:
     _ensure_env()
-    return (os.environ.get("DEEPSEEK_BASE_URL") or DEFAULT_BASE).strip().rstrip("/")
+    return (os.environ.get("LLM_JSON_MODE") or "json_object").strip()
+
+
+def price_input() -> float:
+    _ensure_env()
+    return float(os.environ.get("LLM_PRICE_INPUT") or os.environ.get("DEEPSEEK_PRICE_INPUT") or "0.30")
+
+
+def price_output() -> float:
+    _ensure_env()
+    return float(os.environ.get("LLM_PRICE_OUTPUT") or os.environ.get("DEEPSEEK_PRICE_OUTPUT") or "1.20")
 
 
 def cost_usd(prompt_tokens: int, completion_tokens: int) -> float:
-    return round((prompt_tokens or 0) / 1e6 * PRICE_INPUT
-                 + (completion_tokens or 0) / 1e6 * PRICE_OUTPUT, 8)
+    return round((prompt_tokens or 0) / 1e6 * price_input()
+                 + (completion_tokens or 0) / 1e6 * price_output(), 8)
 
 
 def chat_json(system: str, user: str, *, timeout: float = 40.0,
               retries: int = 2, temperature: float = 0.0) -> dict:
-    """调用 DeepSeek，要求返回 JSON 对象。
+    """调用模型，要求返回 JSON 对象。
 
     成功：{"ok": True, "data": {...}, "usage": {...}, "cost_usd": .., "ms": ..}
     失败：{"ok": False, "error": "...", "ms": ..}（调用方负责退回规则路径）
     """
     if not configured():
-        return {"ok": False, "error": "DEEPSEEK_API_KEY 未配置", "ms": 0, "usage": {}}
+        return {"ok": False, "error": "LLM_API_KEY 未配置", "ms": 0, "usage": {}}
     payload = {
         "model": model(),
         "messages": [{"role": "system", "content": system},
                      {"role": "user", "content": user}],
         "temperature": temperature,
-        "response_format": {"type": "json_object"},
         "max_tokens": 800,
     }
+    if json_mode() == "json_object":
+        payload["response_format"] = {"type": "json_object"}
     headers = {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json"}
     last_err = ""
     t0 = time.perf_counter()
@@ -152,7 +175,7 @@ def chat_with_tools(messages: list[dict], tools: list[dict], *, timeout: float =
     message 里可能有 tool_calls，交由调用方执行后把结果塞回 messages。
     """
     if not configured():
-        return {"ok": False, "error": "DEEPSEEK_API_KEY 未配置", "ms": 0, "usage": {}}
+        return {"ok": False, "error": "LLM_API_KEY 未配置", "ms": 0, "usage": {}}
     payload = {"model": model(), "messages": messages, "temperature": temperature,
                "tools": tools, "tool_choice": "auto", "max_tokens": 1200}
     headers = {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json"}
@@ -190,7 +213,7 @@ def chat_with_tools(messages: list[dict], tools: list[dict], *, timeout: float =
 def chat_text(messages: list[dict], *, timeout: float = 60.0) -> dict:
     """不带工具的一轮对话：用于"强制收尾作答"。"""
     if not configured():
-        return {"ok": False, "error": "DEEPSEEK_API_KEY 未配置", "ms": 0, "usage": {}}
+        return {"ok": False, "error": "LLM_API_KEY 未配置", "ms": 0, "usage": {}}
     payload = {"model": model(), "messages": messages, "temperature": 0.0,
                "max_tokens": 1000}
     headers = {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json"}
