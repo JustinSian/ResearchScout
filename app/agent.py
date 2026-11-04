@@ -103,19 +103,30 @@ def _exp_experts(query: str, limit: int = 20) -> list[dict]:
     q = _fts_safe(query)
     if not q:
         return []
+    # FTS5 空格=AND：模型改写成长句（"building science construction …"）时全词都中
+    # 才算命中，影子索引里"building energy"的人就永远查不到。先 AND，没结果再 OR。
+    toks = [t for t in q.split() if t]
+    qs = [q]
+    if len(toks) > 1:
+        qs.append(" OR ".join(toks))
     conn = connect()
+    rows = []
     try:
-        rows = conn.execute(
-            """SELECT f.rowid AS pid, p.name, p.name_zh, p.country, p.works_count,
-                      p.cited_by_count, p.source, i.name AS inst
-               FROM people_fts_exp f
-               JOIN people p ON p.pid = f.rowid
-               LEFT JOIN institutions i ON i.iid = p.inst_id
-               WHERE people_fts_exp MATCH ? AND p.status='published'
-               ORDER BY bm25(people_fts_exp) LIMIT ?""",
-            (q, int(limit))).fetchall()
-    except Exception:
-        rows = []
+        for qq in qs:
+            try:
+                rows = conn.execute(
+                    """SELECT f.rowid AS pid, p.name, p.name_zh, p.country, p.works_count,
+                              p.cited_by_count, p.source, i.name AS inst
+                       FROM people_fts_exp f
+                       JOIN people p ON p.pid = f.rowid
+                       LEFT JOIN institutions i ON i.iid = p.inst_id
+                       WHERE people_fts_exp MATCH ? AND p.status='published'
+                       ORDER BY bm25(people_fts_exp) LIMIT ?""",
+                    (qq, int(limit))).fetchall()
+            except Exception:
+                rows = []
+            if rows:
+                break
     finally:
         conn.close()
     out = []

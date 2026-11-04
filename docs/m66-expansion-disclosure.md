@@ -110,3 +110,37 @@ SSE `expansion` 事件把结构化结果发给前端，渲染成独立面板：
 → 答出：Alexander Hollberg（Chalmers，BIM/LCA/可持续设计）、
         Tianzhen Hong（LBNL，建筑能耗）、…（refused=False）
 ```
+
+---
+
+## 二次修复：为什么用户实测还是失败（我确实没做扎实）
+
+用户截图暴露两个真 bug：
+
+1. **影子索引 FTS 是 AND**：模型把问题改写成 "building science construction materials …" 后，
+   7 个词必须同时命中才返回 → 已补进来的 "Building Energy…" 专家查不到。
+   → 改成**先 AND，无结果再 OR**。
+2. **宽松兜底是死代码**：`_find_authors` 的弱兜底用严格命中数 `title_hits`，
+   严格为 0 时它必然也是 0 → 等于没兜底。→ 改为独立的 `loose_hits`（任一实词命中即可）。
+
+还修了两个概念路径的问题：
+
+3. **概念 id 写错**（我猜的）：`civil engineering` 用 C129521912 → 0 works。
+   实测正确 id：Civil engineering = **C147176958**，Structural engineering = **C66938386**。
+   → 并加"概念过滤 0 结果就退回关键词路径"兜底。
+4. **概念标注脏**：OpenAlex 概念 C147176958 的 top 论文里混着 GRADE/PRISMA 方法学论文，
+   作者 Guyatt 等被误判成土木专家 → 入库后污染影子索引。
+   → 再加一层"作者自己的标签必须含领域实词"的核验。
+
+### 实测（服务器，清理污染后）
+
+```
+「我想认识土木领域的专家」
+→ 概念 C147176958 (Civil engineering)
+→ 补充 6 位学者 / 68 篇论文并入库
+→ 答出：Evert Hoek（岩石力学，多伦多大学）、Jonathan D. Bray（岩土地震工程）
+   refused=False，answered_after_retry=True
+
+「我想认识建筑领域的专家」
+→ 答出 Tianzhen Hong（LBNL，建筑能耗）等，refused=False
+```

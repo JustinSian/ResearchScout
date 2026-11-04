@@ -206,10 +206,46 @@ CONCEPT_MAP = {
     "architectural design": "C190831278",   # Building design
     "architecture": "C170154142",            # Architectural engineering
     "urban planning": "C49545453",           # Urban planning
+    "civil engineering": "C147176958",       # Civil engineering (1.34M works)
+    "structural engineering": "C66938386",   # Structural engineering (3.75M works)
 }
+_CONCEPT_CACHE: dict[str, str] = {}
 
 
-def _authors_by_concept(cid: str, max_authors: int) -> tuple[list[dict], int]:
+def _concept_id_for(topic: str) -> str:
+    """主题 → OpenAlex 概念 id。先查写死的映射，没有就现查 /concepts。
+
+    概念过滤是**字段级金标**：比全文搜索+标题猜测可靠得多（"建筑"曾被判成
+    计算机体系结构，"土木"被召回结晶学/临床医学的大牛）。
+    """
+    import re as _re
+    t = (topic or "").strip().lower()
+    if not t:
+        return ""
+    if t in _CONCEPT_CACHE:
+        return _CONCEPT_CACHE[t]
+    if t in CONCEPT_MAP:
+        _CONCEPT_CACHE[t] = CONCEPT_MAP[t]
+        return CONCEPT_MAP[t]
+    cid = ""
+    try:
+        d = _OA._get("/concepts", {"search": t, "per_page": 10})
+        toks = [w for w in _re.findall(r"[a-z]{4,}", t)]
+        for c in (d.get("results") or []):
+            name = (c.get("display_name") or "").lower()
+            if int(c.get("works_count") or 0) < 500:
+                continue
+            # 概念名必须与主题共享实词，避免"architecture"抓到 MVC 之类
+            if toks and any(w in name for w in toks):
+                cid = (c.get("id") or "").rsplit("/", 1)[-1]
+                break
+    except Exception:
+        cid = ""
+    _CONCEPT_CACHE[t] = cid
+    return cid
+
+
+def _authors_by_concept(cid: str, max_authors: int, topic: str = "") -> tuple[list[dict], int]:
     """按 OpenAlex 概念取该领域的论文，作者即该领域的人（概念即字段级金标）。"""
     data = _OA._get("/works", {"filter": f"concepts.id:{cid}", "per_page": 100,
                                "sort": "cited_by_count:desc"})
@@ -234,6 +270,13 @@ def _authors_by_concept(cid: str, max_authors: int) -> tuple[list[dict], int]:
             continue
         if not prof:
             continue
+        # OpenAlex 概念对高被引论文的标注很脏：C147176958(土木) 的 top 论文里
+        # 混着 GRADE/PRISMA 这类方法学论文，作者会被错当成土木专家（实测 Guyatt）。
+        # 所以再用作者**自己的标签**核一遍：必须含该领域的实词。
+        kws = _keywords(topic) if topic else []
+        labels = " ".join(_labels(prof)).lower()
+        if kws and not any(k in labels for k in kws):
+            continue
         prof["_matched_works"] = 0
         prof["_signal"] = "concept"
         out.append(prof)
@@ -250,17 +293,25 @@ def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
       1. 先把作者标签命中主题的人全部挑出来（按被引降序）；
       2. 不够再用"标题 ≥2 篇命中"的人补齐（按标题命中数、被引降序）。
     """
-    cid = CONCEPT_MAP.get((topic or "").strip().lower())
+    cid = _concept_id_for(topic)
     if cid:
-        return _authors_by_concept(cid, max_authors)
+        out, n = _authors_by_concept(cid, max_authors, topic)
+        if out:
+            return out, n
+        # 概念过滤没招到人（id 失效/概念太窄）→ 退回关键词路径，不要直接放弃
     data = _OA._get("/works", {"search": topic, "per_page": 100,
                                "sort": "cited_by_count:desc"})
     works = data.get("results") or []
     title_hits: dict[str, int] = {}
+    loose_hits: dict[str, int] = {}
     cited: dict[str, int] = {}
     names: dict[str, str] = {}
+    _kws = _keywords(topic)
     for w in works:
         ok = _work_matches(topic, w)
+        _title = (w.get("title") or "").lower()
+        loose = bool(_title) and (any(k in _title for k in _kws)
+                                  or (topic or "").lower() in _title)
         for au in (w.get("authorships") or [])[:10]:
             a = au.get("author") or {}
             aid = a.get("id")
@@ -270,6 +321,8 @@ def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
             cited[aid] = cited.get(aid, 0) + int(w.get("cited_by_count") or 0)
             if ok:
                 title_hits[aid] = title_hits.get(aid, 0) + 1
+            if loose:
+                loose_hits[aid] = loose_hits.get(aid, 0) + 1
 
     # 候选池放宽到 40，逐一看标签
     cands = sorted(cited.items(), key=lambda kv: -kv[1])[:40]
@@ -306,8 +359,8 @@ def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
     # 与其什么都没补，不如补进来但标注低置信——入库走影子索引，不污染主检索。
     if not out:
         weak: list[dict] = []
-        for aid, _c in cands:
-            th = title_hits.get(aid, 0)
+        for aid, _c in sorted(loose_hits.items(), key=lambda kv: -kv[1])[:60]:
+            th = loose_hits.get(aid, 0)
             if th < 1:
                 continue
             short = aid.rsplit("/", 1)[-1]
