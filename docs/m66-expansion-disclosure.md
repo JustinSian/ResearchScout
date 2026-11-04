@@ -144,3 +144,42 @@ SSE `expansion` 事件把结构化结果发给前端，渲染成独立面板：
 「我想认识建筑领域的专家」
 → 答出 Tianzhen Hong（LBNL，建筑能耗）等，refused=False
 ```
+
+---
+
+## 三次修复：人名不是主题 + 数量词 + 考古映射
+
+用户截图暴露的两个缺陷：
+
+1. **"我想找一个考古的专家"** → 主题被清洗成 `"一个考古"`（前缀表没有"一个"）→
+   且 `ZH2EN` 没有"考古" → 搜 `一个考古` 必然 0 命中。
+2. **"Édouard Bard"（纯人名）** → 被当成"主题"去搜 OpenAlex → 必然 0 命中。
+   更根本的问题：**库里没有任何"按人补全作品"的能力**。
+
+### 修复
+
+| 改动 | 说明 |
+|---|---|
+| `clean_topic` 补数量词前缀 | 一个/一名/一位/一批 → `我想找一个考古的专家` = `考古` |
+| `ZH2EN` 补学科 | 考古→archaeology、人类学、语言学、政治学、军事、传媒、体育、宗教、博物馆、档案 |
+| **新增 `enrich_person(pid)`** | 按 OpenAlex **作者 id** 拉作品，补进 `works`/`work_authors`，更新 `works_count`/`cited_by_count` |
+| `agent_llm` 识别人名 | `_resolve_person(topic)` 命中 → **不触发主题扩充**，改走按人补全；作品 <20 篇时补全并重试 |
+
+### 实测
+
+```
+「Édouard Bard」
+→ person_enrichment: {ok: true, pid: 2597, fetched: 50, added_works: 50, total_works: 55}
+→ 答案：论文 55 篇、被引约 96,647、h-index 55（1987–2020）
+   （补全前库里只有 5 篇、3.5 万被引）
+
+「考古」直接检索（补库后）
+→ Alex Bayliss、Christopher Bronk Ramsey、Caitlin E. Buck、
+   Paula J. Reimer、Paul G. Blackwell（均为放射性碳/考古年代学学者）
+```
+
+### 仍未解决（如实）
+
+同一轮里若模型把主题改写成不含该领域实词的长句，影子索引的 OR 兜底仍可能不命中，
+表现为"补进来了但当次没答出、下一问才答出"。这是模型改写与词语重叠的边界问题，
+需要后续做"主题词向量化"或"改写后回退原词"来解决。

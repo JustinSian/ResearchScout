@@ -39,7 +39,8 @@ _OA = OpenAlex()
 _TOPIC_PREFIX = ("我想认识", "我想找", "我想了解", "我想知道", "帮我找", "帮我", "请",
                  "想认识", "想找", "想了解", "认识", "了解", "知道", "我想",
                  "找", "查", "搜索", "推荐", "想要", "关于", "研究",
-                 "几个", "几位", "几名", "个", "几", "位", "名")
+                 "几个", "几位", "几名", "一个", "一名", "一位", "一批",
+                 "个", "几", "位", "名")
 _TOPIC_SUFFIX = ("方向的专家", "方向的学者", "领域的专家", "方向", "领域", "的专家", "专家",
                  "学者", "的研究", "研究")
 
@@ -602,6 +603,10 @@ ZH2EN = {
     "材料": "materials science", "化学": "chemistry", "物理": "physics",
     "数学": "mathematics", "统计": "statistics", "生物": "biology",
     "生态": "ecology", "环境": "environmental science", "能源": "energy",
+    "考古": "archaeology", "人类学": "anthropology", "语言学": "linguistics",
+    "政治学": "political science", "军事": "military science", "传媒": "media studies",
+    "体育": "sports science", "宗教": "religious studies", "博物馆": "museum studies",
+    "档案": "archival science", "公共管理": "public administration",
     "心理": "psychology", "社会学": "sociology", "教育学": "education",
     "历史": "history", "哲学": "philosophy", "文学": "literature",
     "新闻": "journalism", "艺术": "art", "音乐": "music", "设计": "design",
@@ -631,3 +636,60 @@ def to_english(term: str) -> str:
     except Exception:
         pass
     return t
+
+
+def count_person_works(pid: int) -> int:
+    """某位专家在本库里关联了多少篇论文。"""
+    conn = connect()
+    try:
+        return int(conn.execute(
+            "SELECT COUNT(*) FROM work_authors WHERE pid=?", (int(pid),)).fetchone()[0])
+    finally:
+        conn.close()
+
+
+def enrich_person(pid: int, per_page: int = 50, log=print) -> dict:
+    """按 OpenAlex **作者 id** 补全某位专家的作品。
+
+    人名不是主题：拿"Édouard Bard"去 OpenAlex 搜主题必然 0 命中（实测踩过）。
+    正确做法是按其作者档案拉作品，补进 works/work_authors 并更新计数。
+    """
+    conn = connect()
+    try:
+        row = conn.execute("SELECT pid,name,openalex_id FROM people WHERE pid=?",
+                           (int(pid),)).fetchone()
+        if not row:
+            return {"ok": False, "reason": "专家不存在"}
+        oid = (row["openalex_id"] or "").strip()
+        if not oid:
+            return {"ok": False, "reason": "该专家缺少 OpenAlex id，无法补全"}
+        if not oid.startswith("http"):
+            oid = "https://openalex.org/" + oid
+        try:
+            works = _OA.works_of_author(oid, per_page=per_page)
+        except Exception as exc:
+            return {"ok": False, "reason": f"OpenAlex 失败: {exc}"}
+        added = gained = 0
+        for w in works:
+            wid = _upsert_work(conn, w)
+            if not wid:
+                continue
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO work_authors(wid,pid,position) VALUES(?,?,0)",
+                (wid, int(pid)))
+            if cur.rowcount:
+                added += 1
+                gained += int(w.get("cited_by_count") or 0)
+        if added:
+            conn.execute(
+                """UPDATE people SET works_count=COALESCE(works_count,0)+?,
+                          cited_by_count=COALESCE(cited_by_count,0)+?
+                   WHERE pid=?""", (added, gained, int(pid)))
+        conn.commit()
+        total = int(conn.execute(
+            "SELECT COUNT(*) FROM work_authors WHERE pid=?", (int(pid),)).fetchone()[0])
+        log(f"  补全「{row['name']}」：+{added} 篇（现共 {total} 篇）")
+        return {"ok": True, "pid": int(pid), "name": row["name"],
+                "fetched": len(works), "added_works": added, "total_works": total}
+    finally:
+        conn.close()

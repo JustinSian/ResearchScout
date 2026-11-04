@@ -429,6 +429,7 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
     # 库里没有**相关**专家 → 去 OpenAlex 扩充，然后重试一次（只扩一次）
     _need_expand = bool(result.get("refused"))
     _topic = ""
+    _person = None
     try:
         from app import facets, topic_match
         # 主题优先从**原句**清洗：facets.parse 对中文切词很差
@@ -439,6 +440,15 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
         if any(w in query for w in ("合作者", "论文", "引用", "对比", "比较",
                                     "介绍", "是谁", "导师", "邮箱", "代表作")):
             _need_expand = False
+        # 问的是"某个具体的人"？人名不是主题，拿去搜 OpenAlex 必然 0 命中。
+        # 走"按作者 id 补全作品"的专用路径，而不是主题扩充。
+        try:
+            from app.agent import _resolve_person as _rp
+            _person = _rp(None, _topic)
+            if _person:
+                _need_expand = False
+        except Exception:
+            _person = None
         # 用翻译后的英文主题做一致性判断，否则中文问句 vs 英文标签永远不匹配、
         # 会反复触发无谓的扩充（实测"建筑"每问一次都当成缺口）
         _match_topic = _topic
@@ -489,6 +499,36 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
     elif _need_expand:
         result["expansion_report"] = {"topic": _topic, "attempted": False,
                                       "ok": False, "reason": "自动扩充已关闭"}
+
+    # 具体某位专家：库里作品太少时，按 OpenAlex 作者档案补全（人名不是主题）
+    if _person and not result.get("refused"):
+        try:
+            from app import expand as _exp
+            _pid = int(_person["pid"])
+            if _exp.count_person_works(_pid) < 20:
+                en = _exp.enrich_person(_pid, per_page=50)
+                result["person_enrichment"] = en
+                if en.get("ok") and en.get("added_works"):
+                    retry_p = run(query, uid=uid, sid=sid)
+                    if retry_p.get("ok") and not retry_p.get("refused"):
+                        retry_p["person_enrichment"] = en
+                        result = retry_p
+        except Exception as exc:
+            result["person_enrichment"] = {"ok": False,
+                                           "reason": f"{type(exc).__name__}: {exc}"}
+
+    if result.get("person_enrichment"):
+        _en = result["person_enrichment"]
+        if _en.get("ok") and _en.get("added_works"):
+            _msg = (f"【专家补全】库里「{_en.get('name')}」原有作品偏少，已按 OpenAlex "
+                    f"作者档案补全 {_en['added_works']} 篇（现共 {_en.get('total_works')} 篇）。")
+        elif not _en.get("ok"):
+            _msg = f"【专家补全】尝试补全失败：{_en.get('reason')}。"
+        else:
+            _msg = ""
+        if _msg:
+            result["answer"] = ((result.get("answer") or "").rstrip()
+                                + chr(10) + chr(10) + _msg)
 
     # 公示板：把"补库结果"明确告诉用户（补了/没补/为什么没补），不藏在日志里。
     if result.get("expansion_report"):
