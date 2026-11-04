@@ -477,9 +477,17 @@ def _resolve_person(pid: int | None, name: str | None) -> dict | None:
             row = conn.execute("SELECT pid,name,name_zh,last_inst FROM people WHERE pid=?",
                                (pid,)).fetchone()
         elif name:
-            hits = search_people(name, limit=1)
-            row = (conn.execute("SELECT pid,name,name_zh,last_inst FROM people WHERE pid=?",
-                                (hits[0][0],)).fetchone() if hits else None)
+            nm = (name or "").strip()
+            # 先精确匹配：FTS 是分词 OR，查 "Alexis C. Komor" 会命中 "Alexis J. Battle"
+            # （只共享 Alexis），导致"同名异人"误判（实测把碱基编辑专家核验成了别人）
+            row = conn.execute(
+                """SELECT pid,name,name_zh,last_inst FROM people
+                   WHERE lower(name)=lower(?) OR name_zh=? LIMIT 1""",
+                (nm, nm)).fetchone()
+            if not row:
+                hits = search_people(nm, limit=1)
+                row = (conn.execute("SELECT pid,name,name_zh,last_inst FROM people WHERE pid=?",
+                                    (hits[0][0],)).fetchone() if hits else None)
         else:
             row = None
         return dict(row) if row else None

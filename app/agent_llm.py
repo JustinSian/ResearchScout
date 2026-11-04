@@ -377,6 +377,26 @@ def _clarify(query: str, uid: str) -> dict | None:
             "ms": 0.0, "engine": "llm", "memory": None, "finish_reason": "clarify"}
 
 
+def _expansion_message(report: dict) -> str:
+    """把补库结果变成一句给用户看的公示：补了 / 没补 / 为什么没补。"""
+    topic = report.get("topic") or "该主题"
+    if not report.get("attempted"):
+        return f"【库内补充】未执行：{report.get('reason') or '自动扩充未开启'}。"
+    if not report.get("ok"):
+        return (f"【库内补充】库里没有「{topic}」的专家；尝试补充失败："
+                f"{report.get('reason') or '未知原因'}。")
+    ppl = int(report.get("added_people") or 0)
+    wks = int(report.get("added_works") or 0)
+    if ppl > 0:
+        tail = "，并已用新数据重试" if report.get("answered_after_retry") else ""
+        return (f"【库内补充】库里原来没有「{topic}」的专家，已从 OpenAlex 补充 "
+                f"{ppl} 位学者、{wks} 篇论文并入库{tail}。")
+    if "24" in (report.get("reason") or ""):
+        return f"【库内补充】「{topic}」在 24 小时内已补充过，本次未重复采集。"
+    return (f"【库内补充】已尝试为「{topic}」补充，但没有找到可靠的匹配"
+            f"（标题未命中），未入库。")
+
+
 def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
     """对外入口：跑一次 Agent，并写回短期/长期记忆。"""
     # 自述句（"我研究帕金森"）不当作检索问题：直接记忆 + 确认
@@ -418,14 +438,39 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
             if topic and len(topic) >= 2:
                 exp = expand.expand_topic(topic)
                 result["expansion"] = exp
+                report = {
+                    "topic": topic,
+                    "attempted": True,
+                    "ok": bool(exp.get("ok")),
+                    "added_people": int(exp.get("added_people") or 0),
+                    "added_works": int(exp.get("added_works") or 0),
+                    "reason": exp.get("reason") or "",
+                }
                 if exp.get("ok") and (exp.get("pids") or []):
                     retry = run(query, uid=uid, sid=sid)
+                    report["retried"] = True
+                    report["answered_after_retry"] = bool(retry.get("ok")
+                                                          and not retry.get("refused"))
                     if retry.get("ok") and not retry.get("refused"):
                         retry["expansion"] = exp
                         retry["expanded_retry"] = True
+                        retry["expansion_report"] = report
                         result = retry
+                result["expansion_report"] = report
         except Exception as exc:
             result["expansion"] = {"ok": False, "reason": f"{type(exc).__name__}: {exc}"}
+            result["expansion_report"] = {"topic": _topic, "attempted": True, "ok": False,
+                                          "reason": f"{type(exc).__name__}: {exc}"}
+    elif _need_expand:
+        result["expansion_report"] = {"topic": _topic, "attempted": False,
+                                      "ok": False, "reason": "自动扩充已关闭"}
+
+    # 公示板：把"补库结果"明确告诉用户（补了/没补/为什么没补），不藏在日志里。
+    if result.get("expansion_report"):
+        msg = _expansion_message(result["expansion_report"])
+        if msg:
+            result["answer"] = ((result.get("answer") or "").rstrip()
+                                + "\n\n" + msg)
 
     # 成功的链路写入共享经验（跨用户复用）
     try:

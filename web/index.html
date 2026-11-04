@@ -1335,6 +1335,20 @@ async function askChat(){
     think.textContent = thinks.join('\n');
   });
   es.addEventListener('plan', e=>{ plan=JSON.parse(e.data).tools||[]; });
+  // 公示板：库内补充结果（补了/没补/为什么）——不藏在日志里，直接给用户看
+  es.addEventListener('expansion', e=>{
+    const d = JSON.parse(e.data); if (!d) return;
+    let txt;
+    if (!d.attempted) txt = '未执行自动补库：' + (d.reason || '未开启');
+    else if (!d.ok) txt = '补库失败：' + (d.reason || '未知原因');
+    else if ((d.added_people || 0) > 0) txt = `已从 OpenAlex 补充 ${d.added_people} 位学者、${d.added_works || 0} 篇论文并入库` + (d.answered_after_retry ? '，并已用新数据重试' : '');
+    else if ((d.reason || '').includes('24')) txt = '24 小时内已补充过，本次未重复采集';
+    else txt = '已尝试补充，但标题未命中，未入库';
+    const panel = document.createElement('div');
+    panel.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:8px;background:#12202f;border:1px solid #2b4a68;color:#a9c7e8;font-size:12.5px';
+    panel.innerHTML = `<b>库内补充公示</b> · 主题：${esc(d.topic || '')}<br>${esc(txt)}`;
+    box.appendChild(panel);
+  });
   // 反代/隧道可能把 SSE 缓冲成一次性到达，所以前端自己做匀速出字：
   // 收到的字符先进 pending，定时器按 12 字/35ms 往外吐，肉眼可见「在写」。
   let pending = '', pump = null;

@@ -1005,6 +1005,9 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
                 return
             if r.get("refused"):
                 yield sse("refused", {"reason": r.get("reason") or "", "answer": r.get("answer") or ""})
+            # 公示板：补库结果（补了/没补/为什么）单独发一个事件，前端渲染成面板
+            if r.get("expansion_report"):
+                yield sse("expansion", r["expansion_report"])
             text = r.get("answer") or ""
             for i in range(0, len(text), 6):
                 yield sse("token", {"t": text[i:i + 6]})
