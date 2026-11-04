@@ -10,19 +10,31 @@ from typing import Any, Iterable
 from app.config import DB_PATH, SCHEMA_PATH
 
 
+_MIGRATED: set[str] = set()
+
+
 def connect() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=10.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
+    # 惰性升级：任何 DB（包括仓库里提交的旧快照）首次打开自动补表/补列。
+    # 顺序：先 migrate 补缺失列（旧表缺列时 executescript 里的索引会失败），
+    #       再 executescript 建缺失的表/索引。
+    key = str(DB_PATH.resolve())
+    if key not in _MIGRATED:
+        migrate(conn)
+        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        conn.commit()
+        _MIGRATED.add(key)
     return conn
 
 
 def init_db() -> None:
     sql = SCHEMA_PATH.read_text(encoding="utf-8")
     with connect() as conn:
-        conn.executescript(sql)
         migrate(conn)
+        conn.executescript(sql)
         conn.commit()
 
 
@@ -39,7 +51,12 @@ MIGRATIONS = [
 
 
 def migrate(conn: sqlite3.Connection) -> None:
+    # 只在表存在时补列：fresh DB 还没有表，PRAGMA 返回空、不能 ALTER 不存在的表
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
     for table, col, decl in MIGRATIONS:
+        if table not in tables:
+            continue
         cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         if col not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")

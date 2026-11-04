@@ -13,11 +13,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: 安装轻量依赖（测试不依赖模型与数据库）
+      - name: 安装依赖（不含重排模型；重排缺失时测试走词法兜底，验证"无硬依赖"）
         run: |
           python -m pip install --upgrade pip
-          pip install pytest==7.4.0 fastapi==0.104.1 httpx==0.28.1
-      - name: 单元测试
+          pip install fastapi==0.104.1 langgraph==1.2.18 numpy==1.26.4 httpx==0.28.1 pytest==7.4.0
+      - name: 单元测试（对演示快照库跑，含 DB 依赖用例）
+        env:
+          ST_DB: data/snapshot/demo.db
         run: python -m pytest tests -q
       - name: 语法检查（全部模块可编译）
         run: python -m compileall -q app
