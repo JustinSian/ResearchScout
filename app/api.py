@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -72,6 +73,31 @@ def index():
         raise HTTPException(status_code=404, detail="前端未部署")
     # no-store：前端改版后用户硬刷新前不会用到旧缓存（曾经因此看到白屏）
     return FileResponse(str(f), headers={"Cache-Control": "no-store"})
+
+# 每-IP 令牌桶：保护 /chat 的 LLM 账单不被刷爆（单进程，适合单机/小规模部署）。
+_RATE: dict[str, tuple[float, float]] = {}
+
+
+def _chat_allow(ip: str) -> bool:
+    cap = float(os.environ.get("ST_CHAT_BURST", "10"))
+    rpm = float(os.environ.get("ST_CHAT_RPM", "30"))
+    now = time.monotonic()
+    tok, last = _RATE.get(ip, (cap, now))
+    tok = min(cap, tok + (now - last) * (rpm / 60.0))
+    if tok < 1.0:
+        _RATE[ip] = (tok, now)
+        return False
+    _RATE[ip] = (tok - 1.0, now)
+    if len(_RATE) > 10_000:      # 防内存膨胀：清掉陈旧条目
+        _RATE.clear()
+    return True
+
+
+def _chat_gate(request: Request | None) -> None:
+    ip = (request.client.host if request and request.client else "unknown") or "unknown"
+    if not _chat_allow(ip):
+        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+
 
 def require_key(x_api_key: str | None = Header(default=None)) -> None:
     """写接口鉴权。没配置 ST_API_KEY 时**拒绝**（fail-closed），不是放行。"""
@@ -871,14 +897,18 @@ def _timed_supervise(q: str, sid: str, uid: str = "") -> dict:
 @app.post("/chat")
 def chat(q: str = Query(..., description="自然语言问题"),
          sid: str = Query("", description="会话 id：多轮指代（那这些人呢）靠它找回上一轮结果"),
-         uid: str = Query("", description="用户 id：长期记忆按它隔离；留空则不读写记忆")) -> dict:
+         uid: str = Query("", description="用户 id：长期记忆按它隔离；留空则不读写记忆"),
+         request: Request = None) -> dict:
+    _chat_gate(request)
     # Supervisor 调度：kb / task / web / hybrid，并仲裁合并
     return _timed_supervise(q, sid, uid)
 
 
 @app.get("/chat")
 def chat_get(q: str = Query(..., description="自然语言问题（GET 别名，便于 curl 调试）"),
-             sid: str = Query(""), uid: str = Query("")) -> dict:
+             sid: str = Query(""), uid: str = Query(""),
+             request: Request = None) -> dict:
+    _chat_gate(request)
     return _timed_supervise(q, sid, uid)
 
 
@@ -901,7 +931,7 @@ def chat_welcome_ep() -> dict:
 
 @app.get("/chat/stream")
 async def chat_stream(q: str = Query(...), sid: str = Query(""),
-                      uid: str = Query("")):
+                      uid: str = Query(""), request: Request = None):
     """SSE：思考叙述 → 逐字回答 → 引用 → 结束。
 
     没有 LLM，但流式的**形状和行为**与模型一致：先讲思路，再逐步吐字。
