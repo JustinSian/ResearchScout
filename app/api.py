@@ -86,6 +86,32 @@ def health() -> dict:
     return {"status": "ok", "stage": "M1"}
 
 
+@app.get("/status")
+def status() -> dict:
+    """聚合健康状态：LLM / 重排模型 / 数据库，供前端与运维一眼定位问题。"""
+    from app import llm, model_config
+    from app.rerank_ce import available as rerank_available
+    out = {
+        "llm": {"configured": llm.configured(), "model": llm.model(),
+                "base_url": llm.base_url()},
+        "rerank": {"available": rerank_available()},
+        "data": {"demo_db": (WEB_DIR.parent / "data" / "snapshot" / "demo.db").exists()},
+    }
+    try:
+        from app.db import connect, stats as db_stats
+        c = connect()
+        out["data"]["people"] = c.execute("SELECT COUNT(*) FROM people").fetchone()[0]
+        out["data"]["works"] = c.execute("SELECT COUNT(*) FROM works").fetchone()[0]
+        c.close()
+    except Exception:
+        pass
+    try:
+        out["model_config_source"] = model_config.status().get("source")
+    except Exception:
+        pass
+    return out
+
+
 @app.get("/model/status")
 def model_status() -> dict:
     """当前生效的模型配置（永不返回明文 key）。"""

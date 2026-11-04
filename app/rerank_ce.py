@@ -16,6 +16,7 @@ MODEL_DIR = Path(os.environ.get(
     str(Path.home() / "med-compliance-agent/data/models/bge-reranker-onnx")))
 
 _STATE: dict = {}
+_AVAILABLE: bool | None = None   # None = 未探测
 
 
 def _load():
@@ -38,10 +39,45 @@ def _load():
     return sess, tok
 
 
+def available() -> bool:
+    """交叉编码器是否可用（模型存在且能加载）。惰性探测并缓存。
+
+    模型**可选**：缺失时 `scores()` 退回词法重叠打分，产品仍能跑，
+    只是"库里到底有没有"的判定精度下降（m4 里这是最强的拒答信号）。
+    """
+    global _AVAILABLE
+    if _AVAILABLE is not None:
+        return _AVAILABLE
+    try:
+        _load()
+        _AVAILABLE = True
+    except Exception:
+        _AVAILABLE = False
+    return _AVAILABLE
+
+
+def _lexical_scores(query: str, passages: list[str]) -> list[float]:
+    """无模型时的兜底：query 与 passage 的实词重叠度（0~1）。"""
+    import re
+    q = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]{2,}", (query or "").lower()))
+    if not q:
+        return [0.0] * len(passages)
+    out = []
+    for p in passages:
+        toks = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]{2,}", (p or "").lower()))
+        out.append(len(q & toks) / len(q))
+    return out
+
+
 def scores(query: str, passages: list[str]) -> list[float]:
-    """返回每个 passage 与 query 的相关性（sigmoid 后的 0~1）。"""
+    """返回每个 passage 与 query 的相关性（sigmoid 后的 0~1）。
+
+    模型缺失时退回词法重叠（无硬依赖，clone 即跑）。
+    """
     if not passages:
         return []
+    if not available():
+        return _lexical_scores(query, passages)
     import numpy as np
 
     sess, tok = _load()
