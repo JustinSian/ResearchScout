@@ -383,17 +383,43 @@ const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-// 读鉴权：服务端 ST_READ_AUTH=1 时，所有 fetch 自动带 X-API-Key；401 时提示一次。
-// 与写操作共用 st_key（都是服务端 ST_API_KEY）。
+// 统一错误提示：任何 fetch 网络错误 / 5xx 都弹一个自动消失的 toast，
+// 不再让分散在各处的 .catch(()=>{}) 静默吞掉。
+function toast(msg, ms = 4200){
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);' +
+      'background:#3a1d1d;color:#ffd7d7;border:1px solid #7a3434;padding:10px 16px;' +
+      'border-radius:8px;font-size:13px;max-width:min(90vw,560px);z-index:9999;' +
+      'box-shadow:0 6px 24px rgba(0,0,0,.4);transition:opacity .3s';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, ms);
+}
+
+// 读鉴权 + 统一错误：fetch 包装
 (function(){
   const orig = window.fetch;
+  let lastErrAt = 0;
   window.fetch = async function(input, init){
     init = init || {};
     const key = localStorage.getItem('st_key');
     const headers = new Headers(init.headers || {});
     if (key) headers.set('X-API-Key', key);
     init.headers = headers;
-    const r = await orig(input, init);
+    let r;
+    try {
+      r = await orig(input, init);
+    } catch (e) {
+      const now = Date.now();
+      if (now - lastErrAt > 3000) { lastErrAt = now; toast('无法连接后端服务：请确认已启动（见 DEPLOY.md）'); }
+      throw e;
+    }
     if (r.status === 401) {
       const k = prompt('该站点开启了读鉴权，请输入 X-API-Key（服务端 ST_API_KEY）：','');
       if (k) {
@@ -402,10 +428,18 @@ const esc = s => (s ?? '').toString().replace(/[&<>"]/g,
         init.headers = headers;
         return orig(input, init);
       }
+    } else if (r.status >= 500) {
+      const now = Date.now();
+      if (now - lastErrAt > 3000) { lastErrAt = now; toast('服务端出错（' + r.status + '），请稍后重试'); }
     }
     return r;
   };
 })();
+window.addEventListener('unhandledrejection', e => {
+  const r = e && e.reason;
+  const msg = (r && (r.message || r)) ? String(r.message || r) : '发生未处理的错误';
+  toast('出错：' + msg.slice(0, 160));
+});
 
 // 国家 + 来源。三种来源的可信度不同，展示时必须区分：
 // author=现任机构（与 last_inst 同源）、affiliation=历史任职（需带年份）、institution=机构多数推断
