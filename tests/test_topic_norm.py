@@ -10,9 +10,9 @@ def test_clean_strips_user_phrasing():
 
 
 def test_to_english_maps_common_fields():
-    assert to_english("建筑") == "architecture"
+    assert to_english("建筑") == "architectural design"
     assert to_english("人工智能") == "artificial intelligence"
-    assert to_english("建筑与城市规划") in ("architecture", "urban planning")
+    assert to_english("建筑与城市规划") in ("architectural design", "urban planning")
 
 
 def test_to_english_passes_through_english():

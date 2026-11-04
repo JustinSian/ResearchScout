@@ -278,12 +278,13 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
     # 自动扩充的影子索引：这个主题之前被扩充过，影子里的专家是"专为该主题采进来的"，
     # 应排在最前。否则主索引会被 FTS 宽松匹配塞满无关的人（实测 CRISPR base editing
     # 被 Podsakoff/Barney 这些管理学大牛占满，而真正的 Komor/Packer 只在影子里）。
-    if len(kws) >= 2:
-        exp = _exp_experts(query, limit=limit)
-        if exp:
-            seen = {int(it["pid"]) for it in out}
-            head = [it for it in exp if int(it["pid"]) not in seen]
-            out = head + out
+    # 影子索引（自动扩充进库的人）：任何主题都合并——_exp_experts 只会对"扩过的主题"
+    # 返回非空，且这些人是"专为该主题采进来的"，应排最前（主索引可能被 FTS 塞满无关者）
+    exp = _exp_experts(query, limit=limit)
+    if exp:
+        seen = {int(it["pid"]) for it in out}
+        head = [it for it in exp if int(it["pid"]) not in seen]
+        out = head + out
 
     return out[:limit]
 

@@ -201,6 +201,47 @@ def _labels(prof: dict) -> list[str]:
     return [x for x in out if x]
 
 
+# 中文主题 → OpenAlex 概念 id：用概念过滤消歧（全文搜索会把"建筑"匹配到计算机体系结构）
+CONCEPT_MAP = {
+    "architectural design": "C190831278",   # Building design
+    "architecture": "C170154142",            # Architectural engineering
+    "urban planning": "C49545453",           # Urban planning
+}
+
+
+def _authors_by_concept(cid: str, max_authors: int) -> tuple[list[dict], int]:
+    """按 OpenAlex 概念取该领域的论文，作者即该领域的人（概念即字段级金标）。"""
+    data = _OA._get("/works", {"filter": f"concepts.id:{cid}", "per_page": 100,
+                               "sort": "cited_by_count:desc"})
+    works = data.get("results") or []
+    cited: dict[str, int] = {}
+    names: dict[str, str] = {}
+    for w in works:
+        for au in (w.get("authorships") or [])[:10]:
+            a = au.get("author") or {}
+            aid = a.get("id")
+            if not aid:
+                continue
+            names.setdefault(aid, a.get("display_name"))
+            cited[aid] = cited.get(aid, 0) + int(w.get("cited_by_count") or 0)
+    top = sorted(cited.items(), key=lambda kv: -kv[1])[: max_authors * 2]
+    out = []
+    for aid, _c in top:
+        short = aid.rsplit("/", 1)[-1]
+        try:
+            prof = _OA._get(f"/authors/{short}", {})
+        except Exception:
+            continue
+        if not prof:
+            continue
+        prof["_matched_works"] = 0
+        prof["_signal"] = "concept"
+        out.append(prof)
+        if len(out) >= max_authors:
+            break
+    return out, len(works)
+
+
 def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
     """按主题找作者：**标签优先**的双信号选人。
 
@@ -209,6 +250,9 @@ def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
       1. 先把作者标签命中主题的人全部挑出来（按被引降序）；
       2. 不够再用"标题 ≥2 篇命中"的人补齐（按标题命中数、被引降序）。
     """
+    cid = CONCEPT_MAP.get((topic or "").strip().lower())
+    if cid:
+        return _authors_by_concept(cid, max_authors)
     data = _OA._get("/works", {"search": topic, "per_page": 100,
                                "sort": "cited_by_count:desc"})
     works = data.get("results") or []
@@ -256,6 +300,29 @@ def _find_authors(topic: str, max_authors: int) -> tuple[list[dict], int]:
     out = label_hits[:max_authors]
     if len(out) < max_authors:
         out += title_only[: max_authors - len(out)]
+
+    # 严格口径（标签 或 标题≥2）没找到人时，降级到"标题命中 ≥1"，
+    # 标 _signal="weak"（低置信）。冷门/多义主题（如"建筑"）严格口径会 0 命中，
+    # 与其什么都没补，不如补进来但标注低置信——入库走影子索引，不污染主检索。
+    if not out:
+        weak: list[dict] = []
+        for aid, _c in cands:
+            th = title_hits.get(aid, 0)
+            if th < 1:
+                continue
+            short = aid.rsplit("/", 1)[-1]
+            try:
+                prof = _OA._get(f"/authors/{short}", {})
+            except Exception:
+                continue
+            if not prof:
+                continue
+            prof["_matched_works"] = th
+            prof["_signal"] = "weak"
+            weak.append(prof)
+        weak.sort(key=lambda a: (-int(a.get("_matched_works") or 0),
+                                 -int(a.get("cited_by_count") or 0)))
+        out = weak[:max_authors]
     return out, len(works)
 
 
@@ -320,7 +387,7 @@ def expand_topic(topic: str, *, max_authors: int = 8, works_per_author: int = 10
             before = conn.execute("SELECT COUNT(*) FROM people").fetchone()[0]
             # 验证标记必须是"标签 或 标题"命中，而不是只看标题命中数：
             # 只按标题算会把标签命中的作者判成 pending → 扩充了却检索不到（实测踩过）
-            _validated = (a.get("_signal") in ("label", "both")
+            _validated = (a.get("_signal") in ("label", "both", "concept")
                           or int(a.get("_matched_works") or 0) >= 1)
             pid = _upsert_person(conn, a, publish, topic, _validated)
             after = conn.execute("SELECT COUNT(*) FROM people").fetchone()[0]
@@ -472,7 +539,7 @@ def audit_expansions(topic: str | None = None, log=print) -> dict:
 
 # 中文学科/领域名 → 英文检索词。OpenAlex 是英文库，不翻译就搜不到（实测"建筑"0 命中）。
 ZH2EN = {
-    "建筑": "architecture", "建筑设计": "architectural design", "城市规划": "urban planning",
+    "建筑": "architectural design", "建筑设计": "architectural design", "城市规划": "urban planning",
     "土木": "civil engineering", "医学": "medicine", "临床": "clinical medicine",
     "护理": "nursing", "药学": "pharmacy", "公共卫生": "public health",
     "法律": "law", "法学": "legal studies", "经济": "economics", "金融": "finance",

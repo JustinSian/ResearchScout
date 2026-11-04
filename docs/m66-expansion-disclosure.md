@@ -81,3 +81,32 @@ SSE `expansion` 事件把结构化结果发给前端，渲染成独立面板：
 真正的建筑学论文标题很少重复 "architecture" 两次以上，标题验证（≥2 篇）因此全拒。
 
 **这是精度优先的取舍**：宁可 0 入库并如实公示，也不把计算机体系结构的人当建筑专家。
+
+---
+
+## 追加：用 OpenAlex 概念消歧，解决"建筑"这类多义主题补不进
+
+### 根因链
+
+1. 中文"建筑"→英文 `architecture`，OpenAlex 全文搜索把高被引的**计算机体系结构**排在前面；
+2. 标题验证（≥2 篇命中）对建筑学论文太严（标题很少重复 "architecture" 两次）→ 0 命中；
+3. 即便补进来，概念路径的作者被标成 `pending`（旧 `_validated` 没把 `concept` 当验证）→ 检索不到。
+
+### 修复
+
+| 改动 | 效果 |
+|---|---|
+| `CONCEPT_MAP` + `_authors_by_concept` | 中文主题 → OpenAlex 概念 id，用 `filter=concepts.id` 取**该领域**的论文（概念即字段级金标，不再靠标题猜） |
+| `_validated` 纳入 `"concept"` | 概念路径采进来的人直接 `published`，可被检索 |
+| 影子索引结果**任何主题都合并**（去掉"仅多词"门槛） | 单词概念（architecture）扩进来也能被 `find_expert` 前置 |
+| 严格 0 命中时降级到"标题命中 ≥1"（标 `weak`） | 冷门主题不再一无所获，低置信但入库 |
+
+### 实测（服务器）
+
+```
+问「我想认识建筑领域的专家」
+→ 主题清洗 建筑 → architectural design → 概念 C190831278 (Building design)
+→ 补充 8 位学者 / 74 篇论文并入库
+→ 答出：Alexander Hollberg（Chalmers，BIM/LCA/可持续设计）、
+        Tianzhen Hong（LBNL，建筑能耗）、…（refused=False）
+```
