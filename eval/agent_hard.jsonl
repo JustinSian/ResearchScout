@@ -18,3 +18,13 @@
 {"id": "h-clarify-2", "q": "给我推荐几个专家", "expect": {"finish_reason": "clarify"}, "level": "hard", "why": "空上下文应追问"}
 {"id": "h-clarify-3", "q": "来几位学者", "expect": {"finish_reason": "clarify"}, "level": "hard", "why": "空上下文应追问"}
 {"id": "h-memory-answer-2", "q": "我的研究领域是什么", "setup_queries": ["我的研究领域是肿瘤免疫"], "expect": {"finish_reason": "memory_answer", "must_any": ["肿瘤免疫"]}, "level": "hard", "why": "领域类问题直接由记忆回答"}
+{"id": "h-compare-cites-2", "q": "钟南山和何建行，谁被引更高？", "expect": {"must_any": ["钟南山", "何建行"], "tools_any": ["compare", "profile", "citations"]}, "level": "hard", "why": "跨人对比"}
+{"id": "h-collab-cross-2", "q": "梁文华和钟南山合作过吗？", "expect": {"must_any": ["梁文华", "钟南山"], "tools_any": ["collaborators", "compare", "profile"]}, "level": "hard", "why": "跨人关系"}
+{"id": "h-compare-cites-3", "q": "陈荣昌和李兰娟谁的文章更多？", "expect": {"must_any": ["陈荣昌", "李兰娟"], "tools_any": ["compare", "profile"]}, "level": "hard", "why": "跨人对比（论文数）"}
+{"id": "h-memory-recent", "q": "推荐几个专家", "setup_queries": ["我最近在做肺纤维化"], "expect": {"must_any": ["肺纤维化", "fibrosis", "pulmonary"], "tools_any": ["find_expert"]}, "level": "hard", "why": "'最近在做'表述要能被抽取并生效"}
+{"id": "h-memory-country-us", "q": "推荐几个呼吸科专家", "setup_queries": ["我只要美国的机构"], "expect": {"items_country_any": ["US"], "tools_any": ["find_expert"]}, "level": "hard", "why": "国家约束=美国"}
+{"id": "h-memory-override", "q": "推荐几个专家", "setup_queries": ["我研究帕金森", "我现在改做阿尔茨海默了"], "expect": {"must_any": ["阿尔茨海默", "alzheimer"]}, "level": "hard", "why": "新方向覆盖旧方向"}
+{"id": "h-anaphora-person", "turns": ["钟南山的合作者里谁被引最高？", "那何建行呢？"], "expect": {"must_any": ["何建行"]}, "level": "hard", "why": "第二轮只给新人名"}
+{"id": "h-anaphora-country", "turns": ["找研究肺纤维化的专家", "那中国的呢？"], "expect": {"tools_any": ["find_expert"], "items_country_any": ["CN"]}, "level": "hard", "why": "第二轮补国家条件"}
+{"id": "h-nonexistent-mentor", "q": "介绍陈晓东的导师", "expect": {"refused": true}, "level": "hard", "why": "虚构人物的关系查询"}
+{"id": "h-multi-constraint-2", "q": "找近三年发表最多的中国免疫学专家", "expect": {"must_any": ["免疫"], "tools_any": ["find_expert"]}, "level": "hard", "why": "时间+产出+国家+领域"}
