@@ -969,6 +969,52 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
         return f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
 
     async def gen():
+        # —— LLM Agent 路径：流式吐"工具步骤 + 最终答案"（真实 LLM，默认） ——
+        from app import agent_llm
+        _llm = False
+        try:
+            _llm = agent_llm.enabled()
+        except Exception:
+            _llm = False
+        if _llm:
+            yield sse("think", {"t": "正在分析你的问题，准备调用工具…"})
+            import queue as _queue
+            import threading as _thr
+            box = _queue.Queue()
+            holder: dict = {}
+
+            def _cb(step):
+                box.put(step)
+
+            def _work():
+                holder["r"] = agent_llm.chat(q, uid=uid, sid=sid, on_step=_cb)
+
+            t = _thr.Thread(target=_work)
+            t.start()
+            while t.is_alive() or not box.empty():
+                try:
+                    step = box.get_nowait()
+                    yield sse("step", step)
+                except _queue.Empty:
+                    await asyncio.sleep(0.05)
+            t.join()
+            r = holder.get("r") or {}
+            if not r.get("ok"):
+                yield sse("think", {"t": "LLM 调用失败：" + str(r.get("reason") or r.get("error") or "")})
+                yield sse("done", {"citations": 0})
+                return
+            if r.get("refused"):
+                yield sse("refused", {"reason": r.get("reason") or "", "answer": r.get("answer") or ""})
+            text = r.get("answer") or ""
+            for i in range(0, len(text), 6):
+                yield sse("token", {"t": text[i:i + 6]})
+                await asyncio.sleep(0.015)
+            yield sse("citations", {"items": r.get("citations") or [],
+                                    "refinements": r.get("refinements") or []})
+            yield sse("done", {"citations": len(r.get("citations") or []), "engine": "llm"})
+            return
+
+        # —— 经典路径（无 LLM 或 classic 模式）——
         # 先把意图判断出来（快），让用户立刻看到"我开始干活了"
         from app.agent import plan_node
         intent = {"compare": "compare_experts", "collaborators": "collaborators",

@@ -180,7 +180,8 @@ def _run_tool(name: str, args: dict, uid: str, sid: str) -> dict:
 
 
 def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
-        budget_usd: float = BUDGET_USD, episode_hint: bool = True) -> dict:
+        budget_usd: float = BUDGET_USD, episode_hint: bool = True,
+        on_step=None) -> dict:
     """执行一次 Agent 会话。未配置 LLM 时返回 {"ok": False, "reason": ...} 由上层降级。"""
     if not llm.configured():
         return {"ok": False, "reason": "未配置 DEEPSEEK_API_KEY"}
@@ -258,6 +259,13 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                           "count": out.get("count"),
                           "ms": round((time.perf_counter() - started) * 1000, 1),
                           "error": out.get("error")})
+            if on_step:
+                try:
+                    on_step({"tool": name, "args": args, "count": out.get("count"),
+                             "ms": round((time.perf_counter() - started) * 1000, 1),
+                             "error": out.get("error")})
+                except Exception:
+                    pass
             messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
                              "content": _truncate({
                                  "tool": name,
@@ -369,7 +377,7 @@ def _clarify(query: str, uid: str) -> dict | None:
             "ms": 0.0, "engine": "llm", "memory": None, "finish_reason": "clarify"}
 
 
-def chat(query: str, uid: str = "", sid: str = "") -> dict:
+def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
     """对外入口：跑一次 Agent，并写回短期/长期记忆。"""
     # 自述句（"我研究帕金森"）不当作检索问题：直接记忆 + 确认
     if uid and _is_disclosure(query):
@@ -387,7 +395,7 @@ def chat(query: str, uid: str = "", sid: str = "") -> dict:
     clar = _clarify(query, uid)
     if clar:
         return clar
-    result = run(query, uid=uid, sid=sid)
+    result = run(query, uid=uid, sid=sid, on_step=on_step)
     if not result.get("ok"):
         return result
 

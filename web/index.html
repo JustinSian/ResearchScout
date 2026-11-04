@@ -1291,6 +1291,15 @@ async function askChat(){
     thinks.push(t);
     think.textContent = thinks.join('\n');
   });
+  // LLM Agent 的每步工具调用：让用户看到"正在查画像/检索专家…"，而不是干等 7 秒
+  es.addEventListener('step', e=>{
+    const d = JSON.parse(e.data);
+    const label = {find_expert:'检索专家', profile:'查画像', research_area:'分析方向',
+      collaborators:'查合作者', works:'查论文', compare:'对比', citations:'查引用',
+      remember:'记记忆'}[d.tool] || d.tool;
+    thinks.push(`→ ${label}` + (d.count != null ? `（${d.count} 条）` : ''));
+    think.textContent = thinks.join('\n');
+  });
   es.addEventListener('plan', e=>{ plan=JSON.parse(e.data).tools||[]; });
   // 反代/隧道可能把 SSE 缓冲成一次性到达，所以前端自己做匀速出字：
   // 收到的字符先进 pending，定时器按 12 字/35ms 往外吐，肉眼可见「在写」。
