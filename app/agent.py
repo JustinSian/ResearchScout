@@ -158,6 +158,15 @@ def _topic_experts(query: str, limit: int = 5) -> list[dict]:
     用于概念型查询：论文标题里没有 "Gastroenterology"，但专家的 OpenAlex
     概念标签里有。带国别/机构等硬条件时不走这条（交给 facet 路径）。
     """
+    # 中文主题先翻译成英文（库里的标签是英文）：
+    # "我想认识建筑领域的专家" → "architecture"，否则 FTS 永远 0 命中。
+    try:
+        from app.expand import clean_topic as _ct, to_english as _te
+        _norm = _te(_ct(query))
+        if _norm:
+            query = _norm
+    except Exception:
+        pass
     try:
         from app.search import search_people
         # 多取一批（100~200）再按被引重排：FTS 的 bm25 只反映词面匹配，

@@ -36,8 +36,10 @@ DDL = [
 
 _OA = OpenAlex()
 
-_TOPIC_PREFIX = ("帮我找", "帮我", "请", "找", "查", "搜索", "推荐", "想要", "关于", "研究",
-                 "几个", "几位", "几名", "几位", "个", "几", "位", "名")
+_TOPIC_PREFIX = ("我想认识", "我想找", "我想了解", "我想知道", "帮我找", "帮我", "请",
+                 "想认识", "想找", "想了解", "认识", "了解", "知道", "我想",
+                 "找", "查", "搜索", "推荐", "想要", "关于", "研究",
+                 "几个", "几位", "几名", "个", "几", "位", "名")
 _TOPIC_SUFFIX = ("方向的专家", "方向的学者", "领域的专家", "方向", "领域", "的专家", "专家",
                  "学者", "的研究", "研究")
 
@@ -467,3 +469,45 @@ def audit_expansions(topic: str | None = None, log=print) -> dict:
         return {"kept": kept, "demoted": demoted}
     finally:
         conn.close()
+
+# 中文学科/领域名 → 英文检索词。OpenAlex 是英文库，不翻译就搜不到（实测"建筑"0 命中）。
+ZH2EN = {
+    "建筑": "architecture", "建筑设计": "architectural design", "城市规划": "urban planning",
+    "土木": "civil engineering", "医学": "medicine", "临床": "clinical medicine",
+    "护理": "nursing", "药学": "pharmacy", "公共卫生": "public health",
+    "法律": "law", "法学": "legal studies", "经济": "economics", "金融": "finance",
+    "管理": "management", "会计": "accounting", "计算机": "computer science",
+    "人工智能": "artificial intelligence", "机器学习": "machine learning",
+    "数据科学": "data science", "软件工程": "software engineering",
+    "材料": "materials science", "化学": "chemistry", "物理": "physics",
+    "数学": "mathematics", "统计": "statistics", "生物": "biology",
+    "生态": "ecology", "环境": "environmental science", "能源": "energy",
+    "心理": "psychology", "社会学": "sociology", "教育学": "education",
+    "历史": "history", "哲学": "philosophy", "文学": "literature",
+    "新闻": "journalism", "艺术": "art", "音乐": "music", "设计": "design",
+    "农业": "agriculture", "食品": "food science", "地质": "geology",
+    "地理": "geography", "气象": "meteorology", "海洋": "oceanography",
+    "航空航天": "aerospace engineering", "机械": "mechanical engineering",
+    "电子": "electronics", "通信": "telecommunications", "自动化": "automation",
+}
+
+
+def to_english(term: str) -> str:
+    """中文主题 → 英文检索词；英文原样返回。用于 OpenAlex 检索和 FTS。"""
+    import re as _re
+    t = (term or "").strip()
+    if not t:
+        return ""
+    if not _re.search(r"[一-龥]", t):
+        return t
+    for zh in sorted(ZH2EN, key=len, reverse=True):
+        if zh in t:
+            return ZH2EN[zh]
+    try:
+        from app import facets as _facets
+        en = _facets.parse(t).get("topic_en") or []
+        if en:
+            return " ".join(en)
+    except Exception:
+        pass
+    return t

@@ -164,8 +164,15 @@ def _run_tool(name: str, args: dict, uid: str, sid: str) -> dict:
     if name == "remember":
         key = str(args.get("key") or "").strip()
         val = str(args.get("value") or "").strip()
-        if not key or not val:
-            return {"tool": "remember", "ok": False, "error": "key/value 为空"}
+        # 模型有时给 "direction"/"研究方向" 之类，映射到合法 key，而不是报错
+        _alias = {"direction": "topic", "研究方向": "topic", "领域": "field",
+                  "field_of_study": "field", "限制": "constraint", "偏好": "preference",
+                  "单位": "org", "机构": "org", "国家": "country"}
+        key = _alias.get(key, key)
+        if key not in ("topic", "field", "constraint", "preference", "org", "country"):
+            key = "topic"
+        if not val:
+            return {"tool": "remember", "ok": False, "error": "value 为空"}
         r = user_memory.add_fact(uid, key, val, source="agent")
         return {"tool": "remember", "ok": True, "id": r["id"], "key": key, "value": val}
     mapped = to_call({"tool": name, "args": args}, args.get("query") or "")
@@ -424,22 +431,40 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
     _topic = ""
     try:
         from app import facets, topic_match
-        _topic = (facets.parse(query).get("topic") or "").strip()
-        if _topic and not _need_expand:
+        # 主题优先从**原句**清洗：facets.parse 对中文切词很差
+        # （"我想了解人工智能…" 会被切成 "我想了解 工智能"，丢了"人"）
+        from app.expand import clean_topic as _ct0
+        _topic = (_ct0(query) or (facets.parse(query).get("topic") or "")).strip()
+        # 人名/关系/论文类问题不触发扩充（否则会拿整句去搜 OpenAlex）
+        if any(w in query for w in ("合作者", "论文", "引用", "对比", "比较",
+                                    "介绍", "是谁", "导师", "邮箱", "代表作")):
+            _need_expand = False
+        # 用翻译后的英文主题做一致性判断，否则中文问句 vs 英文标签永远不匹配、
+        # 会反复触发无谓的扩充（实测"建筑"每问一次都当成缺口）
+        _match_topic = _topic
+        try:
+            from app.expand import clean_topic as _ct, to_english as _te
+            _match_topic = _te(_ct(_topic)) or _topic
+        except Exception:
+            pass
+        if _match_topic and not _need_expand:
             _pids = [int(it["pid"]) for ev in (result.get("evidence") or [])
                      for it in (ev.get("items") or []) if it.get("pid")]
-            _need_expand = not topic_match.matches(_topic, _pids)
+            _need_expand = not topic_match.matches(_match_topic, _pids)
     except Exception:
         pass
     if _need_expand and (os.environ.get("ST_AUTO_EXPAND", "1") == "1"):
         try:
             from app import expand
-            topic = _topic
-            if topic and len(topic) >= 2:
-                exp = expand.expand_topic(topic)
+            # 主题清洗 + 中文翻译：OpenAlex 是英文库，"我想认识建筑" 搜不到
+            display = expand.clean_topic(_topic) or _topic
+            search = expand.to_english(display)
+            if search and len(search) >= 2:
+                exp = expand.expand_topic(search)
                 result["expansion"] = exp
                 report = {
-                    "topic": topic,
+                    "topic": display,
+                    "search_term": search,
                     "attempted": True,
                     "ok": bool(exp.get("ok")),
                     "added_people": int(exp.get("added_people") or 0),
