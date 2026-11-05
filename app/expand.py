@@ -38,6 +38,7 @@ _OA = OpenAlex()
 
 _TOPIC_PREFIX = ("我想认识", "我想找", "我想了解", "我想知道", "帮我找", "帮我", "请",
                  "想认识", "想找", "想了解", "认识", "了解", "知道", "我想",
+                 "我要找", "我在找", "我想找个", "我找", "我要", "想找",
                  "找", "查", "搜索", "推荐", "想要", "关于", "研究",
                  "几个", "几位", "几名", "一个", "一名", "一位", "一批",
                  "个", "几", "位", "名")
@@ -603,6 +604,14 @@ ZH2EN = {
     "材料": "materials science", "化学": "chemistry", "物理": "physics",
     "数学": "mathematics", "统计": "statistics", "生物": "biology",
     "生态": "ecology", "环境": "environmental science", "能源": "energy",
+    "医疗": "medicine", "医疗健康": "healthcare", "临床医学": "clinical medicine",
+    "帕金森": "parkinson", "阿尔茨海默": "alzheimer", "糖尿病": "diabetes",
+    "高血压": "hypertension", "癌症": "cancer", "肿瘤": "oncology",
+    "免疫": "immunology", "心血管": "cardiovascular", "呼吸": "respiratory",
+    "神经科学": "neuroscience", "基因": "genetics", "蛋白": "protein",
+    "肠道菌群": "gut microbiome", "深度学习": "deep learning",
+    "强化学习": "reinforcement learning", "计算机视觉": "computer vision",
+    "自然语言处理": "natural language processing", "大模型": "large language model",
     "考古": "archaeology", "人类学": "anthropology", "语言学": "linguistics",
     "政治学": "political science", "军事": "military science", "传媒": "media studies",
     "体育": "sports science", "宗教": "religious studies", "博物馆": "museum studies",

@@ -628,7 +628,12 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
             # 主题清洗 + 中文翻译：OpenAlex 是英文库，"我想认识建筑" 搜不到
             display = expand.clean_topic(_topic) or _topic
             search = expand.to_english(display)
-            if search and len(search) >= 2 and search.lower() not in _AFFIRM:
+            # 翻译不出英文就别去搜 OpenAlex：拿中文当主题一定 0 命中，
+            # 还会在界面上留下一条"补库失败"的噪音（实测"我找医疗"）。
+            import re as _re_cjk
+            _has_cjk = bool(_re_cjk.search(r"[\u4e00-\u9fa5]", search or ""))
+            if (search and len(search) >= 2 and not _has_cjk
+                    and search.lower() not in _AFFIRM):
                 exp = expand.expand_topic(search)
                 result["expansion"] = exp
                 report = {
