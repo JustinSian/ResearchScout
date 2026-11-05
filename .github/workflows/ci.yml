@@ -21,5 +21,7 @@ jobs:
         env:
           ST_DB: data/snapshot/demo.db
         run: python -m pytest tests -q
+      - name: README 与代码一致（数字/章节/文件）
+        run: python scripts/check_readme.py
       - name: 语法检查（全部模块可编译）
         run: python -m compileall -q app

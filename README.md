@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/JustinSian/ResearchScout/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinSian/ResearchScout/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-300%20passed-brightgreen.svg)](#测试与评测)
+[![Tests](https://img.shields.io/badge/tests-360%20passed-brightgreen.svg)](#测试与评测)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 [快速开始](#快速开始) · [核心能力](#核心能力) · [架构](#架构) · [评测](#测试与评测) · [API](#api) · [部署](DEPLOY.md)
@@ -28,7 +28,7 @@
 - 它的每一条结论都能回溯到库里的专家/论文，查不到时明确说不知道；
 - 它用一套评测集衡量自己，并在受控范围内改进自己的检索策略。
 
-底库是 **47,569 位学者 / 11,104 篇论文 / 30,101 条库内引用边 / 101,414 条合作边**，国家覆盖 97%（带来源标记）。
+底库是 **47,678 位学者 / 12,221 篇论文 / 30,874 条库内引用边 / 101,564 条合作边**，国家覆盖 **99.8%**（带来源标记）。仓库自带的 `data/snapshot/demo.db` 是 60 位学者的**演示子集**，完整库需按 `scripts/` 里的采集脚本自建。
 
 ## 核心能力
 
@@ -50,7 +50,7 @@
 
 | 层 | 选型 | 为什么 |
 |---|---|---|
-| API | **FastAPI** + uvicorn | 63 个端点、SSE 流式、写接口 `X-API-Key` |
+| API | **FastAPI** + uvicorn | 69 个端点、SSE 流式、写接口 `X-API-Key`、`/chat` 每-IP 限流 |
 | Agent | **任意 OpenAI 兼容模型**（默认 DeepSeek；function calling）+ 自研循环 | 工具调用、强制收尾、成本/步数预算；**界面「模型设置」可热切换**，也可改 `LLM_*` 环境变量 |
 | 短期记忆 | SQLite `session_turn` / `session_summary` | 滚动窗口 + LLM 摘要，控制 token |
 | 长期记忆 | SQLite `mem_fact`（时间区间）/ `mem_event` / `mem_policy` | 可回答"以前/现在"，可回滚策略 |
@@ -120,7 +120,7 @@ curl "http://127.0.0.1:8020/chat?q=那这些人里谁被引最高&uid=demo&sid=s
 ## 测试与评测
 
 ```bash
-python -m pytest tests -q          # 300 项测试
+python -m pytest tests -q          # 360 项测试
 python -m app.eval_agent           # Agent 级：多轮 + 记忆 + 拒答（14 条）
 python -m app.eval_memory          # 记忆五能力（50 条）
 python -m app.rsi --generations 3 --dry-run   # 自我改进（不落库）
@@ -130,7 +130,7 @@ python -m app.rsi --generations 3 --dry-run   # 自我改进（不落库）
 
 | 评测 | 结果 |
 |---|---|
-| **Agent 级（14 条）** | 通过率 **100%**（14/14）· 工具命中 100% · 记忆使用 21% · 平均 **1.14 轮** · 单次 **$0.0020** · p50 **8.8 s** |
+| **Agent 级（14 条）** | 通过率 **100%**（14/14）· 工具命中 100% · 记忆使用 21% · 平均 **1.14 轮** · 单次 **$0.0020** · 首个可见答案约 **4.6 s**（p50 完整返回 5–8 s，缓存命中 0 s） |
 | 记忆五能力（50 条） | 通过率 **100%** · 过期事实误用 **0%** · 记忆进检索 76% |
 | 受控 RSI（检索词） | dev 8% → **25%**，held-out 12% → **38%**；**1 代晋级 / 4 代被拒**（附拒绝原因） |
 | 共享经验 + 自动扩充 | 经验跨用户复用生效；Gaucher 扩充 4 位可检索；误标审计降级 6 人 |
@@ -196,7 +196,7 @@ app/
   supervisor.py       路由与仲裁（classic 回退路径）
   agent.py            知识库工具集
   facets.py / search.py / citations.py / cluster.py
-  api.py            FastAPI（63 个端点）
+  api.py            FastAPI（69 个端点）
 web/index.html      单文件前端（10 视图）
 eval/               agent_cases · memory · rsi_dev/heldout/perturbed · answers
 docs/               里程碑设计文档
@@ -239,6 +239,17 @@ tests/              236 项测试
 - [ ] `plan_prompt` 纳入 RSI 的正式评测集
 - [ ] 多用户隔离与配额（登录、租户级限流）
 - [ ] 中文复合主题的映射表覆盖（当前靠人工补词 + 回归测试）
+
+## 文档与贡献
+
+README 里的每个数字都由脚本校验，改代码忘了改文档 CI 会红：
+
+```bash
+python scripts/check_readme.py    # 数字/章节/文件一致性
+```
+
+写作规范见 [`docs/readme-standard.md`](docs/readme-standard.md)：
+数字必须可复现、默认值必须与代码同源、局限要写真话、Roadmap 完成项要附证据。
 
 ## License
 

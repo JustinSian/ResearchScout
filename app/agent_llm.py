@@ -230,7 +230,7 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
         on_step=None, on_delta=None, deadline_s=None,
         on_should_stop=None) -> dict:
     """执行一次 Agent 会话。未配置 LLM 时返回 {"ok": False, "reason": ...} 由上层降级。"""
-    if not llm.configured():
+    if not llm.configured(): 看，
         return {"ok": False, "reason": "未配置 DEEPSEEK_API_KEY"}
     ep_hint = episodes.hint(query) if episode_hint else ""
     system, hint = build_system_prompt(uid, sid, ep_hint)
@@ -242,11 +242,15 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
     cost = 0.0
     calls = 0
     t0 = time.perf_counter()
-
+   """
+   text:模型准备给用户的回答  reason:结果原因 例如正常回答、强制收尾
+   
+   """
     def _finish(text: str, reason: str) -> dict:
         text = (text or "").strip()
         # 守卫：所有工具都没返回条目 → 一律按"库里没有"处理，
         # 避免模型用常识把"没查到"包装成一个像答案的段落。
+        #检查工具有没有返回条目
         has_items = any((ev.get("items") or []) for ev in evidence)
         if not has_items:
             text = "知识库里没有找到能支撑这个问题的资料。"
@@ -257,17 +261,19 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                     "engine": "llm", "memory": hint or None, "finish_reason": "no_evidence",
                     "evidence_strength": "none"}
         _cits = _citations(evidence)
-        refused = (not text) or _looks_refusal(text, len(_cits))
+        refused = (not text) or _looks_refusal(text, len(_cits))  # 如果回答为空 或者_looks_refusal() 判断它像拒答，就标记为拒答
         if not text:
             text = "知识库里没有找到能支撑这个问题的资料。"
             refused = True
         return {"ok": True, "answer": text, "refused": refused,
-                "evidence_strength": _evidence_strength(evidence, refused),
+                "evidence_strength": _evidence_strength(evidence, refused),  # 估计证据强度
                 "citations": _anchor(text, _cits), "evidence": evidence,
                 "steps": steps, "usage": usage, "cost_usd": round(cost, 6),
                 "ms": round((time.perf_counter() - t0) * 1000, 1),
                 "engine": "llm", "memory": hint or None, "finish_reason": reason}
-
+    """
+    用于提前中止的分支 reason：给用户看的中止说明  finish:内部记录的结束类型
+    """
     def _abort(reason: str, finish: str) -> dict:
         return {"ok": True, "answer": reason, "refused": True, "reason": reason,
                 "citations": [], "evidence": evidence, "steps": steps,
