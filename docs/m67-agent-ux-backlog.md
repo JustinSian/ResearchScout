@@ -383,3 +383,35 @@ answer: "## 钟南山（Nanshan Zhong）…"   → 前端会把第一个"钟南�
 → refused=False，evidence_strength=high，expansion_report=None（不再有噪音）
 → 依然是 Welte / Du / Timsit / Cleland / Dendale 五位
 ```
+
+
+---
+
+## 追加修复：复合中文主题被拆错（"建筑材料"→建筑学）——用户发现的召回错误
+
+### 现象
+
+问「建筑材料」，答案说"库里没有专门做建材的专家，命中的都是建筑/建成环境的人"，
+并出现「未知（未查，未调用工具）」的表格格子。用户怀疑召回错了——**怀疑正确**。
+
+### 根因
+
+`to_english` 原来按"键长度降序"遍历 ZH2EN 取第一个命中：
+`"建筑"` 和 `"材料"` **都是 2 字**，排序结果不确定 → `建筑材料` 命中 `建筑`
+→ 译成 `architectural design` → 召回建筑能耗学者。而库里其实有 285 位材料方向的人。
+
+### 修复
+
+1. `to_english` 改为**最长匹配优先**（`len(zh) > len(best)` 逐个比较，不依赖排序）；
+2. 补复合领域词：建筑材料→building materials、建筑节能→building energy、
+   材料科学→materials science、复合材料、纳米材料、高分子、建筑结构…
+3. 提示词加一条：填表不要用「未知」占位，没数据就补调工具或省略该列。
+
+### 实测（修复后同一问题）
+
+```
+问「建筑材料」
+→ Chi Sun Poon（港理工，再生混凝土/再生骨料，922 篇/7.3 万被引）
+  Bjørn Petter Jelle（建筑保温/相变材料）、Azra Korjenić、Leif Gustavsson、Francesco Asdrubali
+→ refused=False，全部是真正的建筑材料方向学者
+```

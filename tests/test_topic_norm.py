@@ -30,3 +30,11 @@ def test_more_chinese_fields():
     assert to_english("帕金森") == "parkinson"
     assert to_english("强化学习") == "reinforcement learning"
     assert to_english("肿瘤") == "oncology"
+
+
+def test_longest_match_wins():
+    """'建筑材料' 必须命中'建筑材料'而不是'建筑'（实测曾被译成 architectural design）。"""
+    assert to_english("建筑材料") == "building materials"
+    assert to_english("建筑节能") == "building energy"
+    assert to_english("建筑") == "architectural design"
+    assert to_english("材料") == "materials science"

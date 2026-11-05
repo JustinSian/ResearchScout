@@ -612,6 +612,11 @@ ZH2EN = {
     "肠道菌群": "gut microbiome", "深度学习": "deep learning",
     "强化学习": "reinforcement learning", "计算机视觉": "computer vision",
     "自然语言处理": "natural language processing", "大模型": "large language model",
+    "建筑材料": "building materials", "材料科学": "materials science",
+    "复合材料": "composite materials", "纳米材料": "nanomaterials",
+    "高分子": "polymer", "建筑结构": "structural engineering",
+    "建筑节能": "building energy", "建筑历史": "architectural history",
+    "建筑施工": "construction engineering", "室内环境": "indoor environment",
     "考古": "archaeology", "人类学": "anthropology", "语言学": "linguistics",
     "政治学": "political science", "军事": "military science", "传媒": "media studies",
     "体育": "sports science", "宗教": "religious studies", "博物馆": "museum studies",
@@ -634,9 +639,14 @@ def to_english(term: str) -> str:
         return ""
     if not _re.search(r"[一-龥]", t):
         return t
-    for zh in sorted(ZH2EN, key=len, reverse=True):
-        if zh in t:
-            return ZH2EN[zh]
+    # 最长匹配优先：原来按长度排序取第一个命中，长度相同的键顺序不确定，
+    # 导致"建筑材料"命中"建筑"→ architectural design（实测召回全错）。
+    best = ""
+    for zh in ZH2EN:
+        if zh in t and len(zh) > len(best):
+            best = zh
+    if best:
+        return ZH2EN[best]
     try:
         from app import facets as _facets
         en = _facets.parse(t).get("topic_en") or []
