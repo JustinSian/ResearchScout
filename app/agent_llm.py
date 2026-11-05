@@ -230,7 +230,7 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
         on_step=None, on_delta=None, deadline_s=None,
         on_should_stop=None) -> dict:
     """执行一次 Agent 会话。未配置 LLM 时返回 {"ok": False, "reason": ...} 由上层降级。"""
-    if not llm.configured(): 看，
+    if not llm.configured():
         return {"ok": False, "reason": "未配置 DEEPSEEK_API_KEY"}
     ep_hint = episodes.hint(query) if episode_hint else ""
     system, hint = build_system_prompt(uid, sid, ep_hint)
@@ -242,11 +242,9 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
     cost = 0.0
     calls = 0
     t0 = time.perf_counter()
-   """
-   text:模型准备给用户的回答  reason:结果原因 例如正常回答、强制收尾
-   
-   """
+
     def _finish(text: str, reason: str) -> dict:
+        """text: 模型准备给用户的回答；reason: 结果原因（正常回答 / 强制收尾）。"""
         text = (text or "").strip()
         # 守卫：所有工具都没返回条目 → 一律按"库里没有"处理，
         # 避免模型用常识把"没查到"包装成一个像答案的段落。
@@ -271,10 +269,9 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                 "steps": steps, "usage": usage, "cost_usd": round(cost, 6),
                 "ms": round((time.perf_counter() - t0) * 1000, 1),
                 "engine": "llm", "memory": hint or None, "finish_reason": reason}
-    """
-    用于提前中止的分支 reason：给用户看的中止说明  finish:内部记录的结束类型
-    """
+
     def _abort(reason: str, finish: str) -> dict:
+        """提前中止分支。reason：给用户看的说明；finish：内部结束类型（cancelled/timeout）。"""
         return {"ok": True, "answer": reason, "refused": True, "reason": reason,
                 "citations": [], "evidence": evidence, "steps": steps,
                 "usage": usage, "cost_usd": round(cost, 6),
