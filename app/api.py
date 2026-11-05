@@ -993,28 +993,37 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
                 box.put(("reset", None))
 
             def _work():
-                holder["r"] = agent_llm.chat(q, uid=uid, sid=sid,
-                                             on_step=_cb, on_delta=_cb_delta,
-                                             on_reset=_cb_reset)
+                try:
+                    holder["r"] = agent_llm.chat(
+                        q, uid=uid, sid=sid, on_step=_cb, on_delta=_cb_delta,
+                        on_reset=_cb_reset, on_should_stop=stop.is_set,
+                        deadline_s=float(os.environ.get("ST_AGENT_DEADLINE_S", "90")))
+                except Exception as _exc:
+                    holder["r"] = {"ok": False, "reason": f"{type(_exc).__name__}: {_exc}"}
 
-            t = _thr.Thread(target=_work)
+            stop = _thr.Event()
+            t = _thr.Thread(target=_work, daemon=True)
             t.start()
             streamed = 0
-            while t.is_alive() or not box.empty():
-                try:
-                    kind, payload = box.get_nowait()
-                except _queue.Empty:
-                    await asyncio.sleep(0.03)
-                    continue
-                if kind == "step":
-                    yield sse("step", payload)
-                elif kind == "token":
-                    streamed += len(payload)
-                    yield sse("token", {"t": payload})
-                elif kind == "reset":
-                    streamed = 0
-                    yield sse("reset", {})
-            t.join()
+            try:
+                while t.is_alive() or not box.empty():
+                    try:
+                        kind, payload = box.get_nowait()
+                    except _queue.Empty:
+                        await asyncio.sleep(0.03)
+                        continue
+                    if kind == "step":
+                        yield sse("step", payload)
+                    elif kind == "token":
+                        streamed += len(payload)
+                        yield sse("token", {"t": payload})
+                    elif kind == "reset":
+                        streamed = 0
+                        yield sse("reset", {})
+            finally:
+                # 客户端断开（点"停止"）或正常结束：都让 worker 在下一个检查点收手
+                stop.set()
+                t.join(timeout=1)
             r = holder.get("r") or {}
             if not r.get("ok"):
                 yield sse("think", {"t": "LLM 调用失败：" + str(r.get("reason") or r.get("error") or "")})
@@ -1033,11 +1042,14 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
                     await asyncio.sleep(0.015)
             yield sse("citations", {"items": r.get("citations") or [],
                                     "refinements": r.get("refinements") or []})
-            yield sse("done", {"citations": len(r.get("citations") or []), "engine": "llm",
-                               "streamed": bool(streamed)})
-            yield sse("citations", {"items": r.get("citations") or [],
-                                    "refinements": r.get("refinements") or []})
-            yield sse("done", {"citations": len(r.get("citations") or []), "engine": "llm"})
+            # 成本/耗时/引擎透出：让用户知道这次问了多少钱、花了多久
+            yield sse("done", {"citations": len(r.get("citations") or []),
+                               "engine": "llm", "streamed": bool(streamed),
+                               "cost_usd": round(float(r.get("cost_usd") or 0.0), 6),
+                               "ms": r.get("ms") or 0,
+                               "tools": len(r.get("steps") or []),
+                               "memory": bool(r.get("memory")),
+                               "finish_reason": r.get("finish_reason") or ""})
             return
 
         # —— 经典路径（无 LLM 或 classic 模式）——

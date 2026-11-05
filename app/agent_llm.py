@@ -191,7 +191,8 @@ def _run_tool(name: str, args: dict, uid: str, sid: str) -> dict:
 
 def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
         budget_usd: float = BUDGET_USD, episode_hint: bool = True,
-        on_step=None, on_delta=None) -> dict:
+        on_step=None, on_delta=None, deadline_s=None,
+        on_should_stop=None) -> dict:
     """执行一次 Agent 会话。未配置 LLM 时返回 {"ok": False, "reason": ...} 由上层降级。"""
     if not llm.configured():
         return {"ok": False, "reason": "未配置 DEEPSEEK_API_KEY"}
@@ -228,9 +229,23 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                 "ms": round((time.perf_counter() - t0) * 1000, 1),
                 "engine": "llm", "memory": hint or None, "finish_reason": reason}
 
+    def _abort(reason: str, finish: str) -> dict:
+        return {"ok": True, "answer": reason, "refused": True, "reason": reason,
+                "citations": [], "evidence": evidence, "steps": steps,
+                "usage": usage, "cost_usd": round(cost, 6),
+                "ms": round((time.perf_counter() - t0) * 1000, 1),
+                "engine": "llm", "memory": hint or None, "finish_reason": finish}
+
     for _ in range(max_steps):
         if calls >= MAX_CALLS or cost > budget_usd:
             break
+        # 用户点了"停止"（前端断开 SSE）→ 立刻收手，不要继续烧 token
+        if on_should_stop and on_should_stop():
+            return _abort("已停止本次查询。", "cancelled")
+        # 墙钟超时：补库这类慢路径可能拖到一两分钟，给个硬上限
+        if deadline_s is not None and (time.perf_counter() - t0) > float(deadline_s):
+            return _abort("查询超过 %d 秒已中止，可以缩小范围后再试。" % max(1, int(round(float(deadline_s)))),
+                          "timeout")
         res = llm.chat_with_tools(messages, TOOL_SCHEMAS)
         if not res.get("ok"):
             return {"ok": False, "reason": res.get("error") or "LLM 调用失败"}
@@ -303,6 +318,11 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                                            for it in (out.get("items") or [])[:5]]})})
 
     # 步数/预算用尽：强制收尾（不再给工具）
+    if on_should_stop and on_should_stop():
+        return _abort("已停止本次查询。", "cancelled")
+    if deadline_s is not None and (time.perf_counter() - t0) > float(deadline_s):
+        return _abort("查询超过 %d 秒已中止，可以缩小范围后再试。" % max(1, int(round(float(deadline_s)))),
+                      "timeout")
     messages.append({"role": "user", "content":
                      "现在基于以上工具结果写最终答案，不要再调用工具；证据不足就明说不知道。"})
     # 最终作答走流式：首 token 1 秒内到达，而不是整段算完再吐
@@ -429,7 +449,8 @@ def _expansion_message(report: dict) -> str:
 
 
 def chat(query: str, uid: str = "", sid: str = "", on_step=None,
-         on_delta=None, on_reset=None) -> dict:
+         on_delta=None, on_reset=None, on_should_stop=None,
+         deadline_s=None) -> dict:
     """对外入口：跑一次 Agent，并写回短期/长期记忆。"""
     # 自述句（"我研究帕金森"）不当作检索问题：直接记忆 + 确认
     if uid and _is_disclosure(query):
@@ -447,7 +468,11 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
     clar = _clarify(query, uid)
     if clar:
         return clar
-    result = run(query, uid=uid, sid=sid, on_step=on_step, on_delta=on_delta)
+    result = run(query, uid=uid, sid=sid, on_step=on_step, on_delta=on_delta,
+                 deadline_s=deadline_s, on_should_stop=on_should_stop)
+    # 取消/超时是"用户主动中止"，不该再触发补库、补人，也不该追加公示文案
+    if result.get("finish_reason") in ("cancelled", "timeout"):
+        return result
     if not result.get("ok"):
         return result
 
@@ -455,34 +480,39 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
     _need_expand = bool(result.get("refused"))
     _topic = ""
     _person = None
+    _skip_expand = False      # 人名/介绍/关系类问题：**任何**情况下都不做主题扩充
     try:
         from app import facets, topic_match
         # 主题优先从**原句**清洗：facets.parse 对中文切词很差
         # （"我想了解人工智能…" 会被切成 "我想了解 工智能"，丢了"人"）
         from app.expand import clean_topic as _ct0
         _topic = (_ct0(query) or (facets.parse(query).get("topic") or "")).strip()
-        # 人名/关系/论文类问题不触发扩充（否则会拿整句去搜 OpenAlex）
+        # 关系/论文/介绍类问题不触发扩充（否则会拿整句去搜 OpenAlex）
         if any(w in query for w in ("合作者", "论文", "引用", "对比", "比较",
                                     "介绍", "是谁", "导师", "邮箱", "代表作")):
-            _need_expand = False
+            _skip_expand = True
         # 问的是"某个具体的人"？人名不是主题，拿去搜 OpenAlex 必然 0 命中。
         # 走"按作者 id 补全作品"的专用路径，而不是主题扩充。
         try:
             from app.agent import _resolve_person as _rp
             _person = _rp(None, _topic)
             if _person:
-                _need_expand = False
+                _skip_expand = True
         except Exception:
             _person = None
+        if _skip_expand:
+            _need_expand = False
         # 用翻译后的英文主题做一致性判断，否则中文问句 vs 英文标签永远不匹配、
         # 会反复触发无谓的扩充（实测"建筑"每问一次都当成缺口）
+        # 注意：必须尊重 _skip_expand，早先这里无条件覆盖，导致人名/介绍类
+        # 问题仍会去补库（"Édouard Bard" 就是这么被当主题搜的）。
         _match_topic = _topic
         try:
             from app.expand import clean_topic as _ct, to_english as _te
             _match_topic = _te(_ct(_topic)) or _topic
         except Exception:
             pass
-        if _match_topic and not _need_expand:
+        if _match_topic and not _skip_expand and not _need_expand:
             _pids = [int(it["pid"]) for ev in (result.get("evidence") or [])
                      for it in (ev.get("items") or []) if it.get("pid")]
             _need_expand = not topic_match.matches(_match_topic, _pids)
@@ -507,10 +537,14 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
                     "reason": exp.get("reason") or "",
                 }
                 if exp.get("ok") and (exp.get("pids") or []):
+                    if on_should_stop and on_should_stop():
+                        result["expansion_report"] = report
+                        return result
                     if on_reset:
                         on_reset()
                     retry = run(query, uid=uid, sid=sid,
-                                on_step=on_step, on_delta=on_delta)
+                                on_step=on_step, on_delta=on_delta,
+                                deadline_s=deadline_s, on_should_stop=on_should_stop)
                     report["retried"] = True
                     report["answered_after_retry"] = bool(retry.get("ok")
                                                           and not retry.get("refused"))
@@ -537,10 +571,13 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
                 en = _exp.enrich_person(_pid, per_page=50)
                 result["person_enrichment"] = en
                 if en.get("ok") and en.get("added_works"):
+                    if on_should_stop and on_should_stop():
+                        return result
                     if on_reset:
                         on_reset()
                     retry_p = run(query, uid=uid, sid=sid,
-                                  on_step=on_step, on_delta=on_delta)
+                                  on_step=on_step, on_delta=on_delta,
+                                  deadline_s=deadline_s, on_should_stop=on_should_stop)
                     if retry_p.get("ok") and not retry_p.get("refused"):
                         retry_p["person_enrichment"] = en
                         result = retry_p

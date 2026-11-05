@@ -305,6 +305,7 @@ window.addEventListener('error', function (e) {
     <div class="row">
       <input type="text" id="cq" placeholder="例如：谁和 Yoshua Bengio 合作过 / 找研究 dementia 的专家">
       <button class="primary" id="cgo">发送</button>
+      <button class="ghost" id="cstop" style="display:none;color:#e8a0a0;border-color:#7a3434">停止</button>
       <button class="ghost" id="cclear">清空</button>
     </div>
     <p class="hint">SSE 流式；资料不足会明确拒答。</p>
@@ -1262,6 +1263,10 @@ function draw(){
 // ---------- Agent ----------
 $('#cclear').onclick = ()=> $('#chatlog').innerHTML='';
 $('#cgo').onclick = askChat;
+$('#cstop').onclick = ()=>{
+  if (G.curES) { try { G.curES.close(); } catch(_) {} G.curES = null; }
+  $('#cstop').style.display = 'none';
+};
 $('#cq').addEventListener('keydown', e=>{ if(e.key==='Enter') askChat(); });
 function clearNear(){
   wall.near = 0; wall.nearName = ''; wall.sort = 'cites'; wall.offset = 0;
@@ -1319,6 +1324,8 @@ async function askChat(){
   $('#chatlog').appendChild(box);
   const think = box.querySelector('.think'), ans = box.querySelector('.ans');
   const es = new EventSource('/chat/stream?q='+encodeURIComponent(q)+'&sid='+encodeURIComponent(stSid));
+  G.curES = es;
+  $('#cstop').style.display = '';
   let buf='', plan=[], refused=false, thinks=[], first=true;
   es.addEventListener('think', e=>{
     const t = JSON.parse(e.data).t;
@@ -1404,16 +1411,36 @@ async function askChat(){
       });
     }
   });
-  es.addEventListener('done', ()=>{
+  es.addEventListener('done', e=>{
     es.close();
+    if (G.curES === es) G.curES = null;
+    $('#cstop').style.display = 'none';
+    let meta = null;
+    try { meta = JSON.parse(e.data); } catch(_) {}
     const finish = () => {
       if (pending){ setTimeout(finish, 60); return; }
       clearInterval(pump); pump = null;
       if(!buf&&!refused) ans.textContent='(无内容)';
+      if (meta) {
+        const bits = [];
+        if (meta.cost_usd) bits.push('$' + Number(meta.cost_usd).toFixed(4));
+        if (meta.ms) bits.push((Number(meta.ms)/1000).toFixed(1) + 's');
+        bits.push(meta.engine === 'llm' ? 'LLM Agent' : '规则链路');
+        if (meta.tools) bits.push(meta.tools + ' 次工具');
+        if (meta.memory) bits.push('用了记忆');
+        if (meta.finish_reason === 'cancelled') bits.push('已取消');
+        if (meta.finish_reason === 'timeout') bits.push('超时中止');
+        ans.insertAdjacentHTML('beforeend',
+          `<small style="display:block;margin-top:8px;color:#5f7b96;font-size:11.5px">${esc(bits.join(' · '))}</small>`);
+      }
     };
     finish();
   });
-  es.onerror = ()=> es.close();
+  es.onerror = ()=>{
+    es.close();
+    if (G.curES === es) G.curES = null;
+    $('#cstop').style.display = 'none';
+  };
   $('#chatlog').scrollTop = $('#chatlog').scrollHeight;
 }
 

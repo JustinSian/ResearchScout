@@ -114,3 +114,35 @@
 **本地工具并发执行反而更慢**：并发时三个工具实测 ~670ms/个（SQLite 抢锁），
 串行只要 ~23ms。所以默认串行执行，并发放在 `ST_PARALLEL_EXEC=1` 后面。
 真正的收益来自**减少 LLM 往返轮次**，不是并发跑工具。
+
+
+---
+
+## 完成记录：P0-3 取消/超时 + P0-4 成本透出
+
+### 实现
+
+| 改动 | 文件 |
+|---|---|
+| `run/chat` 增加 `deadline_s` 与 `on_should_stop`；每轮开始和收尾前检查 | `app/agent_llm.py` |
+| 中止时返回 `finish_reason=cancelled/timeout`，并**跳过补库/补人/公示** | 同上 |
+| SSE 客户端断开 → `stop.set()` → worker 在下一个检查点收手 | `app/api.py` |
+| `done` 事件带 `cost_usd / ms / tools / memory / finish_reason` | 同上 |
+| 前端「停止」按钮 + 每条回答底部 `$0.0017 · 5.0s · LLM Agent · 3 次工具` | `web/index.html` |
+
+### 顺带修掉一个真 bug
+
+`_match_topic` 的"主题一致性"判断会**无条件覆盖**前面设的 `_need_expand=False`，
+导致人名（`Édouard Bard`）和介绍类问题仍被当成主题去补库。
+现在用独立的 `_skip_expand` 标志，人名/关系/介绍类问题**任何情况下都不补库**。
+
+### 实测（真实 LLM）
+
+```
+timeout：deadline_s=0.8 → 4.0s 返回 finish=timeout「查询超过 1 秒已中止」
+cancel：0.8s 后置位 → 3.6s 返回 finish=cancelled「已停止本次查询。」
+done 事件：{"cost_usd":0.0017,"ms":5025.6,"tools":3,"memory":false,"streamed":false}
+```
+
+中止的实际粒度是"当前这一轮 LLM 请求"——已发出的 HTTP 请求不会被打断，
+所以 0.8 秒的 deadline 实际 3.6–4.0 秒返回（等当前轮结束）。这是诚实的上限。
