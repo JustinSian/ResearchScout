@@ -1142,6 +1142,7 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
                                "memory_text": (r.get("memory") or "")[:80],
                                "evidence_strength": r.get("evidence_strength") or "",
                                "degraded": r.get("degraded") or "",
+                               "followup": r.get("followup_resolved") or "",
                                "finish_reason": r.get("finish_reason") or ""})
             return
 

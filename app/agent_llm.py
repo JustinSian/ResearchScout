@@ -106,11 +106,22 @@ _NEG_TOPIC = re.compile(
     r"[^。；;]{0,40}(研究|专家|学者|匹配|命中|核心|结果|检索|推荐|找到|相关)")
 
 
-def _looks_refusal(text: str) -> bool:
-    head = (text or "")[:200]
-    if any(m in head for m in _REFUSAL_MARKERS):
+def _looks_refusal(text: str, citations: int = 0) -> bool:
+    """是不是**整段**在拒答。
+
+    只看前 200 字会把"局部否定"误判成拒答：实测答案里写一句
+    "Actor-Critic 没有专门的经典论文"就被标成 refused，前端整条变红。
+    所以加了实质性内容/引用两道豁免：有引用或篇幅够长，就不是整体拒答。
+    """
+    t = (text or "").strip()
+    if not t:
         return True
-    return bool(_NEG_TOPIC.search(head))
+    head = t[:200]
+    if not (any(m in head for m in _REFUSAL_MARKERS) or _NEG_TOPIC.search(head)):
+        return False
+    if citations >= 1 or len(t) > 400:
+        return False
+    return True
 
 
 def build_system_prompt(uid: str, sid: str, ep_hint: str = "") -> tuple[str, dict]:
@@ -243,13 +254,14 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                     "ms": round((time.perf_counter() - t0) * 1000, 1),
                     "engine": "llm", "memory": hint or None, "finish_reason": "no_evidence",
                     "evidence_strength": "none"}
-        refused = (not text) or _looks_refusal(text)
+        _cits = _citations(evidence)
+        refused = (not text) or _looks_refusal(text, len(_cits))
         if not text:
             text = "知识库里没有找到能支撑这个问题的资料。"
             refused = True
         return {"ok": True, "answer": text, "refused": refused,
                 "evidence_strength": _evidence_strength(evidence, refused),
-                "citations": _anchor(text, _citations(evidence)), "evidence": evidence,
+                "citations": _anchor(text, _cits), "evidence": evidence,
                 "steps": steps, "usage": usage, "cost_usd": round(cost, 6),
                 "ms": round((time.perf_counter() - t0) * 1000, 1),
                 "engine": "llm", "memory": hint or None, "finish_reason": reason}
@@ -369,6 +381,54 @@ _QUESTION = ("谁", "哪些", "哪个", "找", "推荐", "怎么", "如何", "�
              "recommend", "how", "what")
 
 
+# 多轮里的"简短同意"：需要/好/可以…。不能当成检索词去搜
+# （实测：用户回"需要"→ 被当作主题搜库 → 0 命中 → 还去补库，体验很差）
+_AFFIRM = {"需要", "要", "好", "好的", "可以", "行", "嗯", "对", "是的", "是",
+           "继续", "来", "看", "查", "都行", "没问题", "要的", "好呀", "嗯嗯",
+           "ok", "okay", "yes", "y", "sure", "please", "go"}
+
+
+def _is_affirmative(q: str) -> bool:
+    """是不是对上一轮提议的简短同意（而不是一个新的检索请求）。"""
+    t = (q or "").strip().strip("。！？!?.~ ")
+    return 0 < len(t) <= 6 and t.lower() in _AFFIRM
+
+
+def _resolve_followup(sid: str, q: str) -> str:
+    """把"需要/好"解析成上一条回复里提议的具体动作；解析不出返回空串。
+
+    上一条回复是自由文本（"需要我进一步看某篇的被引脉络…吗？"），所以这里用一次
+    很便宜的模型调用把它翻译成可执行的查询；解析失败就当作没听懂，回问用户。
+    """
+    try:
+        turns = session_memory.turns(sid, 6)
+    except Exception:
+        return ""
+    prev = ""
+    for t in reversed(turns or []):
+        if t.get("role") == "assistant" and (t.get("content") or "").strip():
+            prev = t["content"]
+            break
+    if not prev:
+        return ""
+    system = ("你负责把用户对上一轮提议的简短回应（如「需要」「好」「可以」）解析成一个"
+              "可直接执行的检索或动作请求。只输出一个 JSON 对象，键名 query；"
+              "上一轮如果没有提出任何具体可执行的动作，query 给空字符串。"
+              "query 必须具体（含人名/论文名/主题），不要包含「需要」这类回应词。")
+    user = chr(10).join([
+        "上一条助手回复：",
+        prev[:800],
+        "",
+        "用户回复：" + (q or ""),
+    ])
+    r = llm.chat_json(system, user, timeout=20.0, retries=0)
+    if not r.get("ok"):
+        return ""
+    q2 = str((r.get("data") or {}).get("query") or "").strip()
+    if len(q2) < 2 or q2.lower() in _AFFIRM:
+        return ""
+    return q2[:120]
+
 def _is_disclosure(query: str) -> bool:
     """判断这句是不是"自我介绍"而不是提问（"我研究帕金森" vs "谁研究帕金森"）。"""
     q = (query or "").strip()
@@ -445,12 +505,24 @@ def _clarify(query: str, uid: str) -> dict | None:
             return None          # 有记忆主题时，交给记忆补全
     except Exception:
         pass
-    return {"ok": True,
-            "answer": "你想找哪个领域的专家？告诉我方向（例如「帕金森」「图神经网络」），"
-                      "或者补充国家/机构类型等条件，我再帮你找。",
+    refs = []
+    try:
+        from app.agent import top_topics
+        refs = [{"label": t, "query": "找研究" + t + "的专家"} for t in top_topics(6)]
+    except Exception:
+        refs = []
+    if refs:
+        answer = ("你想找哪个领域的专家？可以直接点下面一个方向，"
+                  "也可以自己补充国家/机构/被引等条件。")
+    else:
+        answer = ("你想找哪个领域的专家？告诉我方向（例如「帕金森」「图神经网络」），"
+                  "或者补充国家/机构类型等条件，我再帮你找。")
+    return {"ok": True, "answer": answer,
             "refused": False, "citations": [], "evidence": [], "steps": [],
+            "refinements": refs,
             "usage": {"prompt_tokens": 0, "completion_tokens": 0}, "cost_usd": 0.0,
-            "ms": 0.0, "engine": "llm", "memory": None, "finish_reason": "clarify"}
+            "ms": 0.0, "engine": "llm", "memory": None, "finish_reason": "clarify",
+            "evidence_strength": "none"}
 
 
 def _expansion_message(report: dict) -> str:
@@ -493,6 +565,13 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
     clar = _clarify(query, uid)
     if clar:
         return clar
+
+    # 多轮：用户回"需要/好"→ 解析成上一条提议的动作，而不是当成检索词
+    follow = ""
+    if sid and _is_affirmative(query):
+        follow = _resolve_followup(sid, query)
+        if follow:
+            query = follow
     result = run(query, uid=uid, sid=sid, on_step=on_step, on_delta=on_delta,
                  deadline_s=deadline_s, on_should_stop=on_should_stop)
     # 取消/超时是"用户主动中止"，不该再触发补库、补人，也不该追加公示文案
@@ -549,7 +628,7 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
             # 主题清洗 + 中文翻译：OpenAlex 是英文库，"我想认识建筑" 搜不到
             display = expand.clean_topic(_topic) or _topic
             search = expand.to_english(display)
-            if search and len(search) >= 2:
+            if search and len(search) >= 2 and search.lower() not in _AFFIRM:
                 exp = expand.expand_topic(search)
                 result["expansion"] = exp
                 report = {
@@ -646,6 +725,8 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
                 result["answer"] = _n + chr(10) + result["answer"]
         except Exception:
             pass
+    if follow:
+        result["followup_resolved"] = follow
     # 短期记忆：写入本轮，超阈值压缩摘要
     if sid:
         try:

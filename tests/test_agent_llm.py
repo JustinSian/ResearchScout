@@ -104,3 +104,12 @@ def test_result_fields_keep_direction_and_topics():
     # 导致 research_area/profile 到模型手里只剩"姓名+被引"
     for k in ("recent", "early", "top_venues", "topics", "country", "h_index"):
         assert k in _RESULT_FIELDS, f"{k} 必须在回传字段里"
+
+
+def test_partial_negation_is_not_refusal():
+    """答案里出现局部否定（"X 没有经典论文"）不该整条判成拒答。"""
+    from app.agent_llm import _looks_refusal
+    assert _looks_refusal("## 结论\n按子方向检索，DQN 有经典论文；Actor-Critic 没有专门的经典论文。"
+                          + "填充" * 120, citations=2) is False
+    # 短且整段是否定 → 仍是拒答
+    assert _looks_refusal("知识库里没有找到相关专家") is True
