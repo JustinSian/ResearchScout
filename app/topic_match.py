@@ -68,3 +68,24 @@ def relevant_pids(topic: str, items: list[dict]) -> list[int]:
         if any(t in _norm(tag) or _norm(tag) in t for tag in ts if tag):
             out.append(pid)
     return out
+
+def matched_count(topic: str, pids: list[int]) -> int:
+    """这些专家里有几个的标签和主题对得上（0 表示全不对题）。
+
+    比 matches() 的二值判断更有用：噪音查询常常"混进 1 个对的 + 4 个错的"，
+    二值会判 True，比例才能看出"大部分不对题"。
+    """
+    t = _norm(topic)
+    if not t or not pids:
+        return 0
+    n = 0
+    for _pid, ts in topics_of(pids).items():
+        hit = False
+        for tag in ts:
+            g = _norm(tag)
+            if g and (t in g or g in t):
+                hit = True
+                break
+        if hit:
+            n += 1
+    return n

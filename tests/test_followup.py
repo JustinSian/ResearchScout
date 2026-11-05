@@ -45,3 +45,52 @@ def test_resolve_followup_rejects_still_affirmative(monkeypatch):
     monkeypatch.setattr(agent_llm.llm, "chat_json",
                         lambda system, user, **kw: {"ok": True, "data": {"query": "需要"}})
     assert agent_llm._resolve_followup("s2", "需要") == ""
+
+
+# ---- 主题改写回退（模型把"考古"改写成英文长句时，用原句主题再查一次） ----
+def test_find_expert_falls_back_to_original_topic(monkeypatch):
+    calls = []
+
+    def fake_kb(step):
+        q = (step.get("args") or {}).get("query")
+        calls.append(q)
+        if q == "archaeology":          # 回退时用英文主题检索
+            return {"tool": "find_expert", "count": 2,
+                    "items": [{"pid": 1, "name": "A"}, {"pid": 2, "name": "B"}]}
+        return {"tool": "find_expert", "count": 0, "items": []}
+
+    monkeypatch.setattr("app.agent._run_tool", fake_kb)
+    out = agent_llm._run_tool("find_expert",
+                              {"query": "archaeological excavation carbon dating"},
+                              "", "", orig="我想找一个考古的专家")
+    assert out["count"] == 2
+    assert out["query_used"] == "archaeology"
+    assert out["fallback_reason"] == "empty"
+    assert calls[-1] == "archaeology"
+
+
+def test_no_fallback_when_first_call_has_items(monkeypatch):
+    calls = []
+
+    def fake_kb(step):
+        calls.append((step.get("args") or {}).get("query"))
+        return {"tool": "find_expert", "count": 1, "items": [{"pid": 9}]}
+
+    monkeypatch.setattr("app.agent._run_tool", fake_kb)
+    out = agent_llm._run_tool("find_expert", {"query": "帕金森"}, "", "",
+                              orig="我想找帕金森的专家")
+    assert out["count"] == 1
+    assert len(calls) == 1
+
+
+def test_no_fallback_when_topic_already_in_query(monkeypatch):
+    calls = []
+
+    def fake_kb(step):
+        calls.append((step.get("args") or {}).get("query"))
+        return {"tool": "find_expert", "count": 0, "items": []}
+
+    monkeypatch.setattr("app.agent._run_tool", fake_kb)
+    agent_llm._run_tool("find_expert", {"query": "考古 archaeology"}, "", "",
+                        orig="我想找一个考古的专家")
+    assert len(calls) == 1, "原主题已在查询里，不该再重试"

@@ -40,7 +40,7 @@ def patched(monkeypatch):
                         lambda messages, timeout=60.0: {"ok": True, "text": "结论：三位专家如下。",
                                                         "usage": {}, "cost_usd": 0.0})
 
-    def _slow_tool(name, args, uid="", sid=""):
+    def _slow_tool(name, args, uid="", sid="", orig=""):
         time.sleep(0.15)
         return {"tool": name, "count": 1, "items": [{"pid": 1, "name": "X"}]}
 

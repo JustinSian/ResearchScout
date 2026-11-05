@@ -166,10 +166,10 @@ _RESULT_FIELDS = ("pid", "wid", "name", "name_zh", "title", "year", "cites", "in
                   "last_year", "n_matched_works", "match", "source", "orcid",
                   "last_inst")
 
-
+# 限制传入模型结果的长度
 def _truncate(obj, limit: int = 1600) -> str:
-    s = obj if isinstance(obj, str) else json.dumps(obj, ensure_ascii=False)
-    return s if len(s) <= limit else s[:limit] + "…(截断)"
+    s = obj if isinstance(obj, str) else json.dumps(obj, ensure_ascii=False) # 统一转换为字符串   ensure_ascii=False是保留中文
+    return s if len(s) <= limit else s[:limit] + "…(截断)"   # 判断是否超长   长度保留前1600个字符
 
 
 def _evidence_strength(evidence: list[dict], refused: bool) -> str:
@@ -178,18 +178,19 @@ def _evidence_strength(evidence: list[dict], refused: bool) -> str:
     模型自评"我很有把握"是最不可靠的信号；这里只看客观事实：
     命中条目数 + 是否拒答。补库/补人来的证据最多算 medium（来源较弱）。
     """
-    items = [it for ev in (evidence or []) for it in (ev.get("items") or [])]
+    items = [it for ev in (evidence or []) for it in (ev.get("items") or [])]  # 多个工具的所有items合并到一个列表
     if refused or not items:
         return "none"
     return "high" if len(items) >= 3 else "medium"
 
 
 def _citations(evidence: list[dict]) -> list[dict]:
-    out, seen = [], set()
+    """ 从证据提取引用"""
+    out, seen = [], set() # out:最终引用列表 seen:已经见过的引用 用于去重
     for ev in evidence:
         for it in (ev.get("items") or [])[:5]:
-            if it.get("pid") and ("p", it["pid"]) not in seen:
-                seen.add(("p", it["pid"]))
+            if it.get("pid") and ("p", it["pid"]) not in seen:  # 如果条目有pid 就认为包含人物引用
+                seen.add(("p", it["pid"]))  # p是区分人物ID还是论文ID
                 out.append({"kind": "person", "id": it["pid"],
                             "label": it.get("name_zh") or it.get("name") or str(it["pid"])})
             if it.get("wid") and ("w", it["wid"]) not in seen:
@@ -208,7 +209,7 @@ def _anchor(text: str, citations: list[dict]) -> list[dict]:
         return citations
 
 
-def _run_tool(name: str, args: dict, uid: str, sid: str) -> dict:
+def _run_tool(name: str, args: dict, uid: str, sid: str, orig: str = "") -> dict:
     from app.agent import _run_tool as kb_run
     from app.plan_llm import to_call
 
@@ -234,7 +235,47 @@ def _run_tool(name: str, args: dict, uid: str, sid: str) -> dict:
         hint = memory_recall.build_hint(uid, str(args.get("query") or "")) if uid else {}
         if hint:
             mapped["args"]["hint"] = hint
-    return kb_run(mapped)
+    out = kb_run(mapped)
+    # 主题改写回退：模型常把用户的问题改写成同义长句（"考古" → "archaeological
+    # excavation carbon dating"），而影子索引按原主题建，改写后可能 0 命中，
+    # 表现为"第一问没找到、第二问才对"。这里用**用户原句**清洗出的主题再查一次。
+    if name == "find_expert" and orig:
+        try:
+            import re as _re
+            from app.expand import clean_topic, to_english
+            cur_q = str((mapped.get("args") or {}).get("query") or "")
+            alt = clean_topic(orig)                 # 用户原句的主题（中文）
+            alt_en = to_english(alt) or alt          # 检索用英文
+            items = out.get("items") or []
+            # 什么时候算"没查对"：① 一条都没有；② 有结果但跟用户原主题对不上
+            need = not items
+            if not need and alt_en and not _re.search(r"[\u4e00-\u9fa5]", alt_en) \
+                    and alt_en.lower() not in cur_q.lower():
+                try:
+                    from app import topic_match
+                    pids = [int(i["pid"]) for i in items if i.get("pid")]
+                    # 用"命中比例"而不是二值：噪音查询常混进 1 个对的 + 4 个错的，
+                    # 二值会判 True（等于放过），比例不足一半才算"没查对"
+                    hit = topic_match.matched_count(alt_en, pids)
+                    need = bool(pids) and hit * 2 < len(pids)
+                except Exception:
+                    need = False
+            if need and len(alt) >= 2 and alt not in cur_q:
+                retry = dict(mapped)
+                retry["args"] = {**(mapped.get("args") or {}), "query": alt_en}
+                r2 = kb_run(retry)
+                same = False
+                if r2.get("items"):
+                    same = ({int(i["pid"]) for i in r2["items"] if i.get("pid")}
+                            == {int(i["pid"]) for i in items if i.get("pid")})
+                if r2.get("items") and not same:
+                    r2["query_used"] = alt_en
+                    r2["fallback_from"] = cur_q
+                    r2["fallback_reason"] = "empty" if not items else "mismatch"
+                    out = r2
+        except Exception:
+            pass
+    return out
 
 
 def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
@@ -334,13 +375,14 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                 _out = {"error": f"未知工具 {_name}"}
             else:
                 try:
-                    _out = _run_tool(_name, _args, uid, sid)
+                    _out = _run_tool(_name, _args, uid, sid, orig=query)
                 except Exception as _exc:
                     _out = {"error": f"{type(_exc).__name__}: {_exc}"}
             return {"tool": _name, "args": _args,
                     "count": _out.get("count"),
                     "ms": round((time.perf_counter() - _t0) * 1000, 1),
-                    "error": _out.get("error"), "_out": _out}
+                    "error": _out.get("error"),
+                    "query_used": _out.get("query_used"), "_out": _out}
 
         # 多工具同轮的价值是**减少 LLM 往返**（每轮 1–3 秒），不是并发跑工具。
         # 实测并发执行会让 SQLite 抢锁：单个工具 23ms → 671ms，反而更慢。
@@ -496,7 +538,7 @@ _KEY_LABEL = {"topic": "研究方向", "field": "研究领域", "constraint": "�
 
 
 def _memory_answer(query: str, uid: str, sid: str) -> dict | None:
-    """"我现在研究什么方向？"这类问题应该由记忆回答，而不是去检索。"""
+    """「我现在研究什么方向？」这类问题应该由记忆回答，而不是去检索。"""
     if not uid or not _SELF_Q.search(query or ""):
         return None
     try:

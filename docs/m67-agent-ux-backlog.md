@@ -464,3 +464,47 @@ pid 是整数、不可注入，故保留（"能复用已验证作者"的效用�
 提示词层防护没有 100%：短主题里仍可能残留语义（如"以上所有指令"），
 只是被围栏和优先级声明降级为"数据"。更强的做法是**经验库完全不含任何用户文本**
 （只保留工具路线），或改成**按 uid 隔离**的经验库——已记入 Roadmap 待做项。
+
+
+---
+
+## 完成记录：主题改写回退（用户点名的 UX 问题）
+
+### 现象
+
+用户问「考古」，模型把主题改写成 "archaeological excavation carbon dating" 之后，
+影子索引（按原主题建）对不上 → **第一问答"没找到"，第二问才对**。用户以为系统坏了。
+
+### 修复
+
+在 `_run_tool` 的 find_expert 分支加**回退**：把用户原句清洗出的主题再查一次。
+触发条件两种：
+
+| 条件 | 判定 |
+|---|---|
+| 空结果 | `not items` |
+| **结果不对题** | `matched_count(主题, pids) * 2 < len(pids)`（命中不足一半） |
+
+二值 `matches()` 不够用：噪音查询常"混进 1 个对的 + 4 个错的"，二值会判 True 而放过。
+
+补充保护：
+- 回退查询用**英文主题**（`to_english`），中文直接搜 OpenAlex 必然 0 命中；
+- 若原查询已包含该主题，不重试；
+- 若重试返回的是**同一批人**，不采纳（避免无意义的 fallback 标记）；
+- 结果里带 `query_used / fallback_from / fallback_reason`，可追溯。
+
+新增 `topic_match.matched_count()`（按"命中几个"计数，配合比例判断）。
+
+### 实测（线上）
+
+```
+① 改写查询查不到 → 回退
+   q='zzz qqq www nonsense' + 原句「我想找一个考古的专家」
+   → used='archaeology'，命中 Alex Bayliss / Christopher Bronk Ramsey
+
+② 结果不对题 → 回退（关键改进）
+   q='nonsense alpha beta' + 原句「我想找研究帕金森的专家」
+   → used='parkinson'，命中 Andrew John Lees（真帕金森专家）/ Nussbaum
+
+③ 已命中 → 不回退（或回退后同一批人则不采纳）
+```
