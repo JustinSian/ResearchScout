@@ -890,6 +890,13 @@ def _timed_supervise(q: str, sid: str, uid: str = "") -> dict:
     用户应该能知道这个答案走了哪条路、花了多久）。"""
     import time as _t
 
+    from app import qa_cache
+    # 命中缓存：同一问题 + 同用户 + 同记忆状态 + 语料没变，直接返回（省钱省时）
+    hit = qa_cache.get(q, uid)
+    if hit:
+        hit["elapsed_ms"] = 0.0
+        hit["sources"] = ["cache"]
+        return hit
     t0 = _t.perf_counter()
     # 默认走 LLM Agent（长短期记忆 + 工具循环）；未配置 key 或 classic 模式时回退
     r = None
@@ -912,7 +919,55 @@ def _timed_supervise(q: str, sid: str, uid: str = "") -> dict:
     if r.get("fallback"):
         src.append("web")
     r["sources"] = src
+    try:
+        qa_cache.put(q, uid, r)
+    except Exception:
+        pass
     return r
+
+
+@app.post("/feedback")
+def post_feedback(q: str = Query(..., description="原始问题"),
+                  rating: str = Query(..., description="up / down"),
+                  note: str = Query("", description="可选：为什么"),
+                  uid: str = Query(""), sid: str = Query(""),
+                  engine: str = Query("")) -> dict:
+    """用户对答案的 👍/👎。普通用户操作，不要求 key（只收 up/down、限长）。"""
+    if rating not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="rating 只能是 up / down")
+    import time as _t
+
+    from app import qa_cache
+    conn = connect()
+    try:
+        cur = conn.execute(
+            """INSERT INTO answer_feedback(ts,q,qkey,rating,note,uid,sid,engine,answer_hash)
+               VALUES(?,?,?,?,?,?,?,?,?)""",
+            (_t.time(), q[:500], qa_cache._norm(q)[:200], rating, note[:300],
+             uid[:64], sid[:64], engine[:16], ""))
+        conn.commit()
+        return {"ok": True, "fid": int(cur.lastrowid)}
+    finally:
+        conn.close()
+
+
+@app.get("/feedback/stats")
+def feedback_stats() -> dict:
+    """反馈汇总：给自进化（RSI）当闸门信号，也方便运营看满意度。"""
+    conn = connect()
+    try:
+        up = conn.execute(
+            "SELECT COUNT(*) FROM answer_feedback WHERE rating='up'").fetchone()[0]
+        down = conn.execute(
+            "SELECT COUNT(*) FROM answer_feedback WHERE rating='down'").fetchone()[0]
+        recent = [dict(r) for r in conn.execute(
+            "SELECT ts,q,rating,note FROM answer_feedback ORDER BY ts DESC LIMIT 20")]
+    finally:
+        conn.close()
+    total = int(up) + int(down)
+    return {"up": int(up), "down": int(down), "total": total,
+            "satisfaction": round(int(up) / total, 3) if total else None,
+            "recent": recent}
 
 
 @app.post("/chat")
@@ -969,6 +1024,25 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
         return f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
 
     async def gen():
+        # 缓存优先：同一问题（同用户/同记忆/同语料）直接返回，省一次完整 Agent
+        from app import qa_cache as _qc
+        _hit = _qc.get(q, uid)
+        if _hit:
+            yield sse("think", {"t": "命中缓存，直接返回上次结果。"})
+            _ans = _hit.get("answer") or ""
+            for _i in range(0, len(_ans), 8):
+                yield sse("token", {"t": _ans[_i:_i + 8]})
+                await asyncio.sleep(0.008)
+            yield sse("citations", {"items": _hit.get("citations") or [],
+                                    "refinements": _hit.get("refinements") or []})
+            yield sse("done", {"citations": len(_hit.get("citations") or []),
+                               "engine": "cache", "cached": True, "streamed": False,
+                               "cost_usd": 0.0, "ms": 0,
+                               "tools": len(_hit.get("steps") or []),
+                               "memory": bool(_hit.get("memory")),
+                               "finish_reason": "cached"})
+            return
+
         # —— LLM Agent 路径：流式吐"工具步骤 + 最终答案"（真实 LLM，默认） ——
         from app import agent_llm
         _llm = False
@@ -1029,6 +1103,11 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
                 yield sse("think", {"t": "LLM 调用失败：" + str(r.get("reason") or r.get("error") or "")})
                 yield sse("done", {"citations": 0})
                 return
+            try:
+                from app import qa_cache as _qc2
+                _qc2.put(q, uid, r)
+            except Exception:
+                pass
             if r.get("refused"):
                 yield sse("refused", {"reason": r.get("reason") or "", "answer": r.get("answer") or ""})
             # 公示板：补库结果（补了/没补/为什么）单独发一个事件，前端渲染成面板

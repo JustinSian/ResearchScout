@@ -146,3 +146,40 @@ done 事件：{"cost_usd":0.0017,"ms":5025.6,"tools":3,"memory":false,"streamed"
 
 中止的实际粒度是"当前这一轮 LLM 请求"——已发出的 HTTP 请求不会被打断，
 所以 0.8 秒的 deadline 实际 3.6–4.0 秒返回（等当前轮结束）。这是诚实的上限。
+
+
+---
+
+## 完成记录：P1-5 问答缓存 + P1-6 反馈闭环
+
+### P1-5 缓存（只做精确匹配）
+
+`app/qa_cache.py`，三道失效：
+
+| 失效条件 | 机制 |
+|---|---|
+| 语料变化 | 复用 `memory.cache_get` 的 version（works/dossier 数）比对 |
+| 记忆变化 | key 里带 uid 的活跃事实指纹（条数 + 最近 valid_from） |
+| 过期 | `ST_CACHE_TTL`，默认 24h |
+
+**不缓存**：拒答、超时、取消、任何 not ok —— "没找到"缓存一天是最差的体验。
+
+实测：同一问题第 2 次 **4.4s → 0.0s**，`cached=true`、`cost_usd=0`；
+流式路径第 2 次 **8.1s → 1.6s**（`engine=cache`）。
+
+### P1-6 反馈闭环
+
+- 表 `answer_feedback`（问题/评分/备注/uid/sid/引擎），随 `schema.sql` 自动建；
+- `POST /feedback?q=&rating=up|down`（普通用户可用，不收 key）；
+- `GET /feedback/stats` 返回满意度与最近 20 条，供 RSI 当闸门信号；
+- 前端每条回答底部有 👍/👎，点完变"已反馈"。
+
+实测：`POST /feedback` → `{"ok":true,"fid":1}`；`/feedback/stats` → `{"up":1,"satisfaction":1.0}`。
+
+### 部署事故与修复（重要）
+
+发现**线上 `app/` 与本地存在版本漂移**（58 个文件内容不同，`db.py` 竟是旧版，
+导致新表建不出来、`/feedback` 500）。已做全量同步（先备份到 `backup_<ts>/`），
+重启后 `/chat`、`/chat/stream`、缓存、反馈全部验证通过。
+
+教训：增量 pscp 单文件会累积漂移，发版应整目录同步。

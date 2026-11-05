@@ -105,3 +105,19 @@ CREATE VIRTUAL TABLE IF NOT EXISTS people_fts_exp USING fts5(
 CREATE VIRTUAL TABLE IF NOT EXISTS works_fts USING fts5(
     title, abstract, tokenize='unicode61'
 );
+
+-- 答案反馈（P1：用户 👍/👎 驱动自进化）
+CREATE TABLE IF NOT EXISTS answer_feedback (
+    fid INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    q TEXT,            -- 原始问题
+    qkey TEXT,         -- 归一化问题（便于聚类）
+    rating TEXT,       -- up / down
+    note TEXT,         -- 可选：为什么
+    uid TEXT,
+    sid TEXT,
+    engine TEXT,       -- llm / classic / cache
+    answer_hash TEXT   -- 答案指纹（不存全文，避免膨胀）
+);
+CREATE INDEX IF NOT EXISTS idx_fb_ts ON answer_feedback(ts);
+CREATE INDEX IF NOT EXISTS idx_fb_qkey ON answer_feedback(qkey, rating);

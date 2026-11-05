@@ -1425,13 +1425,31 @@ async function askChat(){
         const bits = [];
         if (meta.cost_usd) bits.push('$' + Number(meta.cost_usd).toFixed(4));
         if (meta.ms) bits.push((Number(meta.ms)/1000).toFixed(1) + 's');
-        bits.push(meta.engine === 'llm' ? 'LLM Agent' : '规则链路');
+        bits.push(meta.engine === 'llm' ? 'LLM Agent' : (meta.engine === 'cache' ? '缓存' : '规则链路'));
         if (meta.tools) bits.push(meta.tools + ' 次工具');
         if (meta.memory) bits.push('用了记忆');
         if (meta.finish_reason === 'cancelled') bits.push('已取消');
         if (meta.finish_reason === 'timeout') bits.push('超时中止');
         ans.insertAdjacentHTML('beforeend',
           `<small style="display:block;margin-top:8px;color:#5f7b96;font-size:11.5px">${esc(bits.join(' · '))}</small>`);
+        // 反馈：👍/👎 直接写进 answer_feedback，供自进化用
+        const fbbar = document.createElement('div');
+        fbbar.style.cssText = 'margin-top:6px;display:flex;gap:8px;align-items:center';
+        fbbar.innerHTML = `<span style="color:#5f7b96;font-size:11.5px">这条回答有用吗？</span>
+          <button class="ghost" data-fb="up" style="padding:2px 8px;font-size:11.5px">👍</button>
+          <button class="ghost" data-fb="down" style="padding:2px 8px;font-size:11.5px">👎</button>`;
+        fbbar.querySelectorAll('button[data-fb]').forEach(b=>{
+          b.onclick = async ()=>{
+            try {
+              await fetch('/feedback?q=' + encodeURIComponent(q)
+                + '&rating=' + b.dataset.fb
+                + '&sid=' + encodeURIComponent(stSid)
+                + '&engine=' + encodeURIComponent((meta && meta.engine) || ''));
+              fbbar.innerHTML = '<span style="color:#5f7b96;font-size:11.5px">已反馈，谢谢！</span>';
+            } catch(_) {}
+          };
+        });
+        ans.appendChild(fbbar);
       }
     };
     finish();
