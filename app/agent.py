@@ -59,11 +59,13 @@ _FTS_STOP = {"and", "the", "of", "for", "with", "using", "based", "into", "onto"
 
 
 
+# 从相关论文的一作找专家
 def _core_experts(query: str, limit: int = 20) -> list[dict]:
     """按"概念关键词 + 一作"直接取候选（主检索按被引取候选，一作根本进不来）。"""
     import json as _json
     import os as _os5
     import re as _re
+    #先用 _fts_safe() 清理全文检索词，再用正则提取英文、数字和连字符组成的词：
     toks = [t.lower() for t in _re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]+", _fts_safe(query))]
     toks = [t for t in toks if len(t) > 3][:4]
     if not toks:
@@ -97,6 +99,7 @@ def _core_experts(query: str, limit: int = 20) -> list[dict]:
              "topic_score": round(1.0 / (1 + int(r["hits"])), 6)} for r in rows]
 
 
+# 查自动扩充专家的FTS索引
 def _exp_experts(query: str, limit: int = 20) -> list[dict]:
     """查自动扩充的独立索引（people_fts_exp），返回与主检索一致的结构。"""
     import json as _json
@@ -163,6 +166,7 @@ def _fts_safe(q: str) -> str:
     return " ".join(toks) or (q or "")
 
 
+# 按照人物主题：先从人物主题索引召回候选，再过滤和排序，最后补入自动扩充索引里的专家
 def _topic_experts(query: str, limit: int = 5) -> list[dict]:
     """按人物主题索引找专家（people_fts 的 topics 列）。
 
@@ -516,6 +520,7 @@ def _resolve_person(pid: int | None, name: str | None) -> dict | None:
         conn.close()
 
 
+# 读取专家画像
 def tool_profile(pid: int | None = None, name: str | None = None) -> dict:
     p = _resolve_person(pid, name)
     if not p:
@@ -524,6 +529,7 @@ def tool_profile(pid: int | None = None, name: str | None = None) -> dict:
     return {"tool": "profile", "items": [prof] if prof else [], "count": 1 if prof else 0}
 
 
+# 从合作图查询合作者
 def tool_collaborators(pid: int | None = None, name: str | None = None,
                        depth: int = 1, limit: int = 8) -> dict:
     """合作网络。M2 证明这类问题检索给不出答案，必须走图。"""
@@ -546,6 +552,7 @@ def tool_collaborators(pid: int | None = None, name: str | None = None,
             "items": nodes[:limit], "count": len(nodes)}
 
 
+# 根据论文标题线索查询引用关系
 def _cite_query(q: str) -> str:
     """把"这篇论文引用了谁"里的功能词剥掉，只留标题线索。"""
     s = re.sub(r"这篇|那篇|论文|文章|引用了谁|引用了哪些|谁引用了|被谁引用|被引|引用|"
@@ -556,6 +563,7 @@ def _cite_query(q: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+# 查询论文引用关系
 def tool_citations(query: str, limit: int = 5, hops: int = 1) -> dict:
     """引用链：这篇论文引用了谁 / 谁引用了它（对标 AMiner 的 paper/relation）。
 
@@ -570,6 +578,7 @@ def tool_citations(query: str, limit: int = 5, hops: int = 1) -> dict:
     if not w:
         return {"tool": "citations", "items": [], "count": 0,
                 "note": f"库里没找到标题匹配「{query}」的论文"}
+    # 分别查询“它引用了谁”和“谁引用了它”
     refs = cit.refs_of(w["wid"], limit=limit)
     citing = cit.citing_of(w["wid"], limit=limit)
     item = {

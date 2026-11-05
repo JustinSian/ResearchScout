@@ -289,6 +289,7 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
     system, hint = build_system_prompt(uid, sid, ep_hint)
     messages = [{"role": "system", "content": system},
                 {"role": "user", "content": query}]
+    # 2、初始化运行状态
     evidence: list[dict] = []
     steps: list[dict] = []
     usage = {"prompt_tokens": 0, "completion_tokens": 0}
@@ -331,6 +332,7 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                 "ms": round((time.perf_counter() - t0) * 1000, 1),
                 "engine": "llm", "memory": hint or None, "finish_reason": finish}
 
+    # 3、进入模型决策循环
     for _ in range(max_steps):
         if calls >= MAX_CALLS or cost > budget_usd:
             break
@@ -351,6 +353,7 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
         msg = res.get("message") or {}
         tool_calls = msg.get("tool_calls") or []
 
+        # 模型没有返回工具调用 不代表一定拒答
         if not tool_calls:
             return _finish(msg.get("content") or "", "answer")
 
@@ -470,6 +473,7 @@ def _resolve_followup(sid: str, q: str) -> str:
             break
     if not prev:
         return ""
+    # 让模型把“同意”翻译成动作
     system = ("你负责把用户对上一轮提议的简短回应（如「需要」「好」「可以」）解析成一个"
               "可直接执行的检索或动作请求。只输出一个 JSON 对象，键名 query；"
               "上一轮如果没有提出任何具体可执行的动作，query 给空字符串。"
@@ -519,6 +523,7 @@ def _ack_disclosure(query: str, uid: str, sid: str, facts: list[dict]) -> dict:
             session_memory.append(sid, "assistant", "已记住：" + "、".join(written))
         except Exception:
             pass
+    # 生成确认结果 成功新增了事实就用这些事实生成说明 如果written为空 就使用偏好作为兜底
     desc = "、".join(written) or "你的偏好"
     return {"ok": True, "answer": f"已记住：{desc}。后续检索会默认按这个方向来，需要我推荐几位专家吗？",
             "refused": False, "citations": [], "evidence": [], "steps": [],
