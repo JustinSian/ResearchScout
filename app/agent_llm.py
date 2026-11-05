@@ -145,6 +145,18 @@ def _truncate(obj, limit: int = 1600) -> str:
     return s if len(s) <= limit else s[:limit] + "…(截断)"
 
 
+def _evidence_strength(evidence: list[dict], refused: bool) -> str:
+    """证据强度：用**确定性规则**算，不让模型自评。
+
+    模型自评"我很有把握"是最不可靠的信号；这里只看客观事实：
+    命中条目数 + 是否拒答。补库/补人来的证据最多算 medium（来源较弱）。
+    """
+    items = [it for ev in (evidence or []) for it in (ev.get("items") or [])]
+    if refused or not items:
+        return "none"
+    return "high" if len(items) >= 3 else "medium"
+
+
 def _citations(evidence: list[dict]) -> list[dict]:
     out, seen = [], set()
     for ev in evidence:
@@ -227,12 +239,14 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                     "citations": [], "evidence": evidence, "steps": steps,
                     "usage": usage, "cost_usd": round(cost, 6),
                     "ms": round((time.perf_counter() - t0) * 1000, 1),
-                    "engine": "llm", "memory": hint or None, "finish_reason": "no_evidence"}
+                    "engine": "llm", "memory": hint or None, "finish_reason": "no_evidence",
+                    "evidence_strength": "none"}
         refused = (not text) or _looks_refusal(text)
         if not text:
             text = "知识库里没有找到能支撑这个问题的资料。"
             refused = True
         return {"ok": True, "answer": text, "refused": refused,
+                "evidence_strength": _evidence_strength(evidence, refused),
                 "citations": _anchor(text, _citations(evidence)), "evidence": evidence,
                 "steps": steps, "usage": usage, "cost_usd": round(cost, 6),
                 "ms": round((time.perf_counter() - t0) * 1000, 1),
@@ -561,6 +575,8 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
                         retry["expansion"] = exp
                         retry["expanded_retry"] = True
                         retry["expansion_report"] = report
+                        # 靠自动补库才答上的，证据强度封顶 medium（来源较弱，需人工核）
+                        retry["evidence_strength"] = "medium"
                         result = retry
                 result["expansion_report"] = report
         except Exception as exc:

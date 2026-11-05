@@ -900,17 +900,24 @@ def _timed_supervise(q: str, sid: str, uid: str = "") -> dict:
     t0 = _t.perf_counter()
     # 默认走 LLM Agent（长短期记忆 + 工具循环）；未配置 key 或 classic 模式时回退
     r = None
+    degraded = ""
     try:
         from app import agent_llm
-        if agent_llm.enabled():
+        if not agent_llm.enabled():
+            degraded = "LLM 未配置"
+        else:
             r = agent_llm.chat(q, uid=uid, sid=sid)
             if not r.get("ok"):
+                degraded = str(r.get("reason") or r.get("error") or "LLM 调用失败")
                 r = None
-    except Exception:
+    except Exception as _exc:
+        degraded = f"{type(_exc).__name__}"
         r = None
     if r is None:
         r = supervise(q, sid=sid, uid=uid) if uid else supervise(q, sid=sid)
         r["engine"] = "classic"
+        # 降级要明示：用户有权知道"这次不是模型答的"
+        r["degraded"] = degraded or "LLM 不可用"
     r["elapsed_ms"] = round((_t.perf_counter() - t0) * 1000, 1)
     r.setdefault("engine", "llm" if r.get("steps") else "classic")
     src = []
@@ -1040,6 +1047,9 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
                                "cost_usd": 0.0, "ms": 0,
                                "tools": len(_hit.get("steps") or []),
                                "memory": bool(_hit.get("memory")),
+                               "memory_text": (_hit.get("memory") or "")[:80],
+                               "evidence_strength": _hit.get("evidence_strength") or "",
+                               "degraded": _hit.get("degraded") or "",
                                "finish_reason": "cached"})
             return
 
@@ -1123,11 +1133,15 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
                                     "refinements": r.get("refinements") or []})
             # 成本/耗时/引擎透出：让用户知道这次问了多少钱、花了多久
             yield sse("done", {"citations": len(r.get("citations") or []),
-                               "engine": "llm", "streamed": bool(streamed),
+                               "engine": r.get("engine") or "llm",
+                               "streamed": bool(streamed),
                                "cost_usd": round(float(r.get("cost_usd") or 0.0), 6),
                                "ms": r.get("ms") or 0,
                                "tools": len(r.get("steps") or []),
                                "memory": bool(r.get("memory")),
+                               "memory_text": (r.get("memory") or "")[:80],
+                               "evidence_strength": r.get("evidence_strength") or "",
+                               "degraded": r.get("degraded") or "",
                                "finish_reason": r.get("finish_reason") or ""})
             return
 
