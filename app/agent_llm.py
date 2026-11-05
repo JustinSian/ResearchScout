@@ -160,6 +160,15 @@ def _citations(evidence: list[dict]) -> list[dict]:
     return out
 
 
+def _anchor(text: str, citations: list[dict]) -> list[dict]:
+    """给引用挂锚文本（软锚定，宁缺勿错）。找不到就保持原样（anchor=None）。"""
+    try:
+        from app.anchoring import anchor_citations
+        return anchor_citations(text, citations)
+    except Exception:
+        return citations
+
+
 def _run_tool(name: str, args: dict, uid: str, sid: str) -> dict:
     from app.agent import _run_tool as kb_run
     from app.plan_llm import to_call
@@ -224,7 +233,7 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
             text = "知识库里没有找到能支撑这个问题的资料。"
             refused = True
         return {"ok": True, "answer": text, "refused": refused,
-                "citations": _citations(evidence), "evidence": evidence,
+                "citations": _anchor(text, _citations(evidence)), "evidence": evidence,
                 "steps": steps, "usage": usage, "cost_usd": round(cost, 6),
                 "ms": round((time.perf_counter() - t0) * 1000, 1),
                 "engine": "llm", "memory": hint or None, "finish_reason": reason}

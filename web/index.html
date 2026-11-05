@@ -475,6 +475,31 @@ function avatar(name){
 }
 const fmt = n => (n||0).toLocaleString();
 
+// 引用软锚定：在答案 DOM 里把 needle 的**首次**出现包上 [n] 上标，跳到底部引用列表。
+// 只锚定答案里逐字存在的人名/论文名，绝不生成答案里没有的文本。
+function anchorDom(root, needle, n){
+  if (!needle) return;
+  const low = needle.toLowerCase();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())){
+    const idx = node.data.toLowerCase().indexOf(low);
+    if (idx < 0) continue;
+    const before = node.data.slice(0, idx);
+    const match = node.data.slice(idx, idx + needle.length);
+    const after = node.data.slice(idx + needle.length);
+    const sup = document.createElement('sup');
+    sup.innerHTML = `<a href="#cite-${n}" style="color:#7fb0e8;text-decoration:none">[${n}]</a>`;
+    const frag = document.createDocumentFragment();
+    if (before) frag.append(before);
+    frag.append(match);
+    frag.append(sup);
+    if (after) frag.append(after);
+    node.parentNode.replaceChild(frag, node);
+    return;   // 每条只锚第一次出现，避免满屏上标
+  }
+}
+
 // 数据健康度：网络背书占比、无作者论文、悬空边、FTS 一致性
 fetch('/health/trust').then(r=>r.json()).then(d=>{
   if (d.ok) return;
@@ -1386,11 +1411,13 @@ async function askChat(){
   es.addEventListener('citations', e=>{
     const data = JSON.parse(e.data);
     const items = data.items||[];
+    G.lastCites = items;
     if (items.length){
-      ans.insertAdjacentHTML('beforeend',
-        `<small style="color:#7f93ad;display:block;margin-top:6px">引用 ${items.length} 条：${items.slice(0,3).map(c=>c.url
-          ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" style="color:#7fb0e8">${esc(c.label||c.url)}</a>`
-          : esc(c.label||c.id||'')).join('、')}</small>`);
+      const citebox = document.createElement('div');
+      citebox.style.cssText = 'margin-top:6px;color:#7f93ad;font-size:12px;line-height:1.7';
+      citebox.innerHTML = `引用 ${items.length} 条：` + items.map((c,i)=>
+        `<span id="cite-${i+1}" style="white-space:nowrap">[${i+1}] ${esc(c.label||c.id||'')}</span>`).join(' &nbsp;·&nbsp; ');
+      box.appendChild(citebox);
     }
     // 多轮收窄：把"下一步还能怎么筛"做成按钮，点了用新条件重新问
     const refs = data.refinements || [];
@@ -1421,6 +1448,10 @@ async function askChat(){
       if (pending){ setTimeout(finish, 60); return; }
       clearInterval(pump); pump = null;
       if(!buf&&!refused) ans.textContent='(无内容)';
+      // 引用软锚定：给答案里确实出现的人名/论文名挂 [n] 上标
+      if (G.lastCites) {
+        G.lastCites.forEach((c,i)=>{ if (c.anchor) anchorDom(ans, c.anchor, i+1); });
+      }
       if (meta) {
         const bits = [];
         if (meta.cost_usd) bits.push('$' + Number(meta.cost_usd).toFixed(4));
