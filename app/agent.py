@@ -1274,3 +1274,55 @@ def answer(query: str, allow_fallback: bool = True, sid: str = "",
         except Exception as exc:      # 兜底失败就保持原拒答
             r["fallback_error"] = f"{type(exc).__name__}: {exc}"
     return r
+
+# 澄清时给用户的可点方向：库里专家最多的**具体**研究方向。
+# 太泛的学科词（Medicine/Biology）点进去仍然是汪洋大海，优先多词的具体主题。
+_TOPIC_GENERIC = {
+    "medicine", "internal medicine", "biology", "chemistry", "physics",
+    "mathematics", "statistics", "computer science", "engineering", "science",
+    "materials science", "psychology", "sociology", "economics", "political science",
+    "geography", "geology", "history", "philosophy", "art", "business", "law",
+    "education", "environmental science", "biochemistry", "genetics", "pathology",
+    "neuroscience", "immunology", "oncology", "cancer", "public health",
+}
+_TOP_CACHE: dict = {"ts": 0.0, "items": []}
+
+
+def top_topics(limit: int = 6) -> list[str]:
+    """库里专家最多的具体研究方向（用于"推荐几个专家"时的可点建议）。"""
+    import time as _t
+    if _TOP_CACHE["items"] and (_t.time() - _TOP_CACHE["ts"]) < 3600:
+        return list(_TOP_CACHE["items"])[:limit]
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """SELECT j.value AS topic, COUNT(*) AS n
+               FROM people p, json_each(p.topics) j
+               WHERE p.status='published'
+                 AND length(j.value) BETWEEN 4 AND 48
+               GROUP BY j.value
+               HAVING n >= 8
+               ORDER BY n DESC
+               LIMIT 400""").fetchall()
+    except Exception:
+        rows = []
+    finally:
+        conn.close()
+    scored = []
+    for r in rows:
+        t = (r["topic"] or "").strip()
+        low = t.lower()
+        if not t or low in _TOPIC_GENERIC:
+            continue
+        if any(ch.isdigit() for ch in t):
+            continue
+        # 单词短词（Gene/Cell/Disease）对用户没有指向性，只留多词或较长的主题
+        if " " not in t and len(t) < 8:
+            continue
+        n = int(r["n"] or 0)
+        # 多词主题更具体，给一点加权；单词的泛学科词排后面
+        scored.append((n + (200 if " " in t else 0), t))
+    scored.sort(reverse=True)
+    items = [t for _, t in scored[:40]]
+    _TOP_CACHE.update(ts=_t.time(), items=items)
+    return items[:limit]

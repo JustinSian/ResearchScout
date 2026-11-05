@@ -278,3 +278,39 @@ answer: "## 钟南山（Nanshan Zhong）…"   → 前端会把第一个"钟南�
 ### 验证
 
 部署后拉取首页确认 `cexport / histRender / histPush / metaHtmlFor / max-width:640px` 均已存在。
+
+
+---
+
+## 完成记录：P2-9 澄清对话增强
+
+### 问题
+
+用户问「推荐几个专家」时，旧版只反问一句"你想找哪个领域"，用户还得自己想关键词——
+第一次提问就卡住，转化损失。
+
+### 做法
+
+新增 `agent.top_topics()`：用 SQLite `json_each` 聚合 `people.topics`，
+统计"专家最多的**具体**研究方向"，过滤三类噪音：
+
+1. 泛学科词黑名单（Medicine / Biology / Chemistry…）；
+2. 短单词（Gene / Cell / Disease，`" " not in t and len(t) < 8`）；
+3. 含数字的脏标签。
+
+多词主题额外加权（+200），让 "Lung cancer" 排在 "Adenosine receptor" 前面。
+
+`_clarify()` 把结果变成**可点按钮**（复用前端已有的 refinements 机制），
+点了直接发起 `找研究X的专家`。
+
+### 实测（线上全量库）
+
+```
+问「推荐几个专家」
+→ finish_reason=clarify
+→ 可点方向: Computational biology / Intensive care medicine / Environmental health /
+            Cancer research / Burden of disease / Cardiology
+→ 每个按钮对应 "找研究<主题>的专家"，点一下就是一次有效检索
+```
+
+有记忆主题时不追问（交给记忆补全），真实问句也不会被误判成澄清。

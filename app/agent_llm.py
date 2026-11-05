@@ -21,10 +21,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from app import llm, memory_extract, memory_recall, rsi, session_memory, user_memory, episodes
-
+"""
+步数或预算用完 代码会强制收尾
+"""
 MAX_STEPS = 3          # 轮数
 MAX_CALLS = 4          # 工具调用总数（并行调用也算）
-BUDGET_USD = 0.03
+BUDGET_USD = 0.03      # 限制模型调用成本
 
 TOOL_SCHEMAS = [
     {"type": "function", "function": {
