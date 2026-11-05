@@ -253,3 +253,28 @@ answer: "## 钟南山（Nanshan Zhong）…"   → 前端会把第一个"钟南�
 无证据查询: engine=llm evidence_strength=none finish_reason=no_evidence
 缓存命中:   engine=cache（done 同样带 evidence_strength/degraded/memory_text）
 ```
+
+
+---
+
+## 完成记录：P3-12 会话历史 + P3-13 移动端
+
+### P3-12 会话历史（localStorage）
+
+| 能力 | 实现 |
+|---|---|
+| 刷新/重开不丢 | 每条问答存 `st_hist`（最多 50 条），启动时 `histRender()` 回放 |
+| 导出 | 「导出」按钮生成 Markdown 文件（问/答分段，`---` 分隔） |
+| 清空 | 同时清 DOM 与 storage |
+| 不重复开场 | 有历史时跳过欢迎语 |
+
+顺带把"元信息行"抽成 `metaHtmlFor(meta)`，实时渲染与历史回放共用，避免样式漂移。
+
+### P3-13 移动端
+
+`@media(max-width:640px)`：输入行换行、气泡满宽、聊天区高度降到 52vh、
+导航按钮与 header 收紧。
+
+### 验证
+
+部署后拉取首页确认 `cexport / histRender / histPush / metaHtmlFor / max-width:640px` 均已存在。

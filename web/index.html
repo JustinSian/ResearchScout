@@ -128,6 +128,14 @@
   .err{color:var(--bad);font-size:13px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   @media(max-width:900px){.hero{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}}
+  @media(max-width:640px){
+    .row{flex-wrap:wrap}
+    .msg{max-width:100%!important}
+    #chatlog{max-height:52vh}
+    .hero{grid-template-columns:1fr}
+    header{flex-wrap:wrap;gap:6px}
+    nav button{padding:4px 8px;font-size:12px}
+  }
 </style>
 </head>
 <body>
@@ -306,6 +314,7 @@ window.addEventListener('error', function (e) {
       <input type="text" id="cq" placeholder="例如：谁和 Yoshua Bengio 合作过 / 找研究 dementia 的专家">
       <button class="primary" id="cgo">发送</button>
       <button class="ghost" id="cstop" style="display:none;color:#e8a0a0;border-color:#7a3434">停止</button>
+      <button class="ghost" id="cexport">导出</button>
       <button class="ghost" id="cclear">清空</button>
     </div>
     <p class="hint">SSE 流式；资料不足会明确拒答。</p>
@@ -475,7 +484,56 @@ function avatar(name){
 }
 const fmt = n => (n||0).toLocaleString();
 
-// 引用软锚定：在答案 DOM 里把 needle 的**首次**出现包上 [n] 上标，跳到底部引用列表。
+// —— 会话历史：localStorage 持久化，刷新/重开不丢 ——
+const HIST_KEY = 'st_hist';
+function histLoad(){ try { return JSON.parse(localStorage.getItem(HIST_KEY)||'[]'); } catch(_) { return []; } }
+function histSave(a){ try { localStorage.setItem(HIST_KEY, JSON.stringify(a.slice(-50))); } catch(_) {} }
+function histPush(e){ const a = histLoad(); a.push(e); histSave(a); }
+
+// 回答底部的元信息行（证据强度徽章 + 成本/耗时/工具/记忆 + 降级提示），
+// 实时渲染与历史回放共用，避免两处样式漂移。
+function metaHtmlFor(meta){
+  if (!meta) return '';
+  const bits = [];
+  if (meta.cost_usd) bits.push('$' + Number(meta.cost_usd).toFixed(4));
+  if (meta.ms) bits.push((Number(meta.ms)/1000).toFixed(1) + 's');
+  bits.push(meta.engine === 'llm' ? 'LLM Agent' : (meta.engine === 'cache' ? '缓存' : '规则链路'));
+  if (meta.tools) bits.push(meta.tools + ' 次工具');
+  if (meta.memory_text) bits.push('用了记忆：' + meta.memory_text);
+  else if (meta.memory) bits.push('用了记忆');
+  if (meta.finish_reason === 'cancelled') bits.push('已取消');
+  if (meta.finish_reason === 'timeout') bits.push('超时中止');
+  const ST = {high:['证据强','#7fd6a8'], medium:['证据中等','#e8c07a'], low:['证据弱','#d0a48a'], none:['无证据','#d08a8a']}[meta.evidence_strength];
+  let html = `<small style="display:block;margin-top:8px;color:#5f7b96;font-size:11.5px">`;
+  if (ST) html += `<span style="color:${ST[1]};border:1px solid ${ST[1]};border-radius:4px;padding:0 5px;margin-right:6px">${ST[0]}</span>`;
+  html += esc(bits.join(' · ')) + `</small>`;
+  if (meta.degraded) {
+    html += `<small style="display:block;margin-top:2px;color:#c9a97a;font-size:11.5px">`
+      + `⚠ 本次由规则链路作答（${esc(meta.degraded)}），未使用模型。</small>`;
+  }
+  return html;
+}
+
+function histRender(){
+  const log = document.getElementById('chatlog');
+  if (!log) return;
+  const arr = histLoad();
+  if (!arr.length) return;
+  log.innerHTML = '';
+  arr.forEach(e=>{
+    log.insertAdjacentHTML('beforeend', `<div class="msg user">${esc(e.q)}</div>`);
+    const box = document.createElement('div');
+    box.className = 'msg bot' + ((e.meta && e.meta.finish_reason === 'cancelled') ? ' bad' : '');
+    const ans = document.createElement('div');
+    ans.className = 'ans';
+    ans.style.whiteSpace = 'pre-wrap';
+    ans.innerHTML = (typeof mdToHtml === 'function') ? mdToHtml(e.a || '') : esc(e.a || '');
+    ans.insertAdjacentHTML('beforeend', metaHtmlFor(e.meta));
+    box.appendChild(ans);
+    log.appendChild(box);
+  });
+  log.scrollTop = log.scrollHeight;
+}
 // 只锚定答案里逐字存在的人名/论文名，绝不生成答案里没有的文本。
 function anchorDom(root, needle, n){
   if (!needle) return;
@@ -1286,7 +1344,21 @@ function draw(){
 })();
 
 // ---------- Agent ----------
-$('#cclear').onclick = ()=> $('#chatlog').innerHTML='';
+$('#cclear').onclick = ()=>{ $('#chatlog').innerHTML=''; histSave([]); };
+$('#cexport').onclick = ()=>{
+  const arr = histLoad();
+  if (!arr.length){ alert('还没有对话可以导出'); return; }
+  const NL = String.fromCharCode(10);
+  const md = arr.map(e=>'### 问：' + e.q + NL + NL + (e.a || '') + NL)
+                .join(NL + '---' + NL + NL);
+  const blob = new Blob([md], {type:'text/markdown;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'researchscout-chat-' + new Date().toISOString().slice(0,10) + '.md';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+};
+histRender();
 $('#cgo').onclick = askChat;
 $('#cstop').onclick = ()=>{
   if (G.curES) { try { G.curES.close(); } catch(_) {} G.curES = null; }
@@ -1316,6 +1388,7 @@ document.getElementById('gwall').onclick = () => {
 let welcomeShown = false;
 async function ensureWelcome(force){
   if (welcomeShown && !force) return;
+  if (histLoad().length && !force) return;   // 有历史记录就不重复开场引导
   welcomeShown = true;
   try{
     const d = await (await fetch('/chat/welcome')).json();
@@ -1453,24 +1526,9 @@ async function askChat(){
         G.lastCites.forEach((c,i)=>{ if (c.anchor) anchorDom(ans, c.anchor, i+1); });
       }
       if (meta) {
-        const bits = [];
-        if (meta.cost_usd) bits.push('$' + Number(meta.cost_usd).toFixed(4));
-        if (meta.ms) bits.push((Number(meta.ms)/1000).toFixed(1) + 's');
-        bits.push(meta.engine === 'llm' ? 'LLM Agent' : (meta.engine === 'cache' ? '缓存' : '规则链路'));
-        if (meta.tools) bits.push(meta.tools + ' 次工具');
-        if (meta.memory_text) bits.push('用了记忆：' + meta.memory_text);
-        else if (meta.memory) bits.push('用了记忆');
-        if (meta.finish_reason === 'cancelled') bits.push('已取消');
-        if (meta.finish_reason === 'timeout') bits.push('超时中止');
-        const ST = {high:['证据强','#7fd6a8'], medium:['证据中等','#e8c07a'], low:['证据弱','#d0a48a'], none:['无证据','#d08a8a']}[meta.evidence_strength];
-        let metaHtml = `<small style="display:block;margin-top:8px;color:#5f7b96;font-size:11.5px">`;
-        if (ST) metaHtml += `<span style="color:${ST[1]};border:1px solid ${ST[1]};border-radius:4px;padding:0 5px;margin-right:6px">${ST[0]}</span>`;
-        metaHtml += esc(bits.join(' · ')) + `</small>`;
-        if (meta.degraded) {
-          metaHtml += `<small style="display:block;margin-top:2px;color:#c9a97a;font-size:11.5px">`
-            + `⚠ 本次由规则链路作答（${esc(meta.degraded)}），未使用模型。</small>`;
-        }
-        ans.insertAdjacentHTML('beforeend', metaHtml);
+        ans.insertAdjacentHTML('beforeend', metaHtmlFor(meta));
+        // 会话历史持久化（刷新/重开不丢），最多留 50 条
+        try { histPush({ q: q, a: buf, meta: meta }); } catch(_) {}
         // 反馈：👍/👎 直接写进 answer_feedback，供自进化用
         const fbbar = document.createElement('div');
         fbbar.style.cssText = 'margin-top:6px;display:flex;gap:8px;align-items:center';
