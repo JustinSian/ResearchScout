@@ -178,6 +178,10 @@ def chat_with_tools(messages: list[dict], tools: list[dict], *, timeout: float =
         return {"ok": False, "error": "LLM_API_KEY 未配置", "ms": 0, "usage": {}}
     payload = {"model": model(), "messages": messages, "temperature": temperature,
                "tools": tools, "tool_choice": "auto", "max_tokens": 1200}
+    # 允许模型一轮返回多个工具调用（profile+research_area+works 同时发），
+    # 把 3 次串行 LLM 往返压成 1 次。个别提供商不认这个参数，400 时自动回退。
+    if os.environ.get("ST_PARALLEL_TOOLS", "1") != "0":
+        payload["parallel_tool_calls"] = True
     headers = {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json"}
     last_err = ""
     t0 = time.perf_counter()
@@ -189,6 +193,11 @@ def chat_with_tools(messages: list[dict], tools: list[dict], *, timeout: float =
             if r.status_code in (401, 403):
                 return {"ok": False, "error": f"鉴权失败 {r.status_code}", "fatal": True,
                         "ms": round((time.perf_counter() - t0) * 1000, 1), "usage": {}}
+            if r.status_code == 400 and "parallel_tool_calls" in payload:
+                # 提供商不认这个参数 → 去掉重试（不是错误，只是少了并行优化）
+                payload.pop("parallel_tool_calls", None)
+                last_err = "parallel_tool_calls 不被支持，已回退"
+                continue
             if r.status_code == 429 or r.status_code >= 500:
                 last_err = f"HTTP {r.status_code}"
                 time.sleep(1.5 * (attempt + 1))
@@ -232,5 +241,75 @@ def chat_text(messages: list[dict], *, timeout: float = 60.0) -> dict:
                 "cost_usd": cost_usd(pt, ct),
                 "ms": round((time.perf_counter() - t0) * 1000, 1)}
     except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}",
+                "ms": round((time.perf_counter() - t0) * 1000, 1), "usage": {}}
+
+
+def chat_stream(messages: list[dict], *, timeout: float = 120.0,
+                on_delta=None, max_tokens: int = 1200) -> dict:
+    """流式的一轮对话：逐 token 回调 on_delta，返回结构与 chat_text 一致。
+
+    为什么需要：非流式时用户要等整段算完（p50 7–8 秒）才看到第一个字；
+    流式后首 token 通常 1 秒内到达，感知延迟大幅下降。
+
+    - on_delta(piece) 抛异常不影响主流程（前端断开时不该拖垮后端）；
+    - 任何异常都退回 chat_text，保证"至少能出答案"。
+    """
+    if not configured():
+        return {"ok": False, "error": "LLM_API_KEY 未配置", "ms": 0, "usage": {}}
+    payload = {"model": model(), "messages": messages, "temperature": 0.0,
+               "max_tokens": max_tokens, "stream": True}
+    # 有的提供商不支持 stream_options，失败会自动退回非流式
+    payload["stream_options"] = {"include_usage": True}
+    headers = {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json"}
+    t0 = time.perf_counter()
+    parts: list[str] = []
+    pt = ct = 0
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            with client.stream("POST", f"{base_url()}/chat/completions",
+                               json=payload, headers=headers) as r:
+                if r.status_code >= 400:
+                    r.read()
+                    raise RuntimeError(f"HTTP {r.status_code}")
+                for line in r.iter_lines():
+                    if not line:
+                        continue
+                    if line.startswith("data:"):
+                        data = line[5:].strip()
+                    elif line.startswith("{"):
+                        data = line.strip()
+                    else:
+                        continue
+                    if data == "[DONE]":
+                        break
+                    try:
+                        ev = json.loads(data)
+                    except Exception:
+                        continue
+                    u = ev.get("usage") or {}
+                    if u:
+                        pt = int(u.get("prompt_tokens") or 0) or pt
+                        ct = int(u.get("completion_tokens") or 0) or ct
+                    choice = (ev.get("choices") or [{}])[0] or {}
+                    piece = (choice.get("delta") or {}).get("content")
+                    if piece:
+                        parts.append(piece)
+                        if on_delta:
+                            try:
+                                on_delta(piece)
+                            except Exception:
+                                pass
+        text = "".join(parts).strip()
+        return {"ok": True, "text": text,
+                "usage": {"prompt_tokens": pt, "completion_tokens": ct},
+                "cost_usd": cost_usd(pt, ct),
+                "ms": round((time.perf_counter() - t0) * 1000, 1)}
+    except Exception as exc:
+        fb = chat_text(messages, timeout=timeout)
+        if fb.get("ok"):
+            fb["stream_fallback"] = True
+            fb["stream_error"] = f"{type(exc).__name__}: {exc}"
+            return fb
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}",
                 "ms": round((time.perf_counter() - t0) * 1000, 1), "usage": {}}

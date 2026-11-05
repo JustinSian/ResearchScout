@@ -18,6 +18,7 @@ import json
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from app import llm, memory_extract, memory_recall, rsi, session_memory, user_memory, episodes
 
@@ -83,6 +84,8 @@ SYSTEM = (
     "工作方式：\n"
     "1. 先看【长期记忆】和【本会话摘要】，理解用户是谁、在找什么、之前查到哪一步；\n"
     "2. 需要事实就调工具，不要凭空编造人名、论文名或数字；\n"
+    "2.1 提前规划：确定人名后，profile / research_area / works 应当同一轮并行调用，\n"
+    "    不要一个一个串行来（每轮都是一次模型往返，串行会让用户多等好几秒）；\n"
     "3. 用户透露新的个人信息（换方向、加限制、换单位）时调用 remember；\n"
     "4. 证据足够就停止调用，直接中文作答，并写清依据（人名/论文名）；\n"
     "5. 库里没有证据时明确说不知道，不要用猜测填空；\n"
@@ -188,7 +191,7 @@ def _run_tool(name: str, args: dict, uid: str, sid: str) -> dict:
 
 def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
         budget_usd: float = BUDGET_USD, episode_hint: bool = True,
-        on_step=None) -> dict:
+        on_step=None, on_delta=None) -> dict:
     """执行一次 Agent 会话。未配置 LLM 时返回 {"ok": False, "reason": ...} 由上层降级。"""
     if not llm.configured():
         return {"ok": False, "reason": "未配置 DEEPSEEK_API_KEY"}
@@ -243,49 +246,70 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
 
         messages.append({"role": "assistant", "content": msg.get("content") or "",
                          "tool_calls": tool_calls})
+        # 一轮里的多个工具调用**并行执行**（模型可同时要 profile/research_area/works），
+        # 本地工具各开各的连接，串行纯属浪费；顺序与 tool_call_id 必须保持一一对应。
+        prepared = []
         for call in tool_calls:
             fn = call.get("function") or {}
-            name = fn.get("name")
             raw = fn.get("args") or fn.get("arguments") or "{}"
             try:
-                args = json.loads(raw) if isinstance(raw, str) else dict(raw)
+                cargs = json.loads(raw) if isinstance(raw, str) else dict(raw)
             except Exception:
-                args = {}
-            calls += 1
-            started = time.perf_counter()
-            if name not in _TOOL_NAMES:
-                out = {"error": f"未知工具 {name}"}
+                cargs = {}
+            prepared.append((call, fn.get("name"), cargs))
+
+        def _exec_one(item):
+            _call, _name, _args = item
+            _t0 = time.perf_counter()
+            if _name not in _TOOL_NAMES:
+                _out = {"error": f"未知工具 {_name}"}
             else:
                 try:
-                    out = _run_tool(name, args, uid, sid)
-                    if out.get("tool") != "remember":
-                        evidence.append(out)
-                except Exception as exc:
-                    out = {"error": f"{type(exc).__name__}: {exc}"}
-            steps.append({"tool": name, "args": args,
-                          "count": out.get("count"),
-                          "ms": round((time.perf_counter() - started) * 1000, 1),
-                          "error": out.get("error")})
+                    _out = _run_tool(_name, _args, uid, sid)
+                except Exception as _exc:
+                    _out = {"error": f"{type(_exc).__name__}: {_exc}"}
+            return {"tool": _name, "args": _args,
+                    "count": _out.get("count"),
+                    "ms": round((time.perf_counter() - _t0) * 1000, 1),
+                    "error": _out.get("error"), "_out": _out}
+
+        # 多工具同轮的价值是**减少 LLM 往返**（每轮 1–3 秒），不是并发跑工具。
+        # 实测并发执行会让 SQLite 抢锁：单个工具 23ms → 671ms，反而更慢。
+        # 所以默认本地串行执行（几十毫秒），只在显式开启 ST_PARALLEL_EXEC=1 时并发。
+        if len(prepared) > 1 and os.environ.get("ST_PARALLEL_EXEC", "0") == "1":
+            with ThreadPoolExecutor(max_workers=min(4, len(prepared))) as _pool:
+                results = list(_pool.map(_exec_one, prepared))
+        else:
+            results = [_exec_one(x) for x in prepared]
+
+        calls += len(results)
+        for (call, _name, _args), r in zip(prepared, results):
+            out = r.pop("_out")
+            if out.get("tool") != "remember":
+                evidence.append(out)
+            steps.append(r)
             if on_step:
                 try:
-                    on_step({"tool": name, "args": args, "count": out.get("count"),
-                             "ms": round((time.perf_counter() - started) * 1000, 1),
-                             "error": out.get("error")})
+                    on_step(r)
                 except Exception:
                     pass
             messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
                              "content": _truncate({
-                                 "tool": name,
+                                 "tool": _name,
                                  "count": out.get("count"),
                                  "error": out.get("error"),
-                                 "items": [{k: v for k, v in it.items()
-                                            if k in _RESULT_FIELDS}
+                                 "items": [{k2: v2 for k2, v2 in it.items()
+                                            if k2 in _RESULT_FIELDS}
                                            for it in (out.get("items") or [])[:5]]})})
 
     # 步数/预算用尽：强制收尾（不再给工具）
     messages.append({"role": "user", "content":
                      "现在基于以上工具结果写最终答案，不要再调用工具；证据不足就明说不知道。"})
-    fin = llm.chat_text(messages)
+    # 最终作答走流式：首 token 1 秒内到达，而不是整段算完再吐
+    if on_delta:
+        fin = llm.chat_stream(messages, on_delta=on_delta)
+    else:
+        fin = llm.chat_text(messages)
     if fin.get("ok"):
         u = fin.get("usage") or {}
         usage["prompt_tokens"] += int(u.get("prompt_tokens") or 0)
@@ -404,7 +428,8 @@ def _expansion_message(report: dict) -> str:
             f"（标题未命中），未入库。")
 
 
-def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
+def chat(query: str, uid: str = "", sid: str = "", on_step=None,
+         on_delta=None, on_reset=None) -> dict:
     """对外入口：跑一次 Agent，并写回短期/长期记忆。"""
     # 自述句（"我研究帕金森"）不当作检索问题：直接记忆 + 确认
     if uid and _is_disclosure(query):
@@ -422,7 +447,7 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
     clar = _clarify(query, uid)
     if clar:
         return clar
-    result = run(query, uid=uid, sid=sid, on_step=on_step)
+    result = run(query, uid=uid, sid=sid, on_step=on_step, on_delta=on_delta)
     if not result.get("ok"):
         return result
 
@@ -482,7 +507,10 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
                     "reason": exp.get("reason") or "",
                 }
                 if exp.get("ok") and (exp.get("pids") or []):
-                    retry = run(query, uid=uid, sid=sid)
+                    if on_reset:
+                        on_reset()
+                    retry = run(query, uid=uid, sid=sid,
+                                on_step=on_step, on_delta=on_delta)
                     report["retried"] = True
                     report["answered_after_retry"] = bool(retry.get("ok")
                                                           and not retry.get("refused"))
@@ -509,7 +537,10 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None) -> dict:
                 en = _exp.enrich_person(_pid, per_page=50)
                 result["person_enrichment"] = en
                 if en.get("ok") and en.get("added_works"):
-                    retry_p = run(query, uid=uid, sid=sid)
+                    if on_reset:
+                        on_reset()
+                    retry_p = run(query, uid=uid, sid=sid,
+                                  on_step=on_step, on_delta=on_delta)
                     if retry_p.get("ok") and not retry_p.get("refused"):
                         retry_p["person_enrichment"] = en
                         result = retry_p

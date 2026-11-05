@@ -1349,6 +1349,13 @@ async function askChat(){
     panel.innerHTML = `<b>库内补充公示</b> · 主题：${esc(d.topic || '')}<br>${esc(txt)}`;
     box.appendChild(panel);
   });
+  // 补库/补人重试前会发 reset：清掉已经流出来的半截答案，重新开始
+  es.addEventListener('reset', ()=>{
+    buf = ''; pending = '';
+    if (pump) { clearInterval(pump); pump = null; }
+    ans.innerHTML = '';
+    think.textContent = thinks.join('\n');
+  });
   // 反代/隧道可能把 SSE 缓冲成一次性到达，所以前端自己做匀速出字：
   // 收到的字符先进 pending，定时器按 12 字/35ms 往外吐，肉眼可见「在写」。
   let pending = '', pump = null;

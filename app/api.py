@@ -984,19 +984,36 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
             holder: dict = {}
 
             def _cb(step):
-                box.put(step)
+                box.put(("step", step))
+
+            def _cb_delta(piece):
+                box.put(("token", piece))
+
+            def _cb_reset():
+                box.put(("reset", None))
 
             def _work():
-                holder["r"] = agent_llm.chat(q, uid=uid, sid=sid, on_step=_cb)
+                holder["r"] = agent_llm.chat(q, uid=uid, sid=sid,
+                                             on_step=_cb, on_delta=_cb_delta,
+                                             on_reset=_cb_reset)
 
             t = _thr.Thread(target=_work)
             t.start()
+            streamed = 0
             while t.is_alive() or not box.empty():
                 try:
-                    step = box.get_nowait()
-                    yield sse("step", step)
+                    kind, payload = box.get_nowait()
                 except _queue.Empty:
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(0.03)
+                    continue
+                if kind == "step":
+                    yield sse("step", payload)
+                elif kind == "token":
+                    streamed += len(payload)
+                    yield sse("token", {"t": payload})
+                elif kind == "reset":
+                    streamed = 0
+                    yield sse("reset", {})
             t.join()
             r = holder.get("r") or {}
             if not r.get("ok"):
@@ -1008,10 +1025,16 @@ async def chat_stream(q: str = Query(...), sid: str = Query(""),
             # 公示板：补库结果（补了/没补/为什么）单独发一个事件，前端渲染成面板
             if r.get("expansion_report"):
                 yield sse("expansion", r["expansion_report"])
+            # 真流式已经吐过字就不重复；只有没流式（补库重试/降级）时才整段补发
             text = r.get("answer") or ""
-            for i in range(0, len(text), 6):
-                yield sse("token", {"t": text[i:i + 6]})
-                await asyncio.sleep(0.015)
+            if not streamed and text:
+                for i in range(0, len(text), 6):
+                    yield sse("token", {"t": text[i:i + 6]})
+                    await asyncio.sleep(0.015)
+            yield sse("citations", {"items": r.get("citations") or [],
+                                    "refinements": r.get("refinements") or []})
+            yield sse("done", {"citations": len(r.get("citations") or []), "engine": "llm",
+                               "streamed": bool(streamed)})
             yield sse("citations", {"items": r.get("citations") or [],
                                     "refinements": r.get("refinements") or []})
             yield sse("done", {"citations": len(r.get("citations") or []), "engine": "llm"})
