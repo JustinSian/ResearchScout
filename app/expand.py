@@ -62,7 +62,7 @@ def clean_topic(topic: str) -> str:
                 changed = True
     return t
 
-
+# 记录一次补库 
 def _log(topic: str, added_people: int, added_works: int, pids: list[int],
          status: str, note: str = "") -> None:
     conn = user_memory.connect()
@@ -79,7 +79,7 @@ def _log(topic: str, added_people: int, added_works: int, pids: list[int],
     finally:
         conn.close()
 
-
+# 是否最近补过
 def recently_expanded(topic: str, hours: int = 24) -> bool:
     conn = user_memory.connect()
     try:
@@ -92,6 +92,14 @@ def recently_expanded(topic: str, hours: int = 24) -> bool:
         conn.close()
     return bool(row) and (time.time() - float(row["ts"]) < hours * 3600)
 
+
+def _short_oid(aid: str) -> str:
+    """OpenAlex id → 短 ID（A...）。
+
+    people 表以短 ID 为主，但历史行可能还是全 URL（https://openalex.org/A...）；
+    凡是拿外部 id 去查/比对，都要先归一，否则同一作者会被当成两个人。
+    """
+    return (aid or "").strip().rstrip("/").rsplit("/", 1)[-1]
 
 def _upsert_person(conn, author: dict, publish: bool, topic: str = "",
                    validated: bool = True) -> int | None:
@@ -470,13 +478,19 @@ def expand_topic(topic: str, *, max_authors: int = 8, works_per_author: int = 10
                     conn.execute(
                         "INSERT OR IGNORE INTO work_authors(wid, pid, position) VALUES(?,?,?)",
                         (wid, pid, 0))
-                    # 用 authorships 建合作边（只连本库里已有的人）
+                    # 用 authorships 建合作边（只连本库里已有的人）。
+                    # 注意：authorships 里的作者是**全 URL**，而 people 表以短 ID 为主，
+                    # 直接按全 URL 查几乎匹配不到主库（实测跨库合作边只剩 13 条）。
+                    _oid_short = _short_oid(oid)
                     for au in (w.get("authorships") or [])[:10]:
                         aid = (au.get("author") or {}).get("id")
-                        if not aid or aid == oid:
+                        _aid_short = _short_oid(aid)
+                        if not _aid_short or _aid_short == _oid_short:
                             continue
                         other = conn.execute(
-                            "SELECT pid FROM people WHERE openalex_id=?", (aid,)).fetchone()
+                            "SELECT pid FROM people WHERE openalex_id=? "
+                            "OR openalex_id=? LIMIT 1",
+                            (_aid_short, "https://openalex.org/" + _aid_short)).fetchone()
                         if other:
                             coauthors[int(other["pid"])] = coauthors.get(int(other["pid"]), 0) + 1
             for opid, weight in coauthors.items():
@@ -688,7 +702,7 @@ def enrich_person(pid: int, per_page: int = 50, log=print) -> dict:
             works = _OA.works_of_author(oid, per_page=per_page)
         except Exception as exc:
             return {"ok": False, "reason": f"OpenAlex 失败: {exc}"}
-        added = gained = 0
+        added = 0
         for w in works:
             wid = _upsert_work(conn, w)
             if not wid:
@@ -698,12 +712,19 @@ def enrich_person(pid: int, per_page: int = 50, log=print) -> dict:
                 (wid, int(pid)))
             if cur.rowcount:
                 added += 1
-                gained += int(w.get("cited_by_count") or 0)
-        if added:
+        # 指标写 OpenAlex 的**绝对值**。原来用 works_count += added，
+        # 但本地 works_count 本身就是 OpenAlex 全量口径 → 同一批论文被重复计入。
+        try:
+            prof = _OA._get("/authors/" + _short_oid(oid), {})
+        except Exception:
+            prof = {}
+        abs_works = int((prof or {}).get("works_count") or 0)
+        abs_cited = int((prof or {}).get("cited_by_count") or 0)
+        if abs_works or abs_cited:
             conn.execute(
-                """UPDATE people SET works_count=COALESCE(works_count,0)+?,
-                          cited_by_count=COALESCE(cited_by_count,0)+?
-                   WHERE pid=?""", (added, gained, int(pid)))
+                """UPDATE people SET works_count=MAX(COALESCE(works_count,0), ?),
+                          cited_by_count=MAX(COALESCE(cited_by_count,0), ?)
+                   WHERE pid=?""", (abs_works, abs_cited, int(pid)))
         conn.commit()
         total = int(conn.execute(
             "SELECT COUNT(*) FROM work_authors WHERE pid=?", (int(pid),)).fetchone()[0])
