@@ -218,7 +218,7 @@ def chat_with_tools(messages: list[dict], tools: list[dict], *, timeout: float =
     return {"ok": False, "error": last_err or "未知错误",
             "ms": round((time.perf_counter() - t0) * 1000, 1), "usage": {}}
 
-
+# 普通文本生成
 def chat_text(messages: list[dict], *, timeout: float = 60.0) -> dict:
     """不带工具的一轮对话：用于"强制收尾作答"。"""
     if not configured():
@@ -244,7 +244,7 @@ def chat_text(messages: list[dict], *, timeout: float = 60.0) -> dict:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}",
                 "ms": round((time.perf_counter() - t0) * 1000, 1), "usage": {}}
 
-
+# 让文本逐段显示
 def chat_stream(messages: list[dict], *, timeout: float = 120.0,
                 on_delta=None, max_tokens: int = 1200) -> dict:
     """流式的一轮对话：逐 token 回调 on_delta，返回结构与 chat_text 一致。
@@ -306,7 +306,7 @@ def chat_stream(messages: list[dict], *, timeout: float = 120.0,
                 "cost_usd": cost_usd(pt, ct),
                 "ms": round((time.perf_counter() - t0) * 1000, 1)}
     except Exception as exc:
-        fb = chat_text(messages, timeout=timeout)
+        fb = chat_text(messages, timeout=timeout) # 流式失败后改用普通请求
         if fb.get("ok"):
             fb["stream_fallback"] = True
             fb["stream_error"] = f"{type(exc).__name__}: {exc}"

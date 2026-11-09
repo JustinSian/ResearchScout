@@ -54,6 +54,10 @@ TOOL_COST = {
 class RateLimited(Exception):
     detail: str = "工具调用过于频繁，请稍后再试"
 
+# 令牌桶限流算法
+"""容量：60
+补充速度：60 个/分钟，也就是 1 个/秒
+初始令牌：60"""
 
 class TokenBucket:
     """进程内令牌桶：容量 capacity，每分钟补充 refill 个。"""

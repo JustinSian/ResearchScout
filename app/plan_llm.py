@@ -27,6 +27,20 @@ TOOLS = {
     "task": "多步尽调任务（评审匹配、深度对比、生成报告）。参数：intent, topic, candidate, manuscript",
 }
 
+
+# 允许哪些参数进入计划 
+"""
+假设模型返回：
+{
+    "tool": "profile",
+    "args": {
+        "name": "钟南山",
+        "unknown_option": True
+    }
+}
+程序只保留  {"name": "钟南山"}
+"""
+
 ARG_WHITELIST = {
     "find_expert": {"country", "inst_kind", "inst_name", "cites_min", "sort",
                     "limit", "topic", "query"},
@@ -94,20 +108,20 @@ def parse_plan(text: str) -> dict | None:
             args.pop("hops", None)
     return {"tool": tool, "args": args}
 
-
+# 串起模型请求与计划解析
 def plan(query: str, context_hint: str = "") -> dict | None:
     """返回 {"tool","args","planner":"llm","usage","cost_usd","ms"} 或 None。"""
-    if not llm.configured():
+    if not llm.configured():  # 检查模型配置
         return None
-    res = llm.chat_json(SYSTEM, build_prompt(query, context_hint))
+    res = llm.chat_json(SYSTEM, build_prompt(query, context_hint))  # 调用模型
     if not res.get("ok"):
         return None
-    parsed = parse_plan(res.get("data"))
+    parsed = parse_plan(res.get("data"))  # 校验计划
     if not parsed:
         return None
-    return {**parsed, "planner": "llm",
+    return {**parsed, "planner": "llm",  
             "usage": res.get("usage") or {}, "cost_usd": res.get("cost_usd", 0.0),
-            "ms": res.get("ms", 0)}
+            "ms": res.get("ms", 0)}  # 附加统计信息
 
 
 def enabled() -> bool:
@@ -118,7 +132,6 @@ def enabled() -> bool:
 
 _KIND_ZH = {"hospital": "医院", "university": "高校", "company": "企业", "institute": "研究所"}
 _SORT_ZH = {"cites": "被引最多", "works": "论文最多", "recent": "最近活跃"}
-
 
 def _compose_find_query(args: dict, original: str) -> str:
     """把 LLM 给的结构化条件拼回一句人话。
@@ -145,7 +158,7 @@ def _compose_find_query(args: dict, original: str) -> str:
     q = " ".join(b for b in bits if b).strip()
     return q or original
 
-
+# 逐个适配真实工具
 def to_call(parsed: dict, original: str) -> dict | None:
     """把校验过的 plan 映射成**真实工具签名**可接受的调用。"""
     if not parsed:
