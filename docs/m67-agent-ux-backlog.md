@@ -508,3 +508,35 @@ pid 是整数、不可注入，故保留（"能复用已验证作者"的效用�
 
 ③ 已命中 → 不回退（或回退后同一批人则不采纳）
 ```
+
+
+---
+
+## 修复：补库模块的三个用户可见 bug（用户按代码走查发现）
+
+### 1) 58 个重复身份（同一作者两条记录）
+
+**根因**：早期把 OpenAlex 作者 ID 原样（`https://openalex.org/A...`）写进 `people`，
+后来统一短 ID；查重按短 ID 进行 → 老的全 URL 行查不到 → 又插一条新行。
+
+**修复**：新增 `app/dedupe_people.py`（默认 dry-run，`--apply` 前自动备份）：
+以短 ID 行为主，把全 URL 行的数值取 max、topics 取并集、把 work_authors/edges
+及其它以 pid 为键的行迁过来，重建索引后删除重复行。
+
+**线上实测**：`people 47678 → 47620（-58）`，全 URL 残留 `0`，`works` 不变；
+合并样例 pid 18018 现在标签齐全（Lopinavir/Ritonavir…）、published、在影子索引里；
+查询「Lopinavir」已能命中合并后的 Yeming Wang / Xiaoying Gu。
+
+### 2) 合作者查询用全 URL → 连不到主库
+
+`authorships` 里的作者 ID 是全 URL，而 `people` 表以短 ID 为主 →
+原查询几乎匹配不到主库（实测跨库合作边只剩 13 条）。
+新增 `_short_oid()` 归一，查询 `openalex_id IN (短ID, 全URL)` 兜住两种格式。
+
+### 3) `enrich_person` 指标重复累加
+
+原实现 `works_count += added`，但本地 `works_count` 本身就是 OpenAlex 全量口径
+→ 同一批论文被重复计入。改为写 OpenAlex 作者档案的**绝对值**，并取 `MAX(本地, 绝对值)`
+（档案接口失败时不影响论文关系的写入）。
+
+新增 `tests/test_dedupe_people.py`（5 项）与 `tests/test_expand_fixes.py`（4 项）。
