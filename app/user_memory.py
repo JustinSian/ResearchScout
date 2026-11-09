@@ -25,6 +25,8 @@ from app.config import DB_PATH
 
 MEM_DB = Path(os.environ.get("ST_MEM_DB", DB_PATH.parent / "user_mem.db"))
 
+
+"""DDL创建了两张表 mem_fact:语义记忆 mem_event:情景记忆 """
 DDL = [
     """CREATE TABLE IF NOT EXISTS mem_fact (
         id INTEGER PRIMARY KEY,
@@ -96,11 +98,11 @@ def now_iso(at: datetime | str | None = None) -> str:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat(timespec="seconds")
 
-
+# 统一字段名
 def _norm_key(key: str) -> str:
     return (key or "").strip().lower()
 
-
+# 保存新事实  并让同一用户、同一个key的旧事实失效
 def add_fact(uid: str, key: str, value: str, *, source: str = "",
              confidence: float = 1.0, at: str | None = None,
              policy_gen: int = 0) -> dict:
@@ -131,7 +133,7 @@ def add_fact(uid: str, key: str, value: str, *, source: str = "",
     finally:
         conn.close()
 
-
+# 让记忆失效
 def expire(uid: str, key: str, at: str | None = None) -> int:
     conn = connect()
     try:
@@ -144,6 +146,7 @@ def expire(uid: str, key: str, at: str | None = None) -> int:
         conn.close()
 
 
+# 读取当前或历史记忆 1、默认读取当前记忆 2、查询某个时间点的记忆 3、查询所有历史
 def facts(uid: str, *, as_of: str | None = None, only_active: bool = True,
           limit: int = 50) -> list[dict]:
     """读事实。
@@ -169,7 +172,7 @@ def facts(uid: str, *, as_of: str | None = None, only_active: bool = True,
     finally:
         conn.close()
 
-
+# 生成用户记忆时间线
 def timeline(uid: str, limit: int = 200) -> list[dict]:
     """按时间排的事件流：事实变更 + 交互记录，前端记忆视图用。"""
     conn = connect()
@@ -217,6 +220,7 @@ def events(uid: str, limit: int = 50) -> list[dict]:
         conn.close()
 
 
+# 查看记忆库概况
 def stats() -> dict:
     conn = connect()
     try:

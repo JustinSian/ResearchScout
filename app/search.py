@@ -37,7 +37,7 @@ _ZH_TEMPLATE = re.compile(
     r"(找研究|帮我找|查一下|帮我|有哪些人|有哪些|是什么|是谁|介绍一下|找|研究|专家|学者|"
     r"介绍|一下|哪些|什么|方向|领域|相关|论文|文章|合作|的|和|与|请|查|看)")
 
-
+# 把输入解析成关键词组
 def parse_topic_groups(raw: str) -> list[list[str]]:
     """解析"必含关键词"的分组（对标 AMiner 的 topic_high）。
 
@@ -68,14 +68,14 @@ def parse_topic_groups(raw: str) -> list[list[str]]:
     toks = [x.strip() for x in s.split(",") if x.strip()]
     return [toks] if toks else []
 
-
+# 把关键词变成安全的 FTS 短语
 def _fts_term(t: str) -> str:
     """把单个词变成安全的 FTS 短语（去掉会破坏语法的引号/括号）。"""
     clean = re.sub(r'["\(\)\*\^:]', " ", t or "").strip()
     clean = re.sub(r"\s+", " ", clean)
     return f'"{clean}"' if clean else ""
 
-
+# 把分组转换成 FTS 表达式
 def build_high_expr(groups: list[list[str]]) -> str:
     """分组 → FTS 表达式：(("a" OR "b") AND ("c"))"""
     parts = []
@@ -86,7 +86,7 @@ def build_high_expr(groups: list[list[str]]) -> str:
         parts.append("(" + " OR ".join(terms) + ")")
     return " AND ".join(parts)
 
-
+# 按论文标题筛专家
 def pids_by_work_groups(groups: list[list[str]], pids: list[int]) -> set[int]:
     """在这些 pid 里，找出"有论文标题命中每组关键词"的人（组间 AND、组内 OR）。
 
@@ -114,7 +114,7 @@ def pids_by_work_groups(groups: list[list[str]], pids: list[int]) -> set[int]:
     finally:
         conn.close()
 
-
+# 统计标题命中的论文数
 def count_work_hits(pids: list[int], terms: list[str]) -> dict[int, int]:
     """每个 pid 的论文标题命中词数（用于 topic_low 加分）。"""
     if not pids or not terms:
@@ -135,7 +135,7 @@ def count_work_hits(pids: list[int], terms: list[str]) -> dict[int, int]:
     finally:
         conn.close()
 
-
+# 把问题转成 FTS 查询表达式
 def _fts_query(q: str, mode: str = "and") -> str:
     q = _ZH_TEMPLATE.sub(" ", q or "")
     raw = _TOKEN.findall(q)
@@ -152,7 +152,7 @@ def _fts_query(q: str, mode: str = "and") -> str:
     joiner = " AND " if mode == "and" else " OR "
     return joiner.join(f'"{t}"' for t in tokens)
 
-
+# 先精确搜，没结果再放宽
 def _fts_with_relaxation(conn, table: str, join_sql: str, q: str, limit: int,
                          extra_sql: str = "", extra_args: tuple = (),
                          id_col: str = "pid") -> list[tuple[int, float]]:
@@ -272,8 +272,8 @@ def search_hybrid(q: str, kind: str = "people", limit: int = 20,
                   status: str | None = "published") -> list[tuple[int, float]]:
     """两路召回 + 融合。fusion ∈ {rrf, dbsf}。"""
     lexical = (search_people(q, limit=candidates, status=status) if kind == "people"
-               else search_works(q, limit=candidates))
-    dense = search_dense(q, kind=kind, limit=candidates)
+               else search_works(q, limit=candidates))  # 关键词全文搜索，适合名称、术语等词面匹配；
+    dense = search_dense(q, kind=kind, limit=candidates) # 向量搜索，适合语义相近但用词不同的查询。
     if not dense:
         return lexical[:limit]
     if not lexical:
@@ -284,6 +284,7 @@ def search_hybrid(q: str, kind: str = "people", limit: int = 20,
 
 
 # ---------------- 权威性先验重排 ----------------
+# 不重新搜索候选，而是拿已有的 hits，把检索相关度和学术影响力合成新分数，再重新排序
 def rerank_with_authority(hits: list[tuple[int, float]], lam: float = 0.2,
                           kind: str = "people", limit: int = 10,
                           ) -> list[tuple[int, float]]:
@@ -296,6 +297,7 @@ def rerank_with_authority(hits: list[tuple[int, float]], lam: float = 0.2,
         return hits[:limit]
     conn = connect()
     try:
+        # 查询候选人的被引数
         col, table = ("cited_by_count", "people") if kind == "people" else ("cites", "works")
         id_col = "pid" if kind == "people" else "wid"
         ids = [h[0] for h in hits]
@@ -306,19 +308,20 @@ def rerank_with_authority(hits: list[tuple[int, float]], lam: float = 0.2,
     finally:
         conn.close()
     import math
-
+    # 把原检索分数缩放到 0 到 1
     base = [s for _i, s in hits]
     lo, hi = min(base), max(base)
     span = (hi - lo) or 1.0
     scored = []
     for ref_id, s in hits:
         norm = (s - lo) / span
-        scored.append((ref_id, norm + lam * math.log1p(cites.get(ref_id, 0)) / 10.0))
+        scored.append((ref_id, norm + lam * math.log1p(cites.get(ref_id, 0)) / 10.0)) # 最终分数
     scored.sort(key=lambda kv: -kv[1])
     return scored[:limit]
 
 
 # ---------------- 画像 / 图谱 ----------------
+# 读取一个专家的资料、代表论文和合作者
 def person_profile(pid: int) -> dict | None:
     conn = connect()
     try:
@@ -328,11 +331,11 @@ def person_profile(pid: int) -> dict | None:
         works = conn.execute(
             """SELECT w.wid,w.title,w.year,w.cites,w.venue FROM works w
                JOIN work_authors wa ON wa.wid=w.wid
-               WHERE wa.pid=? ORDER BY w.cites DESC LIMIT 10""", (pid,)).fetchall()
+               WHERE wa.pid=? ORDER BY w.cites DESC LIMIT 10""", (pid,)).fetchall()  # 查被引最高的10篇论文
         collab = conn.execute(
             """SELECT p.pid,p.name,p.last_inst,e.weight FROM edges e
                JOIN people p ON p.pid = CASE WHEN e.a=? THEN e.b ELSE e.a END
-               WHERE e.a=? OR e.b=? ORDER BY e.weight DESC LIMIT 10""",
+               WHERE e.a=? OR e.b=? ORDER BY e.weight DESC LIMIT 10""",     # 查合作最多的10位合作者
             (pid, pid, pid)).fetchall()
         return {
             "pid": row["pid"], "name": row["name"], "orcid": row["orcid"],
@@ -355,7 +358,7 @@ def person_profile(pid: int) -> dict | None:
     finally:
         conn.close()
 
-
+# 递归查合作网络
 def graph_neighbors(pid: int, depth: int = 1) -> dict:
     """合作网络：SQLite 递归 CTE，不引图数据库。"""
     conn = connect()

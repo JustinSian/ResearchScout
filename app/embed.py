@@ -28,7 +28,7 @@ def _load():
         _STATE.update(tok=tok, model=model)
         return tok, model
 
-
+# 批量转向量
 def encode(texts: list[str], batch_size: int = 64, max_length: int = 256) -> np.ndarray:
     """返回 L2 归一化后的 float32 矩阵 (n, 384)。"""
     import torch
@@ -47,14 +47,14 @@ def encode(texts: list[str], batch_size: int = 64, max_length: int = 256) -> np.
         return np.zeros((0, 384), dtype=np.float32)
     return np.vstack(out)
 
-
+# 编码单条文字
 def encode_one(text: str) -> np.ndarray:
     return encode([text])[0]
 
-
+# 向量转成float32 再转成二进制
 def to_blob(vec: np.ndarray) -> bytes:
     return np.asarray(vec, dtype=np.float32).tobytes()
 
-
+# 把二进制数据重新解释成 float32 数组。
 def from_blob(blob: bytes) -> np.ndarray:
     return np.frombuffer(blob, dtype=np.float32)

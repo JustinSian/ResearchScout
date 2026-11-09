@@ -16,7 +16,7 @@ from app.db import connect
 from app.search import (distribution_score_fusion, reciprocal_rank_fusion,
                         rerank_with_authority, search_dense, search_people,
                         search_works)
-
+# 列举要比较的检索方法
 CONFIGS = [
     ("bm25", {"mode": "bm25"}),
     ("dense", {"mode": "dense"}),
@@ -54,7 +54,7 @@ def run_config(cfg: dict, q: str, kind: str, limit: int = 10) -> list[int]:
         hits = rerank_with_authority(hits, lam=lam, kind=kind, limit=limit)
     return [int(i) for i, _s in hits[:limit]]
 
-
+# 计算三个指标 recall\MRR\nDCG
 def metrics(ranked: list[int], expected: set[int]) -> tuple[float, float, float]:
     hits = [i for i, doc in enumerate(ranked, 1) if doc in expected]
     recall = len({doc for doc in ranked if doc in expected}) / max(len(expected), 1)
@@ -63,7 +63,7 @@ def metrics(ranked: list[int], expected: set[int]) -> tuple[float, float, float]
     ideal = sum(1.0 / math.log2(i + 1) for i in range(1, min(len(expected), 10) + 1))
     return recall, mrr, (dcg / ideal if ideal else 0.0)
 
-
+# 估算平均分的不确定性
 def bootstrap_ci(values: list[float], n: int = 1000, seed: int = 7) -> tuple[float, float]:
     rng = random.Random(seed)
     means = []

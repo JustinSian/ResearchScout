@@ -26,7 +26,11 @@ from pathlib import Path
 from app.db import connect, init_db
 
 VFS_ROOT = Path(__file__).resolve().parents[1] / "data" / "vfs"
-
+"""DDL表示数据库建表语句
+包含四类表：
+tasks -> 一次完整任务
+steps -> 任务中的每个步骤
+spans -> 运行追踪信息"""
 DDL = [
     """CREATE TABLE IF NOT EXISTS tasks (
         tid INTEGER PRIMARY KEY,
@@ -65,7 +69,7 @@ patients patient clinical outcomes outcome risk factors factor among during afte
 using based new novel approach approaches method methods model models data
 """.split())
 
-
+# 初始化任务运行环境
 def init() -> None:
     init_db()
     conn = connect()
@@ -100,8 +104,10 @@ def vfs_read(path: str) -> str | None:
 
 # ---------------- 实体与事实 ----------------
 def _resolve(name: str) -> dict | None:
+    # 使用人物搜索
     from app.search import search_people
     hits = search_people(name, limit=1)
+    # 启发式容错
     if not hits:
         # 中文没有分词边界：抽取可能多吞一个字（"李兰娟近"），逐次去掉尾部重试
         for cut in (1, 2):
@@ -113,6 +119,7 @@ def _resolve(name: str) -> dict | None:
             return None
     pid = int(hits[0][0])
     conn = connect()
+    # 通过ID精确查询
     try:
         r = conn.execute("SELECT pid,name,name_zh,last_inst,works_count,cited_by_count "
                          "FROM people WHERE pid=?", (pid,)).fetchone()
@@ -120,7 +127,7 @@ def _resolve(name: str) -> dict | None:
     finally:
         conn.close()
 
-
+"""读取专家深度档案 最多处理200篇论文"""
 def _dossier(pid: int) -> dict | None:
     from app.dossiers import dossier
     return dossier(pid, limit_papers=200)
@@ -129,12 +136,14 @@ def _dossier(pid: int) -> dict | None:
 def _term_profile(pid: int, since: int, until: int, top: int = 8) -> list[tuple[str, int]]:
     """用标题词频近似"研究方向"（没有逐篇概念标签时的替代方案）。"""
     conn = connect()
+    # 读取指定年份的论文标题
     try:
         rows = conn.execute(
             "SELECT title FROM dossier_work WHERE pid=? AND year BETWEEN ? AND ?",
             (pid, since, until)).fetchall()
     finally:
         conn.close()
+    # 统计标题词频
     c: Counter[str] = Counter()
     for r in rows:
         for w in re.findall(r"[A-Za-z][A-Za-z\-]{2,}", (r["title"] or "").lower()):
@@ -145,15 +154,15 @@ def _term_profile(pid: int, since: int, until: int, top: int = 8) -> list[tuple[
 
 
 # ---------------- 规划 ----------------
-_CN_COMPARE = re.compile(r"(对比|比较|对比一下|差异|区别|vs\.?|versus)", re.I)
-_CN_REVIEWER = re.compile(r"(审稿|审稿人|评审|审一篇|审这篇|reviewer|referee|编辑)", re.I)
+_CN_COMPARE = re.compile(r"(对比|比较|对比一下|差异|区别|vs\.?|versus)", re.I)  # 识别比较意图
+_CN_REVIEWER = re.compile(r"(审稿|审稿人|评审|审一篇|审这篇|reviewer|referee|编辑)", re.I)  # 识别审稿人匹配或稿件评审类任务
 
 
 def plan(query: str) -> dict:
     """确定性规划器：意图 → 步骤清单。每步都是 (name, tool, args)。"""
     q = query or ""
     names = _extract_names(q)
-    if _CN_COMPARE.search(q) and len(names) >= 2:
+    if _CN_COMPARE.search(q) and len(names) >= 2:  # 比较至少两个专家
         return {
             "intent": "compare_experts",
             "steps": [
@@ -166,7 +175,7 @@ def plan(query: str) -> dict:
                 {"name": "生成报告", "tool": "report", "args": {}},
             ],
         }
-    if _CN_REVIEWER.search(q):
+    if _CN_REVIEWER.search(q):  # 审稿人匹配
         return {
             "intent": "reviewer_match",
             "steps": [
@@ -179,7 +188,7 @@ def plan(query: str) -> dict:
                 {"name": "生成报告", "tool": "report", "args": {}},
             ],
         }
-    if names:
+    if names:  # 识别到姓名时 生成专家文档
         return {
             "intent": "expert_dossier",
             "steps": [
@@ -194,31 +203,35 @@ def plan(query: str) -> dict:
         {"name": "生成报告", "tool": "report", "args": {}},
     ]}
 
-
+"""复用已有的人名识别逻辑"""
 def _extract_names(q: str) -> list[str]:
     from app.agent import extract_names
     return extract_names(q)
 
 
 # ---------------- 执行 ----------------
+# 记录一次执行片段
 def _span(conn, tid, sid, kind, name, started, meta=None) -> None:
     conn.execute("INSERT INTO spans(tid,sid,kind,name,started_at,ms,meta_json) "
                  "VALUES(?,?,?,?,?,?,?)",
                  (tid, sid, kind, name, started, int((time.time() - started) * 1000),
                   json.dumps(meta or {}, ensure_ascii=False)))
 
-
+"""执行一次多步任务"""
 def run(query: str, log=print, refresh: bool = False) -> dict:
     init()
     conn = connect()
+    # 1、把问题转化为结构化步骤
     plan_ = plan(query)
 
     # ---- 记忆：同一问题（同语料版本）直接复用上次的产物 ----
     from app import memory
+    # 2、查询任务缓存
     mkey = memory.task_key(plan_["intent"], query)
     if not refresh:
         hit = memory.cache_get(mkey)
         if hit and vfs_read(hit.get("report_path") or ""):
+            # 3、创建正在运行的任务
             cur = conn.execute(
                 "INSERT INTO tasks(query,intent,plan_json,status,report_path,result_json,"
                 "created_at,updated_at) VALUES(?,?,?,'done',?,?,?,?)",
@@ -253,16 +266,16 @@ def run(query: str, log=print, refresh: bool = False) -> dict:
                         time.time(), time.time()))
     tid = int(cur.lastrowid)
     conn.commit()
-
+    # 4、创建共享执行上下文
     ctx: dict = {"people": [], "dossiers": [], "facts": [], "artifacts": []}
-
+    # 5、创建步骤记录
     def step_row(idx, name, tool, args):
         c = conn.execute("INSERT INTO steps(tid,idx,name,tool,args_json,status,started_at) "
                          "VALUES(?,?,?,?,?,'running',?)",
                          (tid, idx, name, tool, json.dumps(args, ensure_ascii=False), time.time()))
         conn.commit()
         return int(c.lastrowid)
-
+    # 6、结束步骤并触发审计
     def finish(sid, status, summary, artifact=None, error=None, tool="", targs=None):
         ms = int((time.time() - (conn.execute(
             'SELECT started_at FROM steps WHERE sid=?', (sid,)).fetchone()[0])) * 1000)
@@ -277,7 +290,7 @@ def run(query: str, log=print, refresh: bool = False) -> dict:
                           status, ms, artifact, summary, error, log=log)
         except Exception as exc:      # 审计失败不能影响主流程
             log(f"      [audit] 写入失败: {type(exc).__name__}: {exc}")
-
+    # 7、逐步执行计划
     try:
         for i, st in enumerate(plan_["steps"], 1):
             tool = st["tool"]
@@ -493,6 +506,7 @@ def run(query: str, log=print, refresh: bool = False) -> dict:
                         "name_zh": pp.get("name_zh")} for pp in ctx.get("people") or []]}
 
 
+"""把任务执行过程中收集到的数据整理成一份 Markdown 报告"""
 def _render_report(query: str, intent: str, ctx: dict) -> str:
     lines = [f"# 尽调报告：{query}", "",
              f"- 意图：`{intent}`", f"- 生成时间：{time.strftime('%Y-%m-%d %H:%M')}", ""]
@@ -571,7 +585,7 @@ def _render_report(query: str, intent: str, ctx: dict) -> str:
                   "只用于描述性对比，不用于判定水平高低。"]
     return "\n".join(lines)
 
-
+"""获取某个任务的完整详情 包含计划、步骤、追踪记录"""
 def get_task(tid: int) -> dict | None:
     conn = connect()
     try:
@@ -596,7 +610,7 @@ def get_task(tid: int) -> dict | None:
     finally:
         conn.close()
 
-
+"""只读取任务列表需要展示的少量字段  任务目录 字段少 适合列表"""
 def list_tasks(limit: int = 20) -> list[dict]:
     conn = connect()
     try:

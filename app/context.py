@@ -61,12 +61,12 @@ def init() -> None:
     finally:
         conn.close()
 
-
+# 识别指代词
 def has_anaphora(query: str) -> bool:
     q = query or ""
     return any(w in q for w in ANAPHORA)
 
-
+# 识别用户想比较什么
 def sort_hint(query: str) -> str | None:
     q = query or ""
     for name, words in SORT_HINTS:
@@ -74,7 +74,7 @@ def sort_hint(query: str) -> str | None:
             return name
     return None
 
-
+# 保存当前专家名单
 def save(sid: str, query: str, pids: list[int], facets: dict) -> None:
     if not sid:
         return
@@ -93,7 +93,7 @@ def save(sid: str, query: str, pids: list[int], facets: dict) -> None:
     finally:
         conn.close()
 
-
+# 读取状态 并检查是否过期
 def load(sid: str) -> dict | None:
     if not sid:
         return None

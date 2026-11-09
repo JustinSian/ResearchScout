@@ -38,7 +38,7 @@ _TOPIC_FALLBACK = {
     "病理图像": ["pathology"],
 }
 
-
+# 把记忆主题变成英文检索词
 def topic_terms(topic: str) -> list[str]:
     """主题英文检索词：先走 facets.topic_en，为空再用兜底表。"""
     from app.facets import topic_en
@@ -50,7 +50,7 @@ def topic_terms(topic: str) -> list[str]:
             return list(v)
     return []
 
-
+# 文本拆成可比较的集合
 def _tokens(text: str) -> set[str]:
     t = (text or "").lower()
     words = set(re.findall(r"[a-z][a-z\-]{1,}", t))
@@ -60,7 +60,7 @@ def _tokens(text: str) -> set[str]:
             words.add(seg[i:i + 2])
     return words
 
-
+# 计算记忆已经存在多少天
 def _age_days(valid_from: str) -> float:
     try:
         dt = datetime.fromisoformat(valid_from)
@@ -70,7 +70,7 @@ def _age_days(valid_from: str) -> float:
     except Exception:
         return HALF_LIFE_DAYS
 
-
+# 记忆排序的核心公式
 def _score(query_tokens: set[str], fact: dict) -> float:
     value_tokens = _tokens(fact.get("value") or "")
     overlap = len(query_tokens & value_tokens)

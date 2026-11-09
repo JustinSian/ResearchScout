@@ -59,13 +59,13 @@ def available() -> bool:
 def _lexical_scores(query: str, passages: list[str]) -> list[float]:
     """无模型时的兜底：query 与 passage 的实词重叠度（0~1）。"""
     import re
-    q = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]{2,}", (query or "").lower()))
+    q = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]{2,}", (query or "").lower())) # 提取查询中的英文和数字词，放进集合 对每条候选文本也做同样处理
     if not q:
-        return [0.0] * len(passages)
+        return [0.0] * len(passages) 
     out = []
     for p in passages:
         toks = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]{2,}", (p or "").lower()))
-        out.append(len(q & toks) / len(q))
+        out.append(len(q & toks) / len(q)) # 查询里的词有多少比例也出现在候选文本里
     return out
 
 
@@ -88,7 +88,7 @@ def scores(query: str, passages: list[str]) -> list[float]:
     logits = sess.run(None, feed)[0].reshape(-1)
     return [float(1.0 / (1.0 + np.exp(-x))) for x in logits]
 
-
+# 取最相关候选的分数
 def max_score(query: str, passages: list[str]) -> float:
     s = scores(query, passages)
     return max(s) if s else 0.0

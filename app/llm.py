@@ -181,7 +181,7 @@ def chat_with_tools(messages: list[dict], tools: list[dict], *, timeout: float =
     # 允许模型一轮返回多个工具调用（profile+research_area+works 同时发），
     # 把 3 次串行 LLM 往返压成 1 次。个别提供商不认这个参数，400 时自动回退。
     if os.environ.get("ST_PARALLEL_TOOLS", "1") != "0":
-        payload["parallel_tool_calls"] = True
+        payload["parallel_tool_calls"] = True  # 允许模型在一次响应里提出多个工具调用
     headers = {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json"}
     last_err = ""
     t0 = time.perf_counter()

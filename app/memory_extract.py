@@ -145,11 +145,11 @@ def apply(uid: str, query: str, sid: str = "", *, use_llm: bool | None = None) -
 
     from app import user_memory
 
-    if not (uid or "").strip():
+    if not (uid or "").strip(): # 没有用户ID就不写 记忆必须知道属于哪个用户。
         return {"added": 0, "expired": 0, "source": "no_uid", "facts": []}
-    facts = extract(query)
+    facts = extract(query) # 规则先运行
     source = "rule"
-    if not facts and (use_llm if use_llm is not None
+    if not facts and (use_llm if use_llm is not None   # 根据开关决定是否调用模型
                       else os.environ.get("ST_MEM_LLM") == "1"):
         facts = extract_llm(query)
         source = "llm" if facts else "rule"

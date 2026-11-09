@@ -17,10 +17,10 @@ from app.config import DB_PATH
 
 CTX_DB = Path(DB_PATH.parent / "chat_ctx.db")
 
-MAX_TURNS_KEEP = 40          # 每个 sid 最多保留多少轮原文
-WINDOW_TURNS = 8             # 注入 prompt 的最近轮数
-SUMMARIZE_AFTER = 10         # 超过多少轮触发生成摘要
-SUMMARY_MAX_CHARS = 600
+MAX_TURNS_KEEP = 40          # 每个会话最多保存 40 条消息
+WINDOW_TURNS = 8             # 默认读取最近 8 条消息
+SUMMARIZE_AFTER = 10         # 达到 10 条消息时，可以生成摘要
+SUMMARY_MAX_CHARS = 600      # 保存的摘要最多 600 个字符
 
 DDL = [
     """CREATE TABLE IF NOT EXISTS session_turn (
@@ -62,7 +62,7 @@ def append(sid: str, role: str, content: str) -> None:
     finally:
         conn.close()
 
-
+# 读取最近的消息，恢复正常顺序
 def turns(sid: str, limit: int = WINDOW_TURNS) -> list[dict]:
     conn = connect()
     try:
@@ -73,7 +73,7 @@ def turns(sid: str, limit: int = WINDOW_TURNS) -> list[dict]:
     finally:
         conn.close()
 
-
+# 统计当前保存的消息数
 def count(sid: str) -> int:
     conn = connect()
     try:
@@ -82,7 +82,7 @@ def count(sid: str) -> int:
     finally:
         conn.close()
 
-
+# 读取现有的摘要
 def summary(sid: str) -> str:
     conn = connect()
     try:
@@ -92,7 +92,7 @@ def summary(sid: str) -> str:
     finally:
         conn.close()
 
-
+# 新增或更新摘要
 def set_summary(sid: str, text: str, n_turns: int) -> None:
     import time
     conn = connect()

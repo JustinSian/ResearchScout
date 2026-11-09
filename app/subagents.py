@@ -62,7 +62,7 @@ LEX = {
     "神经科学": ["neuroscience"], "心理学": ["psychology"], "经济学": ["economics"],
 }
 
-
+# 生成英文检索词
 def _keywords(text: str, limit: int = 8) -> list[str]:
     """抽取**用于检索的英文词**：先查主题词表，再补英文原词。
 
@@ -71,10 +71,13 @@ def _keywords(text: str, limit: int = 8) -> list[str]:
     """
     text = text or ""
     out: list[str] = []
+    # 1、从中文主题词表翻译
     for zh, ens in LEX.items():
         if zh in text:
             out.extend(ens)
+    # 2、补充用户原句中的英文词
     out += [w.lower() for w in re.findall(r"[A-Za-z][A-Za-z\-]{2,}", text)]
+    # 3、去重并限制数量
     seen, uniq = set(), []
     for w in out:
         if w and w not in seen:
@@ -89,22 +92,28 @@ def topic_labels(text: str) -> list[str]:
 
 
 # ---------------- researcher ----------------
+"""
+researcher 使用多路召回提高覆盖率：人物索引擅长直接找专家，论文索引可以找出人物索引遗漏的作者
+两条结果按 PID 聚合去重，再根据匹配分数和是否有可用档案排序，输出结构化候选和来源指针，为后续分析和核验提供输入。
+"""
 def researcher(query: str, limit: int = 8, log=print) -> dict:
     """多通道召回：人物 FTS + 论文 FTS → 聚合到作者 → 去重排序。
 
     只返回候选与证据指针，不做解释（解释交给 analyst/verifier）。
     """
     from app.search import search_people, search_works
-
+    # 1、提取关键词
     kws = _keywords(query)
+    # 2、用 seen 聚合候选
     seen: dict[int, dict] = {}
     for kw in kws:
+        # 3、人物索引通道 如果同一个人被多个关键词命中，hits 会增加；best 保留最高分；via 记录来源。
         for pid, score in search_people(kw, limit=20):
             d = seen.setdefault(pid, {"pid": pid, "hits": 0, "best": 0.0, "via": set()})
             d["hits"] += 1
             d["best"] = max(d["best"], float(score))
             d["via"].add(f"people:{kw}")
-        # 论文通道：命中论文 → 作者（能捞到人物 FTS 漏掉的人）
+        # 4、论文通道：论文搜索可以找出人物索引中没有出现的作者。
         for wid, score in search_works(kw, limit=20):
             conn = connect()
             try:
@@ -121,6 +130,7 @@ def researcher(query: str, limit: int = 8, log=print) -> dict:
     try:
         cands = []
         for pid, d in seen.items():
+            # 5、查询候选人的基础信息
             row = conn.execute(
                 """SELECT p.name,p.name_zh,p.last_inst,p.status,
                           (SELECT COUNT(*) FROM dossier dz WHERE dz.pid=p.pid) AS has_dossier
@@ -130,11 +140,12 @@ def researcher(query: str, limit: int = 8, log=print) -> dict:
             d.update(name=row["name"], name_zh=row["name_zh"], inst=row["last_inst"],
                      has_dossier=bool(row["has_dossier"]),
                      via=sorted(d["via"]))
-            # 有深档案的优先（能出尽调结论）
+            # 6. 有深档案的专家优先
             d["score"] = round(d["best"] * (1.0 if d["has_dossier"] else 0.6), 4)
             cands.append(d)
     finally:
         conn.close()
+    # 7. 排序和限制结果
     cands.sort(key=lambda x: (-x["score"], -x["hits"]))
     out = {"role": "researcher", "query": query, "keywords": kws,
            "count": len(cands), "candidates": cands[:limit]}
@@ -143,6 +154,7 @@ def researcher(query: str, limit: int = 8, log=print) -> dict:
 
 
 # ---------------- analyst ----------------
+# 查询专家机构
 def _institution_of(pid: int) -> dict | None:
     """机构实体（归一后的）。失败返回 None，不影响分析主流程。"""
     try:
@@ -151,7 +163,7 @@ def _institution_of(pid: int) -> dict | None:
     except Exception:
         return None
 
-
+# 查询常发期刊
 def _person_journals(pid: int, limit: int = 3) -> list[dict]:
     """常发期刊。失败返回空表。"""
     try:
@@ -160,18 +172,19 @@ def _person_journals(pid: int, limit: int = 3) -> list[dict]:
     except Exception:
         return []
 
-
+# 计算候选人的分析指标
 def analyst(pids: list[int], log=print) -> dict:
     """只读档案算指标：h-index、产出节奏、近五年/早期主题、机构与常发期刊。不做检索。"""
     from app.dossiers import dossier
     from app.harness import _term_profile
-
+    # 逐个读取深度档案
     rows = []
     for pid in pids:
         d = dossier(pid)
         if not d:
             rows.append({"pid": pid, "has_dossier": False})
             continue
+        # 提取基本指标
         m = d["metrics"]
         last = m.get("last_year") or 2026
         rows.append({
@@ -180,8 +193,9 @@ def analyst(pids: list[int], log=print) -> dict:
             "works": m.get("works"), "h_index": m.get("h_index"),
             "cites": m.get("cites_sum"), "median_cites": m.get("cites_median"),
             "first_year": m.get("first_year"), "last_year": last,
-            "recent_5y_share": m.get("recent_5y_share"),
+            "recent_5y_share": m.get("recent_5y_share"),   
             "top_venues": (m.get("top_venues") or [])[:3],
+            # 统计近期和早期主题
             "recent_terms": _term_profile(pid, last - 4, last + 1, top=6),
             "early_terms": _term_profile(pid, (m.get("first_year") or last), last - 5, top=6),
             # 机构归一 + 常发期刊：审稿人匹配的两个关键信号
@@ -197,7 +211,7 @@ def analyst(pids: list[int], log=print) -> dict:
 # ---------------- verifier ----------------
 _TERM_STATS: dict | None = None
 
-
+# 预先统计每个词被哪些作者使用
 def _term_stats() -> dict:
     """一次扫全 dossier_work，算每个词在各作者身上的出现次数（进程内缓存）。
 
@@ -208,6 +222,7 @@ def _term_stats() -> dict:
         return _TERM_STATS
     conn = connect()
     try:
+        # 首次调用读取所有论文标题
         rows = conn.execute("SELECT pid, lower(title) AS t FROM dossier_work").fetchall()
     finally:
         conn.close()
@@ -222,7 +237,7 @@ def _term_stats() -> dict:
     _TERM_STATS = {"counts": counts}
     return _TERM_STATS
 
-
+# 判断主题词是否足够属于某些作者
 def _specific_terms(pid: int, words: set[str], min_count: int = 5,
                     ratio: float = 0.8) -> set[str]:
     """这些词里，哪些"属于这个人"。
@@ -249,7 +264,7 @@ def _specific_terms(pid: int, words: set[str], min_count: int = 5,
             out.add(w.lower())
     return out
 
-
+# 逐条校验claim claim是待核验的结构化事实
 def verifier(claims: list[dict], log=print) -> dict:
     """逐条核对：能不能回溯到库里的字段/边/标题。
 

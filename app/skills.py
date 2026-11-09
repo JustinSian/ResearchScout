@@ -18,13 +18,15 @@ from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parents[1] / "skills"
 
-
+# 拆分元信息和正文
 def _parse_front(text: str) -> tuple[dict, str]:
     """极简 front-matter 解析（避免为 3 个字段引入 PyYAML）。"""
+    # 找到front-matter区域
     m = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", text, re.S)
     if not m:
         return {}, text
     meta: dict = {}
+    # 逐行读取键值
     for line in m.group(1).splitlines():
         if ":" not in line:
             continue
@@ -41,7 +43,6 @@ def _parse_front(text: str) -> tuple[dict, str]:
         except Exception:
             meta[k] = v
     return meta, m.group(2)
-
 
 def list_skills() -> list[dict]:
     """只返回元信息（渐进式披露第一层）。"""

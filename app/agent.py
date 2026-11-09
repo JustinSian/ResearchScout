@@ -585,7 +585,7 @@ def tool_citations(query: str, limit: int = 5, hops: int = 1) -> dict:
 
 
 def tool_works(query: str, limit: int = 5) -> dict:
-    hits = search_works(query, limit=limit)
+    hits = search_works(query, limit=limit)  # 搜索论文 返回论文ID和匹配分数的列表
     conn = connect()
     try:
         items = []
@@ -598,7 +598,7 @@ def tool_works(query: str, limit: int = 5) -> dict:
     finally:
         conn.close()
 
-
+"""多步研究流程 返回任务报告、涉及人物、缓存状态"""
 def tool_task(query: str) -> dict:
     """把问题交给多步尽调任务（harness），返回它生成的报告。
 
@@ -643,7 +643,7 @@ def tool_relation(name_a: str, name_b: str) -> dict:
         "a": a, "b": b, "direct": False, "shared": 0,
         "path": sp.get("path") or [], "hops": sp.get("hops")}]}
 
-
+"""停用词和无效来源"""
 _TITLE_STOP_LOCAL = set("""
 a an the of in on for and or with without by to from at as is are was were be been
 study studies analysis analyses trial trials randomized controlled review systematic
@@ -659,6 +659,7 @@ def _local_term_profile(pid: int, since: int, until: int, top: int = 8) -> list:
     from collections import Counter
     import re as _re
     conn = connect()
+    # 先查找专家的论文标题
     try:
         rows = conn.execute(
             """SELECT w.title FROM work_authors wa JOIN works w ON w.wid = wa.wid
@@ -667,26 +668,31 @@ def _local_term_profile(pid: int, since: int, until: int, top: int = 8) -> list:
     finally:
         conn.close()
     c: Counter = Counter()
+    # 对标题分词并过滤
     for r in rows:
         for w in _re.findall(r"[A-Za-z][A-Za-z\-]{2,}", (r["title"] or "").lower()):
             if w in _TITLE_STOP_LOCAL or len(w) < 4:
                 continue
             c[w] += 1
+    #返回出现最多次数的词
     return c.most_common(top)
 
 
 def _local_area(pid: int, name: str) -> dict:
     """本地兜底研究方向：用库内 works 算指标，不依赖深档案（不联网）。"""
     conn = connect()
+    # 查询论文统计信息
     try:
         stat = conn.execute(
             """SELECT COUNT(*) AS n, COALESCE(SUM(w.cites),0) AS cs,
                       MIN(w.year) AS fy, MAX(w.year) AS ly
                FROM work_authors wa JOIN works w ON w.wid = wa.wid
                WHERE wa.pid = ?""", (pid,)).fetchone()
+        # 读取每篇论文的引用数
         cites = [r["cites"] for r in conn.execute(
             """SELECT w.cites FROM work_authors wa JOIN works w ON w.wid = wa.wid
                WHERE wa.pid = ?""", (pid,))]
+        # 按引用量统计发表场所
         venues = conn.execute(
             """SELECT w.venue AS v, SUM(w.cites) AS c
                FROM work_authors wa JOIN works w ON w.wid = wa.wid
@@ -699,11 +705,13 @@ def _local_area(pid: int, name: str) -> dict:
         return {"pid": pid, "name": name, "works": 0, "h_index": 0, "cites": 0,
                 "first_year": None, "last_year": None, "recent": [], "early": [],
                 "top_venues": [], "source": "local", "note": "库内无该专家论文"}
+    # 计算h-index和年份
     cs = sorted(cites, reverse=True)
     h = sum(1 for i, v in enumerate(cs, 1) if v >= i)
     last = int(stat["ly"] or 2026)
     first = int(stat["fy"] or last)
     top_venues = [v for v, _ in venues if (v or "").strip().lower() not in _VENUE_NOISE][:3]
+    # 估算近期和早期方向
     return {"pid": pid, "name": name, "works": n, "h_index": h,
             "cites": int(stat["cs"] or 0), "first_year": first, "last_year": last,
             "recent": _local_term_profile(pid, last - 4, last + 1),
@@ -719,11 +727,13 @@ def tool_research_area(pid: int | None = None, name: str | None = None) -> dict:
     """
     from app.dossiers import dossier
     from app.harness import _term_profile
-
+    # 先定位专家
     p = _resolve_person(pid, name)
     if not p:
         return {"tool": "research_area", "items": [], "count": 0}
+    # 优先读取深度档案
     d = dossier(int(p["pid"]))
+    # 没有档案本地兜底
     if not d:
         # 本地兜底：深档案只覆盖 102 人，其余 47k 人用库内论文现算，
         # 至少给出"研究方向/代表作/期刊/h-index"，而不是"无详情"。
@@ -731,9 +741,11 @@ def tool_research_area(pid: int | None = None, name: str | None = None) -> dict:
         return {"tool": "research_area", "count": 1 if item.get("works") else 0,
                 "items": [item] if item.get("works") else [],
                 "note": item.get("note") if not item.get("works") else item.get("note")}
+    # 读取深档案指标
     m = d["metrics"]
     last = m.get("last_year") or 2026
     pid_ = int(p["pid"])
+    # 生成近期和早期研究方向
     return {"tool": "research_area", "count": 1, "items": [{
         "pid": pid_, "name": d["name_zh"] or d["name"],
         "works": m.get("works"), "h_index": m.get("h_index"), "cites": m.get("cites_sum"),
@@ -749,15 +761,19 @@ def tool_compare(names: list[str]) -> dict:
     try:
         rows = []
         for nm in names[:3]:
+            # 通过姓名查
             hits = search_people(nm, limit=1)
             if not hits:
                 continue
+
+            # 查询专家指标和合作者数量
             r = conn.execute(
                 """SELECT p.pid,p.name,p.name_zh,p.last_inst,p.works_count,p.cited_by_count,
                           p.topics,(SELECT COUNT(*) FROM edges e
                                      WHERE e.a=p.pid OR e.b=p.pid) AS collab
                    FROM people p WHERE p.pid=?""", (hits[0][0],)).fetchone()
             if r:
+                # 解析主题并生成中文标签
                 d = dict(r)
                 d["topics"] = json.loads(d["topics"] or "[]")
                 d["topics_zh"] = [label_topic(x) for x in d["topics"]]
@@ -791,6 +807,7 @@ _KNOWN_CACHE: dict[str, bool] = {}
 
 def _known_person(name: str) -> bool:
     """库里是否真有这个中文名（people.name_zh 或 name），进程内缓存。"""
+    # 先查缓存里有没有查过的名字
     if name in _KNOWN_CACHE:
         return _KNOWN_CACHE[name]
     ok = False
@@ -798,6 +815,7 @@ def _known_person(name: str) -> bool:
         from app.db import connect
         conn = connect()
         try:
+            # 缓存没有命中就执行精确查询
             ok = conn.execute(
                 "SELECT 1 FROM people WHERE name_zh=? OR name=? LIMIT 1", (name, name)
             ).fetchone() is not None
@@ -823,14 +841,17 @@ def extract_names(query: str) -> list[str]:
     cands: list[str] = []
     for seg in re.split(r"[\u4e00-\u9fa5]+", q):
         cands += re.findall(r"\b([A-Z][a-zA-Z.'\-]+(?:\s+[A-Z][a-zA-Z.'\-]+){1,3})\b", seg)
+    # 删除中文问题中的模版词
     stripped = re.sub(r"(找研究|帮我找|查一下|帮我|有哪些人|有哪些|是什么|是谁|介绍一下|一下|"
                       r"介绍|研究|专家|学者|哪些|什么|方向|领域|相关|合作者|合作|论文|文章|"
                       r"近五年|近十年|最近五年|最近|近|五年|十年|几年|的研究方向|研究方向|"
                       r"更适合|适合|谁更|对比|比较|和|与|的|请|查|看)", " ", q)
+    # 找出中文候选并验证
     zh = re.findall(r"[一-龥]{2,4}", stripped)
     # 中文候选必须"库里真有这个人"：否则"一起写""带头人""关系"这类残留会被
     # 当成人名，把"谁和 X 一起写论文"路由成 relation、"介绍某领域"路由成 profile。
     cands += [c for c in zh if _known_person(c)]
+    # 合并去重并做长度检查
     seen, out = set(), []
     for c in cands:
         c = c.strip()
@@ -876,6 +897,7 @@ def _llm_call(q: str, sid: str, hint: dict | None = None) -> dict | None:
     if key in _LLM_PLAN_CACHE:
         return _LLM_PLAN_CACHE[key]
     hint = ""
+    # 提取指代上下文
     try:
         from app.context import has_anaphora, resolve
         if has_anaphora(q):
@@ -884,8 +906,10 @@ def _llm_call(q: str, sid: str, hint: dict | None = None) -> dict | None:
                 hint = str(ctx)[:300]
     except Exception:
         pass
+    # 让模型生成计划，再转成内部调用格式
     parsed = plan_llm.plan(q, hint)
     call = plan_llm.to_call(parsed, q) if parsed else None
+    # 给专家搜索工具补上会话ID
     if call:
         # 必须把 sid 透传给需要它的工具：否则上下文会存到空 sid 下，
         # 下一轮"那这些人呢"就接不上（A/B 里表现为 tools=[] + 要求澄清）。
@@ -911,6 +935,7 @@ def plan_node(state: AgentState) -> dict:
         _anaphora = _ha(state["query"])
     except Exception:
         _anaphora = False
+    # 指代问题不进LLM 非指代尝试LLM规划
     if not _anaphora:
         _llm_plan = _llm_call(state["query"], state.get("sid") or "",
                               state.get("hint") or None)
@@ -921,7 +946,7 @@ def plan_node(state: AgentState) -> dict:
             if _h and _llm_plan.get("tool") == "find_expert":
                 _llm_plan.setdefault("args", {})["hint"] = _h
             return {"plan": [_llm_plan]}
-
+    # 准备规则路由所需信息
     q = state["query"]
     q_en = latin_query(q)
     names = extract_names(q)
@@ -1002,7 +1027,7 @@ def _run_tool(step: dict) -> dict:
         return tool_compare(**args)
     return {"tool": name, "items": [], "count": 0}
 
-
+"""实际调用工具并收集证据"""
 def execute_node(state: AgentState) -> dict:
     plan = state.get("plan") or []
     results = []
@@ -1015,7 +1040,7 @@ def execute_node(state: AgentState) -> dict:
 def _cite(kind: str, ref_id: int, label: str, extra: dict | None = None) -> dict:
     return {"kind": kind, "id": ref_id, "label": label, **(extra or {})}
 
-
+# 根据证据组织最终输出
 def compose_node(state: AgentState) -> dict:
     ev = state.get("evidence") or []
     first = ev[0] if ev else {"tool": "none", "items": [], "count": 0}
