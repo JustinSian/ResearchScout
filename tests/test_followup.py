@@ -94,3 +94,50 @@ def test_no_fallback_when_topic_already_in_query(monkeypatch):
     agent_llm._run_tool("find_expert", {"query": "考古 archaeology"}, "", "",
                         orig="我想找一个考古的专家")
     assert len(calls) == 1, "原主题已在查询里，不该再重试"
+
+
+# ---- 解析失败时必须"回问"，不能把「好」当检索词 ----
+def test_affirmative_unresolved_returns_clarify(monkeypatch):
+    from app import session_memory as sm
+
+    monkeypatch.setattr(agent_llm, "_resolve_followup", lambda sid, q: "")
+    monkeypatch.setattr(sm, "turns", lambda sid, limit=6: [
+        {"role": "user", "content": "强化学习相关的论文"},
+        {"role": "assistant",
+         "content": "需要我进一步看某篇的被引脉络（它引用了谁、谁引用了它）吗？"}])
+
+    called = {"run": 0}
+
+    def _boom(*a, **k):
+        called["run"] += 1
+        return {}
+
+    monkeypatch.setattr(agent_llm, "run", _boom)
+    r = agent_llm.chat("好", uid="", sid="s-clarify")
+    assert r["finish_reason"] == "clarify"
+    assert called["run"] == 0, "解析失败时绝不能把原句送进检索循环"
+    assert "被引脉络" in r["answer"]          # 把上一条提议引出来
+    assert r["refinements"], "应给出可点的下一步"
+
+
+def test_affirmative_resolved_uses_resolved_query(monkeypatch):
+    from app import session_memory as sm
+
+    monkeypatch.setattr(agent_llm, "_resolve_followup",
+                        lambda sid, q: "查一下这篇论文的引用关系")
+    # 避免走到补库/记忆写入
+    monkeypatch.setattr(agent_llm.episodes, "record", lambda *a, **k: None)
+    monkeypatch.setattr(sm, "append", lambda *a, **k: None)
+    monkeypatch.setattr(sm, "maybe_summarize", lambda *a, **k: "")
+    seen = {}
+
+    def _fake_run(query, **kw):
+        seen["q"] = query
+        return {"ok": True, "answer": "ok", "refused": False, "citations": [],
+                "steps": [], "evidence": [], "usage": {}, "cost_usd": 0.0, "ms": 0.0,
+                "engine": "llm", "memory": None, "finish_reason": "answer",
+                "evidence_strength": "none"}
+
+    monkeypatch.setattr(agent_llm, "run", _fake_run)
+    agent_llm.chat("好", uid="", sid="s-resolved")
+    assert seen["q"] == "查一下这篇论文的引用关系"

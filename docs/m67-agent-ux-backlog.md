@@ -540,3 +540,40 @@ pid 是整数、不可注入，故保留（"能复用已验证作者"的效用�
 （档案接口失败时不影响论文关系的写入）。
 
 新增 `tests/test_dedupe_people.py`（5 项）与 `tests/test_expand_fixes.py`（4 项）。
+
+
+---
+
+## 修复：多轮"简短同意"解析失败时，原句被当成检索词
+
+### 问题（用户按代码走查指出）
+
+`chat()` 里：
+
+```python
+if sid and _is_affirmative(query):
+    follow = _resolve_followup(sid, query)
+    if follow:
+        query = follow
+result = run(query, ...)      # ← follow 为空时，query 仍然是"好"
+```
+
+即：解析失败时**没有回问**，把"好"直接送进检索循环。
+实际不一定翻车，是因为 system prompt 里有【最近几轮】，模型可能自己猜懂；
+但这依赖模型而非代码保证——猜不中就会拿"好"去搜库、搜不到再拒答，
+用户看到的就像坏了。而 `_resolve_followup` 的 docstring 却写着"解析失败就回问用户"，
+文档与行为不一致。
+
+### 修复
+
+新增 `_clarify_unresolved(sid, query)`：解析失败时**直接返回 clarify**，不再进检索循环：
+
+- 从上一条助手回复里取出"我提到的那件事"（最后一个问句/句子）并在回答里引用；
+- 按关键词给出可点方向（被引脉络 / 代表作 / 合作者），都没有时给"继续上一条提议"；
+- `finish_reason="clarify"`，前端按追问渲染。
+
+### 测试
+
+`tests/test_followup.py` 新增 2 项：
+- 解析失败 → `finish_reason=clarify` 且 **`run()` 一次都没调用**、回答里引用了上一条提议；
+- 解析成功 → 传给 `run()` 的是解析后的具体查询。

@@ -488,6 +488,47 @@ def _resolve_followup(sid: str, q: str) -> str:
         return ""
     return q2[:120]
 
+def _clarify_unresolved(sid: str, query: str) -> dict:
+    """用户只说了「好/需要」，但没能翻译成具体动作 → 明确回问。
+
+    之前这里会把原句（"好"）直接送进检索循环，靠模型从【最近几轮】里猜；
+    模型猜不中就会拿"好"去搜库、搜不到再拒答——对用户来说就像坏了。
+    现在直接回问，并把上一条回复里"我提到的那件事"引出来，用户点一下就能继续。
+    """
+    prev = ""
+    try:
+        for t in reversed(session_memory.turns(sid, 6) or []):
+            if t.get("role") == "assistant" and (t.get("content") or "").strip():
+                prev = t["content"]
+                break
+    except Exception:
+        prev = ""
+    snippet = ""
+    if prev:
+        tail = prev.strip()
+        cut = max(tail.rfind("？"), tail.rfind("?"), tail.rfind("。"), tail.rfind(chr(10)))
+        snippet = (tail[cut + 1:] if cut >= 0 else tail).strip()
+        snippet = snippet[:80] or tail[-80:]
+    low = (prev or "").lower()
+    refs = []
+    if any(k in low for k in ("被引", "引用", "脉络")):
+        refs.append({"label": "看被引脉络", "query": "查一下这篇论文的引用关系"})
+    if any(k in low for k in ("论文", "代表作")):
+        refs.append({"label": "列出代表作", "query": "列出这几位专家的代表作"})
+    if "合作" in low:
+        refs.append({"label": "看合作者", "query": "这几位专家有哪些合作者"})
+    if not refs:
+        refs = [{"label": "继续上一条提议", "query": "继续上一条回复里提出的下一步"}]
+    answer = "你是想让我继续上一条的内容吗？我没听清具体要做哪一步。"
+    if snippet:
+        answer += "上一条我提到的是：「" + snippet + "」。"
+    answer += "可以直接点下面一个方向，或者把主题/人名再说一遍。"
+    return {"ok": True, "answer": answer, "refused": False, "citations": [],
+            "evidence": [], "steps": [], "refinements": refs,
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0}, "cost_usd": 0.0,
+            "ms": 0.0, "engine": "llm", "memory": None, "finish_reason": "clarify",
+            "evidence_strength": "none"}
+
 def _is_disclosure(query: str) -> bool:
     """判断这句是不是"自我介绍"而不是提问（"我研究帕金森" vs "谁研究帕金森"）。"""
     q = (query or "").strip()
@@ -631,6 +672,9 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
         follow = _resolve_followup(sid, query)
         if follow:
             query = follow
+        else:
+            # 翻译不出来就**不要再把"好"当检索词**：明确回问，并给出可点方向
+            return _clarify_unresolved(sid, query)
     result = run(query, uid=uid, sid=sid, on_step=on_step, on_delta=on_delta,
                  deadline_s=deadline_s, on_should_stop=on_should_stop)
     # 取消/超时是"用户主动中止"，不该再触发补库、补人，也不该追加公示文案
