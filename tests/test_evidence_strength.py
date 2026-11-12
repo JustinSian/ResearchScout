@@ -38,3 +38,27 @@ def test_degraded_reason_when_llm_disabled(monkeypatch):
     r = api._timed_supervise("找专家", "s1", "u1")
     assert r["engine"] == "classic"
     assert r["degraded"] == "LLM 未配置"
+
+
+# ---- 来源必须参与判断：补库来的证据占多数时封顶 medium ----
+def _ev_src(n_verified, n_auto):
+    items = [{"pid": i} for i in range(n_verified)]
+    items += [{"pid": 100 + i, "source": "auto_expand"} for i in range(n_auto)]
+    return [{"tool": "find_expert", "count": len(items), "items": items}]
+
+
+def test_auto_expand_majority_capped_at_medium():
+    # 3 条全是补库来的 → 不能判 high
+    assert agent_llm._evidence_strength(_ev_src(0, 3), False) == "medium"
+    # 3 条里 2 条补库 → 封顶 medium
+    assert agent_llm._evidence_strength(_ev_src(1, 2), False) == "medium"
+
+
+def test_verified_majority_can_be_high():
+    # 5 条里只有 1 条补库 → 仍可 high
+    assert agent_llm._evidence_strength(_ev_src(4, 1), False) == "high"
+
+
+def test_items_without_source_treated_as_verified():
+    ev = [{"tool": "profile", "items": [{"pid": 1}, {"pid": 2}, {"pid": 3}]}]
+    assert agent_llm._evidence_strength(ev, False) == "high"
