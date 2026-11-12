@@ -709,3 +709,57 @@ docstring 写"占多数时封顶 medium"，代码却是 `auto * 2 >= n`（一半
 所以"补库证据降级"只覆盖**多词主题 + 影子索引合并**的路径，不是全覆盖。
 
 测试：`tests/test_evidence_strength.py` 增至 11 项；全量 389 项通过。
+
+
+---
+
+## 修复：证据强度规则"单元测试全绿、真实路径却不生效"
+
+### 问题（Review 发现）
+
+`_evidence_strength` 依赖 `item["source"] == "auto_expand"`，但 `tool_find_expert`
+的四条出口里只有两条把 `source` 带了出来：
+
+| 出口 | 结果 |
+|---|---|
+| ① 纯概念查询（`_topic_experts` 早返回） | ✅ 带 source |
+| ② 结构化条件 → `facets.search` | ❌ SELECT 没查 `p.source` |
+| ③ 默认 CE 路径 | ❌ `_person_brief` 没这个字段；合并时还被覆盖 |
+| ④ CE 全低于阈值 → `_topic_experts` 兜底 | ✅ 带 source |
+
+最隐蔽的是第 ③ 条的合并：
+
+```python
+extra["source"] = "topic"      # 把 auto_expand 覆盖成了"来自主题索引"
+```
+
+于是"补库来的证据"到了证据层已经看不出是补库的 → 比例永远是 0 → **永远判 high**。
+
+### 修复（三处对齐）
+
+1. `_person_brief` 增加 `source`（CE 路径的 SELECT 补 `source` 列）；
+2. `facets.search` 的两个 SELECT 都补 `p.source`；
+3. 合并时不再覆盖 `source`，改用新字段 `via="topic"` 标记匹配路径
+   （全仓库确认 `source=="topic"` 无消费者，改名安全）。
+
+### 测试（这次是"路径级"契约）
+
+在原有 11 项之外补 2 项：
+- `test_facet_path_items_carry_source`：真实查"中国的呼吸科专家"（facet 路径），
+  断言每条 item 都带非空 `source`；
+- `test_ce_path_carries_source_and_merge_keeps_provenance`：monkeypatch
+  `search_works`/`ce_scores` 强制走 CE 主路径，断言 CE 命中的条目带 `source`，
+  且主题合并进来的条目 `source` 仍是 `auto_expand`、`via == "topic"`。
+
+前一轮补的 2 条只验证"字段在 `_RESULT_FIELDS` 里"和"概念路径带字段"，
+这次把**三条真实路径**都钉住了。
+
+### 实测（demo 库）
+
+```
+cancer                        → mode=topic  source='openalex'（3/3）
+中国的呼吸科专家               → mode=facet  source='openalex'（原为 None）
+colorectal cancer screening   → mode=topic  source='openalex'（3/3）
+```
+
+全量 391 项通过。

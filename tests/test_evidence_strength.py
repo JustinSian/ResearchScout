@@ -93,3 +93,45 @@ def test_find_expert_items_carry_source():
     assert items, "demo 库应能查到 cancer 相关专家"
     assert all("source" in it for it in items), \
         f"find_expert 返回缺 source 字段: {sorted(items[0].keys())}"
+
+
+# ---- 真实路径契约：CE / facet / 主题合并都必须带出 source ----
+def test_facet_path_items_carry_source():
+    from app import agent
+    r = agent.tool_find_expert(query="中国的呼吸科专家", limit=3)
+    items = r.get("items") or []
+    assert items, "facet 路径应有结果"
+    assert all(it.get("source") for it in items), \
+        f"facet 路径丢了 source: {[it.get('source') for it in items]}"
+
+
+def test_ce_path_carries_source_and_merge_keeps_provenance(monkeypatch):
+    """CE 主路径要带 people.source；主题合并只加 via，不能覆盖 source。"""
+    from app import agent, rerank_ce
+
+    conn = agent.connect()
+    try:
+        wid = conn.execute("SELECT wid FROM works ORDER BY wid LIMIT 1").fetchone()[0]
+        pid_ce = int(conn.execute(
+            "SELECT pid FROM work_authors WHERE wid=? LIMIT 1", (wid,)).fetchone()[0])
+        # 必须挑一个**不在该论文作者里**的人，否则会被 CE 结果去重掉
+        rows = conn.execute(
+            "SELECT pid, source FROM people WHERE pid NOT IN "
+            "(SELECT pid FROM work_authors WHERE wid=?) LIMIT 5", (wid,)).fetchall()
+    finally:
+        conn.close()
+    pid_topic = int(rows[0]["pid"])
+
+    # 关掉"纯概念查询"的早返回，强制走 CE 主路径
+    monkeypatch.setattr(agent, "_is_concept_query", lambda q: False)
+    monkeypatch.setattr(agent, "search_works", lambda q, limit=10: [(wid, 1.0)])
+    monkeypatch.setattr(rerank_ce, "scores", lambda q, docs: [0.99] * len(docs))
+    monkeypatch.setattr(agent, "_topic_experts", lambda q, limit: [
+        {"pid": pid_topic, "name": "补库人", "source": "auto_expand", "topic_score": 0.6}])
+
+    r = agent.tool_find_expert(query="deep learning medical imaging", limit=3)
+    by_pid = {it["pid"]: it for it in (r.get("items") or [])}
+    assert pid_ce in by_pid, "CE 路径应命中论文作者"
+    assert by_pid[pid_ce].get("source") is not None, "CE 路径的 SELECT 没带 source"
+    assert by_pid[pid_topic]["source"] == "auto_expand", "合并时把真实来源覆盖成了 topic"
+    assert by_pid[pid_topic].get("via") == "topic"

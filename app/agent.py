@@ -41,9 +41,11 @@ class AgentState(TypedDict, total=False):
 
 # ---------------- 工具 ----------------
 def _person_brief(row) -> dict:
+    # source 必须一路带出来：证据强度要靠它区分"人工核验"与"自动补库"
     return {"pid": row["pid"], "name": row["name"], "inst": row["last_inst"],
             "works": row["works_count"], "cites": row["cited_by_count"],
-            "score": round(float(row["confidence"] or 0), 3)}
+            "score": round(float(row["confidence"] or 0), 3),
+            "source": row["source"] if "source" in row.keys() else None}
 
 
 
@@ -456,7 +458,7 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "",
         items = []
         for pid, s in ranked:
             row = conn.execute(
-                "SELECT pid,name,last_inst,works_count,cited_by_count,confidence "
+                "SELECT pid,name,last_inst,works_count,cited_by_count,confidence,source "
                 "FROM people WHERE pid=?", (pid,)).fetchone()
             if row:
                 items.append({**_person_brief(row), "match": round(s, 3),
@@ -471,7 +473,9 @@ def tool_find_expert(query: str, limit: int = 5, sid: str = "",
                 continue
             extra["match"] = extra.get("topic_score", 0.0)
             extra["n_matched_works"] = 0
-            extra["source"] = "topic"
+            # 用 via 标记"这条来自主题索引"；绝不能写进 source——
+            # 那会把 auto_expand 的真实来源覆盖掉，证据强度就永远看不到补库证据
+            extra["via"] = "topic"
             filled.append(extra)
             seen.add(extra["pid"])
             if len(filled) >= limit:
