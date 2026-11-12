@@ -68,18 +68,56 @@ INST_NAME = {
 SORT_WORDS = [
     ("recent", re.compile(r"最近活跃|近年活跃|近期|最新|recent", re.I)),
     ("works", re.compile(r"论文最多|作品最多|产出最多|发表最多|most works|most papers", re.I)),
-    ("cites", re.compile(r"引用最多|被引最多|影响力|影响力最大|权威|大牛|top|leading", re.I)),
+    ("cites", re.compile(r"引用最多|引用最高|被引最多|被引最高|影响力最大|影响力|权威|大牛|top|leading", re.I)),
 ]
 
 HIGH_CITES = re.compile(r"高被引|高引|大牛|顶尖|顶流|影响力大|famous|highly cited", re.I)
+
+_CN_D = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+         "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_U = {"十": 10, "百": 100, "千": 1000, "万": 10000}
+
+
+def to_int(tok: str) -> int | None:
+    """'500' / '五百' / '一千五百' → int；解析不出返回 None。
+
+    用户口语里经常用中文数字（"被引五百以上"），只认阿拉伯数字会把这类句子整句漏掉。
+    """
+    tok = (tok or "").strip()
+    if not tok:
+        return None
+    if tok.isdigit():
+        return int(tok)
+    total = section = number = 0
+    for ch in tok:
+        if ch in _CN_D:
+            number = _CN_D[ch]
+        elif ch in _CN_U:
+            unit = _CN_U[ch]
+            if unit == 10000:
+                section = (section + number) * unit
+                total += section
+                section = number = 0
+            else:
+                if number == 0:
+                    number = 1
+                section += number * unit
+                number = 0
+        else:
+            return None
+    return total + section + number or None
+
+
+_NUM = r"(?:\d{2,7}|[一二两三四五六七八九十百千万]{1,6})"
 # 同一个意图有多种说法，都要认：“被引超过 500” / “被引 500 以上” / “被引 500+” /
-# “被引至少 500” / “引用不低于 500”。只支持一种写法 = 线上换个说法就失效。
+# “被引至少 500” / “引用不低于 500” / “被引超 500” / “被引五百以上”。
+# 只支持一种写法 = 线上换个说法就失效。
 CITES_NUM = re.compile(
     r"(?:被引|引用)(?:数|量|次数)?\s*(?:"
-    r"(?:超过|大于|不低于|不少于|至少|>=|≥|>)\s*(\d{2,7})"
-    r"|(\d{2,7})\s*(?:篇)?\s*(?:以上|及以上|或以上|\+|起)"
+    r"(?:超过|超|大于|不低于|不少于|至少|>=|≥|>)\s*(" + _NUM + r")"
+    r"|(" + _NUM + r")\s*(?:篇)?\s*(?:以上|及以上|或以上|\+|起)"
     r")")
-TOP_N = re.compile(r"(?:前|top)\s*(\d{1,3})", re.I)
+TOP_N = re.compile(r"(?:前|top)\s*(\d{1,3}|[一二两三四五六七八九十百]{1,3})", re.I)
 
 # 解析时要剥掉的功能词，避免它们污染主题
 STOP_PHRASES = re.compile(
@@ -89,7 +127,7 @@ STOP_PHRASES = re.compile(
     r"大学|高校|学院|医院|研究所|研究院|实验室|企业|公司|工业界|业界|"
     r"高被引|顶尖|大牛|影响力|"
     r"引用最多|论文最多|最近活跃|近年活跃|"
-    r"一下|的|在|做|从事|研究|学科|科|系|专业|领域|方向|里|中|条|几个|几位|几名|一些|就行|即可|也可以|就可以|都可以|都行|也行|都成|左右|个|位|名|人", re.I)
+    r"一下|的|在|做|从事|研究|学科|科|系|专业|领域|方向|里|中|条|大陆|大夫|几个|几位|几名|一些|就行|即可|也可以|就可以|都可以|都行|也行|都成|左右|个|位|名|人", re.I)
 
 
 def parse(query: str) -> dict:
@@ -130,7 +168,9 @@ def parse(query: str) -> dict:
     m = CITES_NUM.search(q)
     if m:
         # 两个分支：前置比较词（被引超过 500）/ 后置范围词（被引 500 以上）
-        facets["cites_min"] = int(m.group(1) or m.group(2))
+        _v = to_int(m.group(1) or m.group(2))
+        if _v:
+            facets["cites_min"] = _v
         notes.append(f"被引≥{m.group(1)}")
 
     for name, rx in SORT_WORDS:
@@ -141,8 +181,10 @@ def parse(query: str) -> dict:
 
     m = TOP_N.search(q)
     if m:
-        facets["limit"] = max(1, min(int(m.group(1)), 50))
-        notes.append(f"取前{m.group(1)}")
+        _n = to_int(m.group(1))
+        if _n:
+            facets["limit"] = max(1, min(_n, 50))
+            notes.append(f"取前{_n}")
 
     # 把已识别的条件短语从主题里剥掉，避免"呼吸科 ，被引超过 1000，前 5"这种垃圾主题
     rest = q
