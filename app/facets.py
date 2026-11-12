@@ -237,7 +237,7 @@ def search(facets: dict, limit: int = 0) -> dict:
 
     sql = f"""
         SELECT p.pid, p.name, p.name_zh, p.country, p.works_count, p.cited_by_count,
-               p.updated_at, p.topics,
+               p.updated_at, p.topics, p.source,
                i.name AS inst, i.kind AS inst_kind
         FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id
         WHERE {' AND '.join(where)}
@@ -320,7 +320,7 @@ def search(facets: dict, limit: int = 0) -> dict:
                 extra_args = list(args)
             conds = extra + [f"({like})"]
             sql2 = (f"SELECT p.pid, p.name, p.name_zh, p.country, p.works_count, "
-                    f"p.cited_by_count, i.name AS inst, i.kind AS inst_kind "
+                    f"p.cited_by_count, p.source, i.name AS inst, i.kind AS inst_kind "
                     f"FROM people p LEFT JOIN institutions i ON i.iid = p.inst_id "
                     f"WHERE {' AND '.join(conds)} ORDER BY {order} LIMIT ?")
             rows = [dict(r) for r in conn2.execute(sql2, (*extra_args, *like_args, limit))]
