@@ -577,3 +577,43 @@ result = run(query, ...)      # ← follow 为空时，query 仍然是"好"
 `tests/test_followup.py` 新增 2 项：
 - 解析失败 → `finish_reason=clarify` 且 **`run()` 一次都没调用**、回答里引用了上一条提议；
 - 解析成功 → 传给 `run()` 的是解析后的具体查询。
+
+
+---
+
+## 修复：证据强度没看来源（docstring 说有、代码没做）
+
+### 问题（用户按代码走查指出）
+
+`_evidence_strength` 的 docstring 写着"补库/补人来的证据最多算 medium（来源较弱）"，
+但代码只看 `len(items)`：
+
+```python
+return "high" if len(items) >= 3 else "medium"
+```
+
+也就是说**自动补库来的 3 条证据照样判 high**，与文档不符。
+（`find_expert` 的 items 是带 `source` 字段的，见 `agent.py:95`，判断完全有依据。）
+
+### 修复
+
+把来源纳入判断：`source == "auto_expand"` 的条目**占一半及以上时封顶 medium**，
+其余情况仍按条目数（>=3 为 high）。
+
+选"占比"而不是"只要有一条补库就降级"，是为了避免误伤：
+5 条人工核验过的专家 + 1 条补库，证据依然是强的；反过来 3 条全靠补库，就该标 medium。
+
+### 测试
+
+`tests/test_evidence_strength.py` 新增 3 项：
+- 3 条全补库 / 3 条里 2 条补库 → `medium`；
+- 5 条里 1 条补库 → `high`；
+- 没有 `source` 字段的条目按"已核验"处理（向后兼容）。
+
+全量 380 项通过。
+
+### 同源的既有保护
+
+`chat()` 里对"本轮刚补库后重试"的结果本来就有 `evidence_strength = "medium"` 的硬覆盖，
+本次修复补的是**另一条路径**：库里已有（此前补进来的）auto_expand 专家被检索命中时，
+也应当降级。

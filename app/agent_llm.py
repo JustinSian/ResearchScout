@@ -175,13 +175,20 @@ def _truncate(obj, limit: int = 1600) -> str:
 def _evidence_strength(evidence: list[dict], refused: bool) -> str:
     """证据强度：用**确定性规则**算，不让模型自评。
 
-    模型自评"我很有把握"是最不可靠的信号；这里只看客观事实：
-    命中条目数 + 是否拒答。补库/补人来的证据最多算 medium（来源较弱）。
+    模型自评"我很有把握"是最不可靠的信号；这里只看三件客观事实：
+      1. 是否拒答；
+      2. 命中条目数（>=3 才算充分）；
+      3. 来源：自动补库/补人（source="auto_expand"）来的证据偏弱，
+         占多数时**封顶 medium**——这批人没有经过人工核验。
     """
-    items = [it for ev in (evidence or []) for it in (ev.get("items") or [])]  # 多个工具的所有items合并到一个列表
+    items = [it for ev in (evidence or []) for it in (ev.get("items") or [])]
     if refused or not items:
         return "none"
-    return "high" if len(items) >= 3 else "medium"
+    n = len(items)
+    auto = sum(1 for it in items if (it.get("source") or "") == "auto_expand")
+    if auto * 2 >= n:          # 补库来源占一半及以上 → 来源较弱，封顶 medium
+        return "medium"
+    return "high" if n >= 3 else "medium"
 
 
 def _citations(evidence: list[dict]) -> list[dict]:
