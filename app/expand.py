@@ -7,10 +7,16 @@
   4. 同一主题 24 小时内只扩充一次（缓存判断）。
 
 写入策略（可审计、可回滚）：
-  - 新作者 status='pending'，进入复核队列；**不直接发布**；
-  - 但会立刻参与检索吗？不会——`search_people` 默认只看 published。
-    所以用户体验是"已扩充、待复核"，可以用 `--publish` 强制发布（演示用）。
-  - 所有动作写 `expansion_log`，记录来源、新增数量、消耗。
+  - 新作者：**通过验证且有数据**（works>=1 或 cited>=1）→ 直接 status='published'；
+    验证不通过或数据为空 → status='pending'，进复核队列。
+    为什么默认发布：罕见病方向作者作品本来就少，卡严格阈值会出现"扩了却搜不到"，
+    对用户等于没扩充；用 source='auto_expand' + expansion_log 保证可审计、可回滚。
+  - 索引位置：自动扩充的人只写**影子索引** `people_fts_exp`，并从主索引 `people_fts`
+    移除，避免改变主索引的统计分布；检索时由 `_exp_experts` 与主检索结果合并。
+    所以 published 只代表"数据可用"，能否被搜到还取决于检索路径有没有合并影子索引。
+  - 已有作者只允许 pending → published（且来源必须是 auto_expand），不会降级。
+  - 所有动作写 `expansion_log`，记录来源、新增数量、消耗；
+    `publish_expanded()` 可批量发布仍为 pending 的自动扩充作者（人工确认用）。
 """
 from __future__ import annotations
 
