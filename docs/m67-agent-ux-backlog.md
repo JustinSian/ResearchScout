@@ -660,3 +660,52 @@ status = "published" if (validated and (publish or usable)) else "pending"
 - **主库原有作者（source=openalex）的 pending 不会被补库流程顺手改掉**。
 
 全量 385 项通过。
+
+
+---
+
+## 修（Review 反馈）：证据强度三处改进
+
+用户 review 指出三处，全部属实：
+
+### 1) 比例被论文稀释（中）
+
+原算法把**所有** items（含论文）当分母。一次查询若是"3 个人（2 个补库）+ 5 篇论文"，
+`n=8, auto=2 → 2*2=4 >= 8` 不成立 → 判 `high`，但人物里其实 2/3 是补库来的。
+
+**修复**：比例只在**人物条目**（带 `pid`）里算，论文条目不参与：
+
+```python
+persons = [it for it in items if it.get("pid") is not None]
+if persons:
+    auto = sum(1 for it in persons if (it.get("source") or "") == "auto_expand")
+    if auto * 2 > len(persons):
+        return "medium"
+```
+
+顺带发现并修掉一个真 bug：原写法 `if it.get("pid")` 会把 **`pid=0`** 当成"不是人物"
+（假值陷阱），改用 `is not None`。
+
+### 2) "多数"与"≥ 一半"不一致（低）
+
+docstring 写"占多数时封顶 medium"，代码却是 `auto * 2 >= n`（一半就降级）。
+改为**严格多数** `auto * 2 > len(persons)`，docstring 同步写清"超过一半"，
+并补 2 核验 + 2 补库的边界测试（仍判 high——少数补库不该一棍子打死）。
+
+### 3) 测试是手搓 items，没锁真实字段契约（中）
+
+原测试只验证函数逻辑。若有人从 `_RESULT_FIELDS` 或 `tool_find_expert` 的返回里
+删掉 `source`，测试依然全绿，线上却永远判 high。
+
+**补两条契约测试**：
+- `test_source_survives_result_fields`：`"source" in _RESULT_FIELDS`；
+- `test_find_expert_items_carry_source`：真实调用 `tool_find_expert("cancer")`，
+  断言返回条目都带 `source`（demo 库实测带的是 `openalex`）。
+
+### 影响面（已写进 docstring）
+
+`agent.py` 对"单词概念查询"（关键词 < 2）或 `ST_EXCLUDE_AUTO_EXPAND=1` 时会
+直接过滤掉 auto_expand 的人 → 那种路径下本规则不生效。
+所以"补库证据降级"只覆盖**多词主题 + 影子索引合并**的路径，不是全覆盖。
+
+测试：`tests/test_evidence_strength.py` 增至 11 项；全量 389 项通过。
