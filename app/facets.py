@@ -72,7 +72,13 @@ SORT_WORDS = [
 ]
 
 HIGH_CITES = re.compile(r"高被引|高引|大牛|顶尖|顶流|影响力大|famous|highly cited", re.I)
-CITES_NUM = re.compile(r"被引(?:数|量)?\s*(?:超过|大于|>|>=)\s*(\d{2,7})")
+# 同一个意图有多种说法，都要认：“被引超过 500” / “被引 500 以上” / “被引 500+” /
+# “被引至少 500” / “引用不低于 500”。只支持一种写法 = 线上换个说法就失效。
+CITES_NUM = re.compile(
+    r"(?:被引|引用)(?:数|量|次数)?\s*(?:"
+    r"(?:超过|大于|不低于|不少于|至少|>=|≥|>)\s*(\d{2,7})"
+    r"|(\d{2,7})\s*(?:篇)?\s*(?:以上|及以上|或以上|\+|起)"
+    r")")
 TOP_N = re.compile(r"(?:前|top)\s*(\d{1,3})", re.I)
 
 # 解析时要剥掉的功能词，避免它们污染主题
@@ -83,7 +89,7 @@ STOP_PHRASES = re.compile(
     r"大学|高校|学院|医院|研究所|研究院|实验室|企业|公司|工业界|业界|"
     r"高被引|顶尖|大牛|影响力|"
     r"引用最多|论文最多|最近活跃|近年活跃|"
-    r"一下|的|在|做|从事|研究|学科|科|系|专业|领域|方向|里|中|条|个|位|名|人", re.I)
+    r"一下|的|在|做|从事|研究|学科|科|系|专业|领域|方向|里|中|条|几个|几位|几名|一些|就行|即可|也可以|就可以|都可以|都行|也行|都成|左右|个|位|名|人", re.I)
 
 
 def parse(query: str) -> dict:
@@ -123,7 +129,8 @@ def parse(query: str) -> dict:
         notes.append("被引≥1000")
     m = CITES_NUM.search(q)
     if m:
-        facets["cites_min"] = int(m.group(1))
+        # 两个分支：前置比较词（被引超过 500）/ 后置范围词（被引 500 以上）
+        facets["cites_min"] = int(m.group(1) or m.group(2))
         notes.append(f"被引≥{m.group(1)}")
 
     for name, rx in SORT_WORDS:
