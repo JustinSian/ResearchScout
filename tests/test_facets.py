@@ -77,3 +77,35 @@ def test_facet_notes_are_human_readable():
     notes = f["notes"]
     assert any("国家" in n for n in notes)
     assert any("机构类型" in n for n in notes)
+
+
+# ---- 同一个意图的多种说法都要认（换说法就失效 = 线上踩坑） ----
+import pytest
+
+
+@pytest.mark.parametrize("q,expected", [
+    ("找几个大牛", 1000),                       # 只有"大牛" → 默认高被引
+    ("找几个大牛，被引超过 500", 500),
+    ("找几个大牛，被引 500 以上就行", 500),      # 后置"以上"
+    ("找几个大牛，被引 500+", 500),              # 加号
+    ("被引至少 500 的专家", 500),                # 前置"至少"
+    ("引用不低于 500 的学者", 500),              # "引用" + "不低于"
+    ("被引>=500 的人", 500),
+    ("被引 500", None),                          # 没有范围词 → 不臆测
+])
+def test_cites_min_accepts_multiple_phrasings(q, expected):
+    assert _p(q)["cites_min"] == expected
+
+
+@pytest.mark.parametrize("q", [
+    "找几个大牛，被引 500 以上就行",
+    "找几位大牛，被引超过 800 也可以",
+    "被引至少 500 的学者",
+])
+def test_cites_phrase_does_not_pollute_topic(q):
+    # 数字和口语尾巴不能被当成"主题"，否则会拿它去 FTS 搜
+    assert _p(q)["topic"] == ""
+
+
+def test_topic_survives_when_real_topic_present():
+    assert _p("找研究帕金森的专家，被引 500+")["topic"] == "帕金森"
