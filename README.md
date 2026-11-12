@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/JustinSian/ResearchScout/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinSian/ResearchScout/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-385%20passed-brightgreen.svg)](#测试与评测)
+[![Tests](https://img.shields.io/badge/tests-389%20passed-brightgreen.svg)](#测试与评测)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 [快速开始](#快速开始) · [核心能力](#核心能力) · [架构](#架构) · [评测](#测试与评测) · [API](#api) · [部署](DEPLOY.md)
@@ -120,7 +120,7 @@ curl "http://127.0.0.1:8020/chat?q=那这些人里谁被引最高&uid=demo&sid=s
 ## 测试与评测
 
 ```bash
-python -m pytest tests -q          # 385 项测试
+python -m pytest tests -q          # 389 项测试
 python -m app.eval_agent           # Agent 级：多轮 + 记忆 + 拒答（14 条）
 python -m app.eval_memory          # 记忆五能力（50 条）
 python -m app.rsi --generations 3 --dry-run   # 自我改进（不落库）

@@ -178,17 +178,28 @@ def _evidence_strength(evidence: list[dict], refused: bool) -> str:
     模型自评"我很有把握"是最不可靠的信号；这里只看三件客观事实：
       1. 是否拒答；
       2. 命中条目数（>=3 才算充分）；
-      3. 来源：自动补库/补人（source="auto_expand"）来的证据偏弱，
-         占多数时**封顶 medium**——这批人没有经过人工核验。
+      3. 来源：自动补库/补人（source="auto_expand"）的**人物**证据偏弱，
+         在人物条目里**超过一半**时封顶 medium——这批人没经过人工核验。
+
+    两个容易踩的细节：
+      - 比例只在**人物条目**（带 pid）里算。论文条目没有 source，
+        混进分母会稀释比例（3 人里 2 个补库 + 5 篇论文，不能算成 high）；
+      - 判据是严格"超过一半"（auto*2 > n），不是"达到一半"：
+        2 个核验 + 2 个补库时仍算 high，少数补库不该一棍子打死。
+
+    覆盖面说明：`agent.py` 对"单词概念查询"（关键词<2）或
+    ST_EXCLUDE_AUTO_EXPAND=1 时会直接过滤掉 auto_expand 的人，
+    那种路径下本条规则不会生效——降级只覆盖"多词主题 + 影子索引合并"的路径。
     """
     items = [it for ev in (evidence or []) for it in (ev.get("items") or [])]
     if refused or not items:
         return "none"
-    n = len(items)
-    auto = sum(1 for it in items if (it.get("source") or "") == "auto_expand")
-    if auto * 2 >= n:          # 补库来源占一半及以上 → 来源较弱，封顶 medium
-        return "medium"
-    return "high" if n >= 3 else "medium"
+    persons = [it for it in items if it.get("pid") is not None]
+    if persons:
+        auto = sum(1 for it in persons if (it.get("source") or "") == "auto_expand")
+        if auto * 2 > len(persons):     # 严格超过一半才算"多数"
+            return "medium"
+    return "high" if len(items) >= 3 else "medium"
 
 
 def _citations(evidence: list[dict]) -> list[dict]:
