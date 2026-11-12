@@ -617,3 +617,46 @@ return "high" if len(items) >= 3 else "medium"
 `chat()` 里对"本轮刚补库后重试"的结果本来就有 `evidence_strength = "medium"` 的硬覆盖，
 本次修复补的是**另一条路径**：库里已有（此前补进来的）auto_expand 专家被检索命中时，
 也应当降级。
+
+
+---
+
+## 修复：expand.py 的"写入策略"文档与代码不一致
+
+### 问题
+
+模块 docstring 写着：
+
+> 新作者 status='pending'，进入复核队列；**不直接发布**；
+> 但会立刻参与检索吗？不会——`search_people` 默认只看 published。
+
+而实际代码（且是有意为之，旁边就有注释解释原因）：
+
+```python
+usable = works >= 1 or cited >= 1
+status = "published" if (validated and (publish or usable)) else "pending"
+```
+
+通过验证且有数据的作者**会直接 published**；而且它们经 `_index_person` 写入的是
+**影子索引** `people_fts_exp`，检索时由 `_exp_experts` 合并进来——所以"参与检索"
+这一句也不成立了。
+
+### 修复：改文档，不改代码
+
+代码行为是经过权衡的（罕见病方向作者作品少，卡严格阈值会导致"扩了却搜不到"，
+用户视角等于没扩充），因此保留代码，把 docstring 改写成实际行为，并补上三点：
+
+1. 什么时候 published / 什么时候 pending；
+2. published ≠ 可被搜到，取决于检索路径是否合并影子索引；
+3. 已有作者只允许 pending → published（且来源必须是 auto_expand），不会降级。
+
+### 测试（防文档再次跑偏）
+
+新增 `tests/test_expand_person_status.py` 5 项，直接钉住文档里的三条承诺：
+- 验证通过 + 有数据 → published（且主题进标签、国家取机构国别）；
+- 验证通过但无数据 → pending；
+- 验证不通过 → pending；
+- 已有 auto_expand 的 pending 可以提升为 published；
+- **主库原有作者（source=openalex）的 pending 不会被补库流程顺手改掉**。
+
+全量 385 项通过。
