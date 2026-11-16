@@ -86,6 +86,9 @@ def test_to_call_handles_all_tools():
 
 def test_enabled_requires_mode_and_key(monkeypatch):
     from app import llm, plan_llm
+    # 真实 .env 里的 LLM_API_KEY 优先级高于 DEEPSEEK_API_KEY，
+    # 不清掉会让"清空 key 后应禁用"的断言失效（本机有 .env 时必现）。
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.setenv("ST_PLANNER", "rules")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test")
     assert plan_llm.enabled() is False
