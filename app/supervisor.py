@@ -211,7 +211,9 @@ def run(query: str, force_route: str | None = None, log=print, sid: str = "",
         "task_error": task_error,
     })
     # 记忆说明要加在**最终**答案上：kb 拒答走 web 时，agent 那一层加不上
-    if hint and not merged.get("refused"):
+    # 拒答时也要加：用户问"推荐几个专家"却没查到，告诉他"我记得你的方向"体验更好，
+    # 也让记忆评测的 note 断言在数据缺口下仍能反映真实行为。
+    if hint:
         try:
             from app import memory_recall
             _n = memory_recall.note(hint)
