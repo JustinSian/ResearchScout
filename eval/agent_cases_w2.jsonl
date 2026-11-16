@@ -1,0 +1,7 @@
+{"id": "w2-para-asthma", "q": "帮我找几位研究哮喘的专家", "expect": {"must_any": ["钟南山", "Nanshan Zhong"], "tools_any": ["find_expert"]}}
+{"id": "w2-profile-who", "q": "钟南山是谁", "expect": {"must_any": ["钟南山"], "tools_any": ["profile"]}}
+{"id": "w2-compare", "q": "钟南山和李兰娟谁被引更高", "expect": {"must_any": ["钟南山", "李兰娟"], "tools_any": ["compare"]}}
+{"id": "w2-multi-ref", "turns": ["找研究肺癌的专家", "那这些人里谁被引最高"], "expect": {"must_any": ["被引"], "tools_any": ["find_expert"]}}
+{"id": "w2-mem-update", "setup_queries": ["我研究肺癌", "我现在不做肺癌了，转做哮喘"], "q": "推荐几个专家", "expect": {"memory": true, "must_any": ["哮喘"]}}
+{"id": "w2-facet", "q": "找中国的、被引超过 1000 的呼吸科专家", "expect": {"must_any": ["呼吸", "respiratory", "Respiratory"], "tools_any": ["find_expert"], "items_country_any": ["CN"]}}
+{"id": "w2-collab", "q": "钟南山的合作者有哪些", "expect": {"must_any": ["合作"], "tools_any": ["collaborators"]}}

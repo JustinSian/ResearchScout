@@ -1,0 +1,2 @@
+{"id": "hard-refuse-zh", "q": "谁研究元代青花瓷鉴定", "expect": {"refused": true}}
+{"id": "hard-refuse-en", "q": "谁研究 medieval icelandic poetry", "expect": {"refused": true}}
