@@ -862,7 +862,7 @@ def chat(query: str, uid: str = "", sid: str = "", on_step=None,
         except Exception:
             pass
     # 长期记忆：规则抽取（模型也可能已调用 remember 工具）
-    if (uid or "").strip():
+    if (uid or "").strip() and _is_disclosure(query):
         try:
             extracted = memory_extract.apply(uid, query, sid=sid)
             result["memory_write"] = extracted

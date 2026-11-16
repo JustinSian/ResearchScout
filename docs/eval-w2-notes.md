@@ -56,3 +56,37 @@ python -m app.eval_agent --file eval/agent_cases_hard.jsonl --repeat 3
 1. `w2-para-asthma` 用 `--repeat 3` 再跑，确认是抖动还是真回归；
 2. 修 LLM 路径的拒答：库外主题应该先由 `has_items` 守卫兜住，查清为什么这次没兜住；
 3. 稳定套件扩到 12–15 条，再并入主评测。
+
+---
+
+## 追加：检索请求污染长期记忆（已修）
+
+### 现象
+
+`w2-para-asthma` 第一次能过，重复跑就 0 分，且 `steps`、`evidence` 全空。
+
+### 根因
+
+1. `agent_llm.chat` 对**每一句 query** 都调用 `memory_extract.apply`；
+2. “帮我找几位研究哮喘的专家”里的“我”是祈使句宾语，但抽取器把它当第一人称；
+3. `_TOPIC` 抽出 `topic=哮喘的专家` 写进 `mem_fact`；
+4. 下一次同 uid 查询被 `_memory_answer` 短路，直接返回“根据你的长期记忆…”，不调工具。
+
+### 修复
+
+- `app/memory_extract.py`：先剥掉“帮我/给我/替我/帮忙”等祈使前缀，再判断第一人称；
+- `app/agent_llm.py`：只有 `_is_disclosure(query)` 为真时才写长期记忆；
+- `app/eval_agent.py`：`--repeat` 每轮重跑前清空该 uid 的记忆，避免上一轮污染下一轮；
+- `tests/test_memory.py`：新增“祈使请求不写记忆”的回归测试。
+
+### 结果
+
+- `pytest`：**483 passed**；
+- `w2-para-asthma`：`--repeat 3` 稳定 100%；
+- 原 14 条：13/14（`a-refuse-2` 仍抖）。
+
+### 仍未解决
+
+- `w2-mem-update` 偶发失败（需看是答案不含“哮喘”还是 memory 断言）；
+- 拒答难题集 0/2～1/2 波动，LLM 路径对库外主题仍会用常识作答；
+- 这两类都应先用 `--repeat 3` 观察，再决定改提示词还是改守卫。

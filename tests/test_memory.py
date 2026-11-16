@@ -29,6 +29,13 @@ def test_extract_field():
     assert out[0]["key"] == "field" and out[0]["value"] == "肠道菌群"
 
 
+def test_imperative_request_is_not_self_disclosure():
+    """\"帮我找…\"是检索请求，不是自述；否则会被写成长期记忆并短路后续检索。"""
+    from app.memory_extract import extract
+    assert extract("帮我找几位研究哮喘的专家") == []
+    assert extract("给我推荐几个做肺癌的学者") == []
+
+
 def test_extract_only():
     from app.memory_extract import extract
     out = extract("我现在只做帕金森")

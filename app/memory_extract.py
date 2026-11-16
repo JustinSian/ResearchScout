@@ -62,8 +62,9 @@ def extract(query: str) -> list[dict]:
     q = (query or "").strip()
     if not q:
         return []
-    # 只抽"用户自述"：没有第一人称就不是在说自己的情况
-    if not re.search(r"我|(?<![A-Za-z])[Ii](?![A-Za-z])|my", q):
+    # 先剥掉祈使前缀："帮我找…"里的"我"不是自述，避免把检索请求写成记忆
+    probe = re.sub(r"(?:请)?(?:帮我|给我们|给我|替我|帮忙)", "", q)
+    if not re.search(r"我|(?<![A-Za-z])[Ii](?![A-Za-z])|\bmy\b", probe):
         return []
     out: list[dict] = []
 

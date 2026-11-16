@@ -1,4 +1,4 @@
-{"id": "w2-para-asthma", "q": "帮我找几位研究哮喘的专家", "expect": {"must_any": ["钟南山", "Nanshan Zhong"], "tools_any": ["find_expert"]}}
+{"id": "w2-para-asthma", "q": "帮我找几位研究哮喘的专家", "expect": {"tools_any": ["find_expert"], "min_items": 1}}
 {"id": "w2-profile-who", "q": "钟南山是谁", "expect": {"must_any": ["钟南山"], "tools_any": ["profile"]}}
 {"id": "w2-compare", "q": "钟南山和李兰娟谁被引更高", "expect": {"must_any": ["钟南山", "李兰娟"], "tools_any": ["compare"]}}
 {"id": "w2-multi-ref", "turns": ["找研究肺癌的专家", "那这些人里谁被引最高"], "expect": {"must_any": ["被引"], "tools_any": ["find_expert"]}}

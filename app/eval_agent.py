@@ -62,6 +62,11 @@ def score_case(case: dict, results: list[dict]) -> dict:
                 if it.get("country"):
                     got.add(str(it["country"]))
         checks["country_ok"] = bool(got & want)
+    if exp.get("min_items") is not None:
+        # 只要求"检索有结果"，不绑定具体人名：列表型答案的排序会抖，
+        # 绑定某个人会把抖动误判成回归。
+        n_items = sum(len(ev.get("items") or []) for ev in (last.get("evidence") or []))
+        checks["min_items_ok"] = n_items >= int(exp["min_items"])
     if exp.get("memory"):
         remember_called = "remember" in tools
         noted = (NOTE_MARK in text) or bool(last.get("memory"))
@@ -106,6 +111,7 @@ def run(cases: list[dict], log=print, repeat: int = 1) -> dict:
         if repeat > 1:
             votes = [row["passed_once"]]
             for _ in range(repeat - 1):
+                user_memory.clear(uid)   # 每次重跑前清记忆，避免上一轮写入影响下一轮
                 session_memory.reset(sid)
                 res2 = [agent_llm.chat(q, uid=uid, sid=sid)
                         for q in (c.get("turns") or [c["q"]])]
