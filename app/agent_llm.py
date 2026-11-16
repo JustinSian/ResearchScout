@@ -127,6 +127,22 @@ def _looks_refusal(text: str, citations: int = 0) -> bool:
         return False
     return True
 
+
+# 开头就是强拒答措辞时，1 条"误匹配"引用不该把它豁免成正常回答。
+# 只看前 80 字，避免把"X 没有经典论文"这种局部否定误判。
+_STRONG_REFUSAL = ("查不到", "没有找到能支撑", "资料不足", "无法回答", "没有返回",
+                   "未返回", "没有任何相关", "无法确定")
+
+
+def _is_refusal(text: str, citations: int = 0) -> bool:
+    if _looks_refusal(text, citations):
+        return True
+    # 开头就明确说"查不到/资料不足"，不管带了几条引用，都按拒答处理。
+    # 引用可能来自放宽检索后的无关条目，不能反过来证明"答出来了"。
+    if any(m in (text or "")[:80] for m in _STRONG_REFUSAL):
+        return True
+    return False
+
 """ 在LLM调用前组装系统提示词 返回(prompt_text, memory_hint) 系统提示词和召回到的长期记忆结构"""
 def build_system_prompt(uid: str, sid: str, ep_hint: str = "") -> tuple[str, dict]:
     """拼 system prompt：人设 + 长期记忆 + 本会话摘要 + RSI 策略片段。"""
@@ -330,7 +346,7 @@ def run(query: str, uid: str = "", sid: str = "", max_steps: int = MAX_STEPS,
                     "engine": "llm", "memory": hint or None, "finish_reason": "no_evidence",
                     "evidence_strength": "none"}
         _cits = _citations(evidence)
-        refused = (not text) or _looks_refusal(text, len(_cits))  # 如果回答为空 或者_looks_refusal() 判断它像拒答，就标记为拒答
+        refused = (not text) or _is_refusal(text, len(_cits))  # 如果回答为空 或者_looks_refusal() 判断它像拒答，就标记为拒答
         if not text:
             text = "知识库里没有找到能支撑这个问题的资料。"
             refused = True

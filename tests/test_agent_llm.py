@@ -113,3 +113,19 @@ def test_partial_negation_is_not_refusal():
                           + "填充" * 120, citations=2) is False
     # 短且整段是否定 → 仍是拒答
     assert _looks_refusal("知识库里没有找到相关专家") is True
+
+
+def test_strong_refusal_survives_one_false_positive_citation():
+    """误匹配的 1 条引用，不该把"查不到"豁免成正常回答。"""
+    from app.agent_llm import _is_refusal
+    text = "查不到。我检索了几个关键词，唯一一条论文结果与主题无关，属于误匹配。"
+    assert _is_refusal(text, 1) is True
+    assert _is_refusal("钟南山是呼吸病学专家。", 1) is False
+    assert _is_refusal("DQN 有经典论文；Actor-Critic 没有专门的经典论文。" + "填充" * 120, 2) is False
+
+
+def test_strong_refusal_not_excused_by_many_citations():
+    """放宽检索带回 10 条无关结果，也不能把开头的"查不到"豁免掉。"""
+    from app.agent_llm import _is_refusal
+    text = "**结论：我查不到——这个库里没有研究元代青花瓷鉴定的学者记录。**" + "依据" * 100
+    assert _is_refusal(text, 10) is True

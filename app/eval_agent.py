@@ -85,18 +85,27 @@ def run(cases: list[dict], log=print, repeat: int = 1) -> dict:
     _prev = os.environ.get("ST_AUTO_EXPAND")
     os.environ["ST_AUTO_EXPAND"] = "0"
 
-    rows = []
-    for c in cases:
-        uid = f"eval-{c['id']}"
-        sid = f"eval-{c['id']}-sid"
+    def _reset_case(c, uid, sid):
+        """清状态 + 重新执行 setup。只清不重建会把记忆类用例的前置条件抹掉。"""
+        from app import memory_extract
         try:
             user_memory.clear(uid)
             session_memory.reset(sid)
         except Exception:
             pass
         for q in (c.get("setup_queries") or []):
-            from app import memory_extract
             memory_extract.apply(uid, q, sid=sid)
+        for f in (c.get("setup_facts") or []):
+            try:
+                user_memory.add_fact(uid, f["key"], f["value"], at=f.get("at"))
+            except Exception:
+                pass
+
+    rows = []
+    for c in cases:
+        uid = f"eval-{c['id']}"
+        sid = f"eval-{c['id']}-sid"
+        _reset_case(c, uid, sid)
         t0 = time.perf_counter()
         results = []
         for q in (c.get("turns") or [c["q"]]):
@@ -111,8 +120,7 @@ def run(cases: list[dict], log=print, repeat: int = 1) -> dict:
         if repeat > 1:
             votes = [row["passed_once"]]
             for _ in range(repeat - 1):
-                user_memory.clear(uid)   # 每次重跑前清记忆，避免上一轮写入影响下一轮
-                session_memory.reset(sid)
+                _reset_case(c, uid, sid)   # 清状态 + 重建 setup，避免两件事互相污染
                 res2 = [agent_llm.chat(q, uid=uid, sid=sid)
                         for q in (c.get("turns") or [c["q"]])]
                 votes.append(score_case(c, res2)["passed"])
